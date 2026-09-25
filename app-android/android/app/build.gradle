@@ -8,8 +8,8 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // El número de versión lo pone GitHub al construir (ver .github/workflows/android.yml)
-        versionCode ((project.findProperty('appVersionCode') ?: '1') as String).toInteger()
-        versionName ((project.findProperty('appVersionName') ?: '1.0') as String)
+        versionCode = Integer.parseInt(String.valueOf(project.findProperty('appVersionCode') ?: '1'))
+        versionName = String.valueOf(project.findProperty('appVersionName') ?: '1.0')
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -31,7 +31,7 @@ android {
     }
     buildTypes {
         release {
-            if (System.getenv('ANDROID_KEYSTORE_FILE')) signingConfig signingConfigs.release
+            if (System.getenv('ANDROID_KEYSTORE_FILE')) { signingConfig = signingConfigs.release }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
