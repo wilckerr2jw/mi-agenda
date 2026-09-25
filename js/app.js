@@ -202,9 +202,6 @@ document.addEventListener('click', e => {
     case 'junta-start': return S.juntaStart(id);
     case 'notif-test': return S.notifTest();
     case 'sound-play': return N.playSound(v);
-    case 'timer-start': S.timerStart(); return Nat.schedule();
-    case 'timer-stop': return S.timerStop();
-    case 'timer-discard': S.timerDiscard(); return Nat.schedule();
     case 'apk-update': return Nat.openDownload();
     case 'nat-exact': return Nat.askExact().then(() => S.settings());
     case 'nat-test': return Nat.test().then(ok => toast(ok ? 'En 5 segundos te llega un aviso de prueba' : 'No se pudo programar la prueba'));
@@ -530,8 +527,7 @@ function offerGuide() {
   if (!seen) setTimeout(() => toast('¿Primera vez aquí? Haz un recorrido de un minuto', 'Empezar', tour, 12000), 800);
 }
 
-// Reloj del cronómetro en Hoy (se actualiza solo cada 30 s) y aviso cuando no hay conexión
-setInterval(() => { const el = document.getElementById('timer-live'); if (el && M.timer()) el.textContent = M.fmtHM(M.timerMinutes()); }, 30000);
+// Aviso cuando no hay conexión
 function netState() { document.body.classList.toggle('offline', !navigator.onLine); }
 window.addEventListener('online', () => { netState(); toast('✓ Conexión de vuelta: se guardó todo lo pendiente'); });
 window.addEventListener('offline', netState);
@@ -544,7 +540,7 @@ function showApp() {
   render();
   if (Nat.isNative && !natStarted) {   // app de Android: avisos en el teléfono y aviso de actualización
     natStarted = true;
-    Nat.init({ done: (eid, day) => queueDone(eid, day), log: () => { pendingLog = true; applyPendingDone(); }, noActivity: markNoActivity, timer: () => setTimeout(() => S.timerStop(), 300), changed: () => render() });
+    Nat.init({ done: (eid, day) => queueDone(eid, day), log: () => { pendingLog = true; applyPendingDone(); }, noActivity: markNoActivity, changed: () => render() });
   }
   lockOnce();
   runHashAction();

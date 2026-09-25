@@ -94,8 +94,6 @@ const TOPICS = [
   // ───── Mi Informe
   { g: 'Mi Informe', t: 'Registrar tiempo', when: c => c.on('informe'),
     b: () => `En Informe toca ${k('+')}, elige la categoría, ajusta con ${k('+1h')} ${k('+5m')}, agrega tus cursos bíblicos y ${k('Guardar')}.` },
-  { g: 'Mi Informe', t: 'Cronómetro', when: c => c.on('informe'),
-    b: () => `En ${k('Registrar tiempo')} toca ${k('⏱ Empezar a contar el tiempo')} al salir a predicar. Al volver, en Hoy toca ${k('Detener y registrar')}, elige la categoría y el tiempo ya está puesto.` },
   { g: 'Mi Informe', t: 'Tiempo de crédito', when: c => c.on('informe'),
     b: () => `LDC, Betel y las categorías que marques como crédito no cuentan para tu meta, pero se ven aparte en un tono más claro.` },
   { g: 'Mi Informe', t: 'Tus propias categorías (ej. CEH)', when: c => c.on('informe'),

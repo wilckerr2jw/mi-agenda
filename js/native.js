@@ -24,7 +24,7 @@ const CHANNELS = [
 ];
 
 export const state = { ready: false, perm: '', exact: '', update: null, build: 0, version: '' };
-let handlers = { done: () => {}, log: () => {}, noActivity: () => {}, timer: () => {}, changed: () => {} };
+let handlers = { done: () => {}, log: () => {}, noActivity: () => {}, changed: () => {} };
 let timer = 0;
 
 const hash = s => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h) % 2000000000 + 1; };
@@ -49,7 +49,6 @@ export async function init(h) {
       const x = ev.notification?.extra || {};
       if (ev.actionId === 'done' && x.eid) handlers.done(x.eid, x.day);
       else if (ev.actionId === 'none') handlers.noActivity(x.day || today());
-      else if (x.kind === 'timer') handlers.timer();
       else if (ev.actionId === 'log' || x.kind === 'log') handlers.log();
     });
     try { state.exact = (await LN.checkExactNotificationSetting()).exact_alarm; } catch { state.exact = ''; }
@@ -196,24 +195,22 @@ function updateWidget() {
   const hoy = data.entries.filter(e => e.date === t);
   const mins = hoy.reduce((s, e) => s + (Number(e.minutes) || 0), 0);
   const skip = (M.profile().noActivityDays || []).includes(t);
-  const tm = M.timer();
-  const footer = tm ? `⏱ Contando desde las ${new Date(tm.start).toTimeString().slice(0, 5)}` : hoy.length ? `Registrado hoy: ${M.fmtHM(mins)} h` : skip ? 'Hoy: sin actividad (marcado)' : 'Aún no registras la actividad de hoy';
+  const footer = hoy.length ? `Registrado hoy: ${M.fmtHM(mins)} h` : skip ? 'Hoy: sin actividad (marcado)' : 'Aún no registras la actividad de hoy';
   const d = new Date();
   const title = `Hoy · ${['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'][d.getDay()]} ${d.getDate()}`;
   W.update({ title, lines: items.join('\n') || 'Nada programado para hoy.', footer }).catch(() => {});
 }
 
-async function timerNotice(LN) {
-  const tm = M.timer();
-  if (!tm) { await LN.removeDeliveredNotifications({ notifications: [{ id: 2 }] }).catch(() => {}); await LN.cancel({ notifications: [{ id: 2 }] }).catch(() => {}); return; }
-  const since = new Date(tm.start).toTimeString().slice(0, 5).replace(/^0/, '');
-  await LN.schedule({ notifications: [{ id: 2, title: '⏱ Contando tu tiempo', body: `Desde las ${since}. Toca para detener y registrar.`, channelId: 'general', ongoing: true, autoCancel: false, smallIcon: 'ic_stat_agenda', extra: { kind: 'timer' } }] }).catch(() => {});
+// Limpia el aviso fijo del cronómetro (función retirada en 5.3)
+async function clearOldTimer(LN) {
+  await LN.removeDeliveredNotifications({ notifications: [{ id: 2 }] }).catch(() => {});
+  await LN.cancel({ notifications: [{ id: 2 }] }).catch(() => {});
 }
 
 async function doSchedule() {
   updateWidget();
   const LNt = plug('LocalNotifications');
-  if (LNt) timerNotice(LNt);
+  if (LNt) clearOldTimer(LNt);
   const LN = plug('LocalNotifications');
   if (!LN) return;
   try {
@@ -221,7 +218,7 @@ async function doSchedule() {
     const t = today();
     const list = [...planFor(t, p), ...planFor(addDays(t, 1), p)].slice(0, 60);
     const pending = await LN.getPending();
-    const old = (pending.notifications || []).filter(n => n.id !== 1 && n.id !== 2);
+    const old = (pending.notifications || []).filter(n => n.id !== 1);
     if (old.length) await LN.cancel({ notifications: old.map(n => ({ id: n.id })) });
     if (list.length) await LN.schedule({ notifications: list });
   } catch (e) { console.warn('No se pudieron programar los avisos', e); }

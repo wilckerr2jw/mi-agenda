@@ -1,8 +1,8 @@
 {
-  "version": "5.2",
+  "version": "5.3",
   "notes": [
-    "⏱ Cronómetro: cuenta el tiempo mientras predicas y regístralo al terminar",
     "El resumen de la mañana dice cuántas horas te tocan hoy",
-    "Aviso cuando no hay conexión"
+    "Aviso cuando no hay conexión",
+    "Se quitó el cronómetro de predicación"
   ]
 }

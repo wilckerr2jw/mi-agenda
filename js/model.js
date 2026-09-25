@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '5.2';
+export const APP_VERSION = '5.3';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -241,10 +241,6 @@ export const quickActions = () => {
 export const isModuleVisible = id => !(profile().hiddenModules || []).includes(id);
 export const visibleModules = () => MODULES.filter(m => isModuleVisible(m.id));
 
-// ───────────── Cronómetro de predicación ─────────────
-// profile.timer = { start: ISO } mientras cuentas el tiempo (se ve en todos tus dispositivos)
-export const timer = () => profile().timer || null;
-export const timerMinutes = (t = timer()) => (t?.start ? Math.max(0, Math.round((Date.now() - Date.parse(t.start)) / 60000)) : 0);
 
 // ───────────── Ritmo de la meta mensual ─────────────
 // Compara cuánto llevas con cuánto «deberías» llevar según los días transcurridos del mes,
