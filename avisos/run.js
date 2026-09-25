@@ -151,7 +151,7 @@ async function sendTo(uid, devices, msg) {
 }
 
 const devicesOf = async uid => docs(await db.collection('users').doc(uid).collection('devices').get());
-const prefsOf = async uid => ({ ...DEFAULTS, ...(((await db.doc(`users/${uid}/profile/me`).get()).data() || {}).notif || {}) });
+const prefsOf = async uid => { const pr = (await db.doc(`users/${uid}/profile/me`).get()).data() || {}; return { ...DEFAULTS, ...(pr.notif || {}), _native: !!pr.nativeAppSeen && Date.now() - Date.parse(pr.nativeAppSeen) < 3 * 86400e3 }; };
 const shortDate = iso => { try { return new Intl.DateTimeFormat('es', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(toDate(iso)); } catch { return iso; } };
 
 // ───── Versión nueva publicada: se revisa version.json del sitio y se avisa a todos una vez ─────
@@ -235,6 +235,7 @@ async function daily(uid, devices) {
   const tz = devices.find(d => d.tz)?.tz || 'America/Caracas';
   const now = localNow(tz);
   const p = await prefsOf(uid);
+  if (p._native) return 0;   // usa la app de Android: el teléfono ya programa estos avisos
   const hour = Number(p.hour);
   if (now.hour < hour || now.hour >= hour + CATCH_UP_HOURS) return 0;
   const metaRef = db.doc(`users/${uid}/meta/notif`);
@@ -334,6 +335,7 @@ async function dayReminders(uid, devices) {
   const tz = devices.find(d => d.tz)?.tz || 'America/Caracas';
   const now = localNow(tz);
   const p = await prefsOf(uid);
+  if (p._native) return 0;   // usa la app de Android: el teléfono ya programa estos avisos
   const ref = db.doc(`users/${uid}/meta/plan`);
   let plan = (await ref.get()).data();
   const stale = forceStale.has(uid) || !plan || plan.date !== now.date || Date.now() - Date.parse(plan.builtAt || 0) > 3600e3 || await changedSince(uid, plan.builtAt);

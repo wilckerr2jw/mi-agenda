@@ -50,6 +50,9 @@ export async function init(h) {
     });
     try { state.exact = (await LN.checkExactNotificationSetting()).exact_alarm; } catch { state.exact = ''; }
     state.ready = true;
+    // Aviso al servidor: esta cuenta usa la app de Android (así no se duplican los avisos de horario)
+    const v = M.profile();
+    if (!v.nativeAppSeen || Date.now() - Date.parse(v.nativeAppSeen) > 12 * 3600e3) store.upsert('profile', { ...v, id: 'me', nativeAppSeen: new Date().toISOString() });
     plug('App')?.addListener('resume', () => { schedule(); checkUpdate(); });
     schedule();
     checkUpdate();
