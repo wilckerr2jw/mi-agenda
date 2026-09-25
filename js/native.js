@@ -166,11 +166,13 @@ export async function checkUpdate() {
     if (!res.ok) return;
     const rel = await res.json();
     const n = Number(String(rel.tag_name || '').replace(/\D/g, '')) || 0;
-    state.update = n > state.build ? { build: n, name: rel.name || `1.${n}`, notes: rel.body || '' } : null;
+    const asset = (rel.assets || []).find(a => /\.apk$/i.test(a.name));
+    state.update = n > state.build ? { build: n, name: rel.name || `1.${n}`, notes: rel.body || '', url: asset?.browser_download_url || APK_URL } : null;
     handlers.changed();
   } catch { /* sin internet: se revisa después */ }
 }
 export async function openDownload() {
   const B = plug('Browser');
-  if (B) await B.open({ url: APK_URL }); else window.open(APK_URL, '_blank');
+  const url = state.update?.url || APK_URL;   // el enlace exacto del APK nuevo (así nunca da «404»)
+  if (B) await B.open({ url }); else window.open(url, '_blank');
 }
