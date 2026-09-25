@@ -1956,6 +1956,7 @@ function nativeNotifHtml() {
       <p class="hint pick-h"><b>🔊 Sonidos</b></p>
       <p class="hint">Cada tipo trae su sonido: Suave (eventos), Campanita (rutinas), Alerta (registro de la noche) y Amanecer (resúmenes). Para cambiar alguno: Ajustes del teléfono → Aplicaciones → Mi Agenda → Notificaciones → elige la categoría → Sonido.</p>
       <button type="button" class="btn" data-a="nat-test">Probar un aviso (llega en 5 segundos)</button>
+      ${Nat.state.push ? '<button type="button" class="btn ghost" data-a="notif-test">Probar un aviso desde el servidor (llega en menos de 5 min)</button>' : ''}
     </div>`;
 }
 
