@@ -129,20 +129,22 @@ async function buildMessage(uid, p, now) {
 }
 
 // ───── Envío ─────
+const stats = { ok: 0, fallidos: 0, errores: {} };
 async function sendTo(uid, devices, msg) {
   const tokens = devices.map(d => d.token).filter(Boolean);
   if (!tokens.length) return 0;
   const res = await getMessaging().sendEachForMulticast({
     tokens,
     data: Object.fromEntries(Object.entries(msg).map(([k, v]) => [k, String(v)])),
-    webpush: { headers: { TTL: '43200', Urgency: 'normal' } },
+    webpush: { headers: { TTL: '43200', Urgency: 'high' } },
   });
   // Teléfonos que ya no existen o quitaron el permiso: se borran
   const gone = [];
   res.responses.forEach((r, i) => {
     const code = r.error?.code || '';
     if (/registration-token-not-registered|invalid-registration-token|invalid-argument/.test(code)) gone.push(devices.find(d => d.token === tokens[i]));
-    else if (r.error) log.warn('Aviso no enviado', code, r.error.message);
+    if (r.error) { stats.fallidos++; stats.errores[code] = (stats.errores[code] || 0) + 1; } else stats.ok++;
+    if (r.error && !/registration-token-not-registered|invalid-registration-token|invalid-argument/.test(code)) log.warn('Aviso no enviado', code, r.error.message);
   });
   await Promise.all(gone.filter(Boolean).map(d => db.collection('users').doc(uid).collection('devices').doc(d.id).delete().catch(() => {})));
   return res.successCount;
@@ -375,7 +377,7 @@ async function main() {
     } catch (e) { log.error('Error con un usuario', e.message); }
   }
   await runRef.set({ lastRun: startedAt }, { merge: true });
-  log.info('Listo', { cuentas: users.size, cuentasConAvisos: withPhone, telefonos: phones, resumenDiario: sent, avisosDelDia: during, pruebas: tests, rutinasCompartidas: partner });
+  log.info('Listo', { cuentas: users.size, cuentasConAvisos: withPhone, telefonos: phones, resumenDiario: sent, avisosDelDia: during, pruebas: tests, rutinasCompartidas: partner, entregadosAGoogle: stats.ok, fallidos: stats.fallidos, errores: stats.errores });
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });
