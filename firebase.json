@@ -13,7 +13,8 @@
       "calendario-*.json",
       "avisos/**",
       "mi-agenda-app-855f1-*.json",
-      "*.key.json"
+      "*.key.json",
+      "app-android/**"
     ],
     "headers": [
       {

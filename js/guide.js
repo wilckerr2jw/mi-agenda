@@ -38,6 +38,8 @@ const TOPICS = [
     b: () => `Arriba ves el saludo y unas tarjetas con lo de hoy (compromisos, tareas, tu meta, la próxima reunión): tócalas para ir directo. Si hoy hay reunión con agenda, aparece ${k('▶ Iniciar la junta de hoy')}.` },
   { g: 'Lo básico', t: 'Color y tamaño de letra', when: () => true,
     b: () => `Ajustes → ${k('Apariencia')}: elige el color de la app y el ${k('Tamaño de letra')} (Normal, Grande o Muy grande). Se guarda en cada teléfono.` },
+  { g: 'Lo básico', t: 'App de Android', when: () => true,
+    b: () => `En ${k('⋯ → Ayuda → Descargar la app (APK)')} instalas la app de Android: avisos exactos sin internet y con sonidos propios. Cuando haya una versión nueva de la app, en Hoy aparece ${k('📲 Hay una actualización de la app')}; tócalo e instálala encima (no se borra nada).` },
   { g: 'Lo básico', t: 'Sin internet', when: () => true,
     b: c => `Puedes registrar todo sin señal${c.cloud ? '; se sincroniza solo cuando vuelve la conexión' : ''}.` },
 

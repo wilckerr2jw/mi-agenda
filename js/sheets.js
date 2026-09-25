@@ -14,6 +14,7 @@ import * as R from './reports.js';
 import * as J from './junta.js';
 import { hhmm } from './weekcal.js';
 import * as N from './notify.js';
+import * as Nat from './native.js';
 
 // Permite que app.js reaccione a lo guardado (p. ej. saltar a esa fecha en el calendario)
 export const hooks = { eventSaved: null };
@@ -1915,7 +1916,12 @@ function settingsSection(id) {
         <label class="btn file">Restaurar respaldo<input type="file" id="import-file" accept="application/json,.json" hidden></label>
         <button class="btn" data-a="keep">Importar notas de Google Keep</button>
       </div>`,
-    ayuda: () => `<div class="stack"><button class="btn" data-a="tour">${ic('flag', 'sm')} Recorrido por la app</button>
+    ayuda: () => `${Nat.isNative ? `<h3 class="sub-h">App de Android</h3><p class="hint">Estás usando la app instalada${Nat.state.version ? ` (versión ${esc(Nat.state.version)})` : ''}. Las pantallas se actualizan solas; cuando haya una app nueva te aparecerá un aviso en Hoy.</p>
+        <div class="stack pad"><button class="btn" data-a="apk-update">Descargar la última app</button></div>`
+      : `<h3 class="sub-h">📲 App para Android</h3><p class="hint">Instala la app de Android: avisos exactos aunque no haya internet, con sus propios sonidos, y se abre como cualquier app.</p>
+        <div class="stack pad"><a class="btn primary" href="${Nat.APK_URL}">Descargar la app (APK)</a></div>
+        <details class="howto"><summary>Cómo instalarla</summary><ol><li>Toca <b>Descargar la app</b> desde el teléfono Android.</li><li>Abre el archivo <b>mi-agenda.apk</b> que se descargó. Si el teléfono lo pide, permite «Instalar apps de este origen».</li><li>Toca <b>Instalar</b> y ábrela. Entra con tu mismo correo: verás todo lo tuyo.</li><li>Las actualizaciones: cuando haya una nueva, la app te lo dice en Hoy y la instalas igual, encima de la anterior (no se borra nada).</li></ol></details>`}
+      <div class="stack"><button class="btn" data-a="tour">${ic('flag', 'sm')} Recorrido por la app</button>
         <button class="btn" data-a="guide">${ic('book', 'sm')} Guía rápida</button>
         ${session.isAdmin ? '<a class="btn ghost" href="guia.html" target="_blank" rel="noopener">Guía completa para compartir</a>' : ''}</div>
       <h3 class="sub-h">Instalar en el teléfono</h3>
@@ -1927,8 +1933,35 @@ function settingsSection(id) {
   if (id === 'privacidad') settingsBio();
 }
 
+// Avisos en la app de Android: los programa el propio teléfono (exactos, sin internet, con sonidos por tipo)
+function nativeNotifHtml() {
+  const p = N.prefs();
+  const opt = (k, n) => `<label class="check"><input type="checkbox" data-a="notif-pref" data-v="${k}" ${p[k] ? 'checked' : ''}> ${n}</label>`;
+  const hours = Array.from({ length: 17 }, (_, i) => i + 5);
+  const hh = h => `${h % 12 || 12}:00 ${h < 12 ? 'a. m.' : 'p. m.'}`;
+  return `<p class="hint">Estás en la app de Android: los avisos los programa tu teléfono, así llegan a la hora exacta aunque no haya internet, y cada tipo tiene su sonido.</p>
+    ${Nat.state.perm && Nat.state.perm !== 'granted' ? '<p class="hint warn">No diste permiso para los avisos. Actívalo en Ajustes del teléfono → Aplicaciones → Mi Agenda → Notificaciones.</p>' : '<p class="hint ok">✓ Avisos de la app activos en este teléfono.</p>'}
+    ${Nat.state.exact && Nat.state.exact !== 'granted' ? '<div class="stack pad"><p class="hint warn">Para que lleguen al minuto exacto, permite «Alarmas y recordatorios».</p><button class="btn" data-a="nat-exact">Permitir avisos exactos</button></div>' : ''}
+    <div class="stack pad">
+      <p class="hint pick-h"><b>Resumen de la mañana</b></p>
+      <label class="mini-f"><span>Hora del resumen</span><select id="notif-hour">${hours.map(h => `<option value="${h}" ${h === Number(p.hour) ? 'selected' : ''}>${hh(h)}</option>`).join('')}</select></label>
+      ${opt('tasks', 'Tareas para hoy y atrasadas')}${opt('events', 'Compromisos de hoy')}${opt('junta', 'Reuniones de hoy')}
+      <p class="hint pick-h"><b>📝 Registro de la noche (importante)</b></p>
+      <label class="mini-f"><span>Hora del recordatorio</span><select id="notif-logat">${[1140, 1170, 1200, 1230, 1260, 1290, 1320].map(m => `<option value="${m}" ${m === Number(p.logAt) ? 'selected' : ''}>${Math.floor(m / 60) - 12}:${String(m % 60).padStart(2, '0')} p. m.</option>`).join('')}</select></label>
+      <p class="hint pick-h"><b>Durante el día</b></p>
+      ${opt('soon', 'Antes de cada evento')}
+      <label class="mini-f"><span>¿Cuánto antes?</span><select id="notif-before">${[5, 10, 15, 30, 60].map(n => `<option value="${n}" ${n === Number(p.before) ? 'selected' : ''}>${n < 60 ? `${n} min` : '1 hora'}</option>`).join('')}</select></label>
+      ${opt('taskTime', 'Tareas con hora')}${opt('meetingSoon', 'Reuniones: 1 hora antes')}${opt('routine', 'Rutina sin marcar')}${opt('streak', 'Racha en peligro (9:15 p. m.)')}${opt('tomorrow', 'Por la noche: lo que tienes mañana')}
+      ${opt('details', 'Mostrar los títulos de tareas y reuniones')}
+      <p class="hint pick-h"><b>🔊 Sonidos</b></p>
+      <p class="hint">Cada tipo trae su sonido: Suave (eventos), Campanita (rutinas), Alerta (registro de la noche) y Amanecer (resúmenes). Para cambiar alguno: Ajustes del teléfono → Aplicaciones → Mi Agenda → Notificaciones → elige la categoría → Sonido.</p>
+      <button type="button" class="btn" data-a="nat-test">Probar un aviso (llega en 5 segundos)</button>
+    </div>`;
+}
+
 // Avisos en el teléfono (solo aparece si la app está en la nube y tiene la clave de avisos)
 function notifSettingsHtml() {
+  if (Nat.isNative) return nativeNotifHtml();
   const why = N.unsupportedReason();
   if (why) return `<p class="hint warn">${why}</p>`;
   const on = N.isOn(), p = N.prefs();

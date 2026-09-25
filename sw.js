@@ -6,12 +6,12 @@
 //  · Datos y sesión (Firestore / Auth): no se tocan; Firestore tiene su propia caché sin conexión.
 // Al añadir archivos nuevos a la app, agrégalos a SHELL y sube el número de VERSION.
 
-const VERSION = 'agenda-v4.9';
+const VERSION = 'agenda-v5.0';
 const CDN = 'agenda-cdn';
 const SHELL = [
   './', 'index.html', 'guia.html', 'manifest.webmanifest',
   'css/styles.css',
-  'js/agenda.js', 'js/app.js', 'js/config.js', 'js/guide.js', 'js/tour.js', 'js/junta.js', 'js/keep.js', 'js/lock.js', 'js/notify.js', 'js/reports.js', 'js/model.js', 'js/sheets.js', 'js/store.js', 'js/theme.js', 'js/util.js', 'js/views.js', 'js/weekimg.js', 'js/weekcal.js',
+  'js/agenda.js', 'js/app.js', 'js/config.js', 'js/guide.js', 'js/tour.js', 'js/junta.js', 'js/keep.js', 'js/lock.js', 'js/notify.js', 'js/reports.js', 'js/model.js', 'js/sheets.js', 'js/store.js', 'js/theme.js', 'js/util.js', 'js/views.js', 'js/weekimg.js', 'js/weekcal.js', 'js/native.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/n-badge.png', 'sonidos/campanita.mp3',
 ];
 

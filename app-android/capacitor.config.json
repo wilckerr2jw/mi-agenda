@@ -1,0 +1,19 @@
+{
+  "appId": "app.miagenda.teocratica",
+  "appName": "Mi Agenda",
+  "webDir": "www",
+  "server": {
+    "url": "https://mi-agenda-app-855f1.web.app",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_agenda",
+      "iconColor": "#1D5F5A"
+    }
+  }
+}

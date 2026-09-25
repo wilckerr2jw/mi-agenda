@@ -147,6 +147,19 @@ ni siquiera el administrador) y el administrador decide **qué tipo de perfil** 
 Colecciones nuevas en Firestore: `admins/{uid}` (a mano), `access/{uid}` (tipo asignado, solo lo escribe el
 administrador) y `directory/{uid}` (correo y nombre de cada cuenta, para la lista del administrador).
 
+## App de Android (v5.0) — `app-android/`
+
+- Proyecto **Capacitor 8** que abre la web publicada (`server.url`), así las pantallas se actualizan solas.
+  Solo hace falta un APK nuevo si cambia algo nativo (permisos, sonidos, íconos, complementos).
+- `js/native.js`: cuando la web corre dentro de la app, programa **avisos locales** (exactos, sin internet) con
+  4 canales y sonidos (`res/raw/*.mp3`), botón «✓ Ya lo hice» y «📝 Registrar ahora», y revisa si hay APK nuevo
+  (último release `apk-N` de GitHub frente al número de versión instalado).
+- **GitHub Actions → App Android** (`.github/workflows/android.yml`) construye el APK firmado y lo publica en
+  Releases. Descarga fija: `https://github.com/wilckerr2jw/mi-agenda/releases/latest/download/mi-agenda.apk`.
+- **Llave de firma** (una sola vez): en `.publicar/android-llave.txt` están los dos secretos que hay que crear en
+  GitHub → Settings → Secrets and variables → Actions: `ANDROID_KEYSTORE_PASS` y `ANDROID_KEYSTORE_B64`.
+  Guarda también `.publicar/miagenda.jks`: **sin esa llave no se pueden publicar actualizaciones de la app**.
+
 ## Novedades de la v4.1: eventos compartidos y aviso de versión nueva
 
 - **Eventos compartidos**: colección `shared/{id}` (`owner`, `members`, `memberNames`, campos del evento). Todos los

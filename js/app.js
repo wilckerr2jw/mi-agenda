@@ -9,6 +9,7 @@ import { startTour } from './tour.js';
 import * as Lock from './lock.js';
 import * as N from './notify.js';
 import * as WC from './weekcal.js';
+import * as Nat from './native.js';
 import { $, $$, esc, today, toast, photoToDataUrl, addDays } from './util.js';
 
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
@@ -194,6 +195,9 @@ document.addEventListener('click', e => {
     case 'junta-start': return S.juntaStart(id);
     case 'notif-test': return S.notifTest();
     case 'sound-play': return N.playSound(v);
+    case 'apk-update': return Nat.openDownload();
+    case 'nat-exact': return Nat.askExact().then(() => S.settings());
+    case 'nat-test': return Nat.test().then(ok => toast(ok ? 'En 5 segundos te llega un aviso de prueba' : 'No se pudo programar la prueba'));
     case 'shared-unhide': store.upsert('profile', { ...M.profile(), id: 'me', sharedHidden: [] }); return S.settings();
     case 'ag-deadline-off': return S.agendaSetDeadline('');
     case 'ag-mode': return S.agendaSetMode(v);
@@ -516,10 +520,15 @@ function offerGuide() {
   if (!seen) setTimeout(() => toast('¿Primera vez aquí? Haz un recorrido de un minuto', 'Empezar', tour, 12000), 800);
 }
 
+let natStarted = false;
 function showApp() {
   $('#login').hidden = true;
   $('#app').hidden = false;
   render();
+  if (Nat.isNative && !natStarted) {   // app de Android: avisos en el teléfono y aviso de actualización
+    natStarted = true;
+    Nat.init({ done: (eid, day) => queueDone(eid, day), log: () => { pendingLog = true; applyPendingDone(); }, changed: () => render() });
+  }
   lockOnce();
   runHashAction();
   offerGuide();
@@ -550,6 +559,7 @@ async function boot() {
   store.onData(() => { if (!$('#app').hidden) render(); });
   // «✓ Ya lo hice» desde un aviso: marca la rutina en cuanto se cargan los datos
   store.onData(applyPendingDone);
+  store.onData(() => Nat.schedule());
   try {
     const q = new URLSearchParams(location.search);
     if (q.get('hecho')) queueDone(q.get('hecho'), q.get('dia'));

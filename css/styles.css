@@ -862,3 +862,5 @@ body.wc-dragging, body.wc-dragging * { cursor: grabbing !important; user-select:
 .howto { margin: 6px 0 4px; }
 .howto summary { cursor: pointer; font-weight: 600; color: var(--primary); }
 .howto ol { padding-left: 20px; margin: 6px 0; }
+
+.log-now.apk-up { background: color-mix(in srgb, var(--primary) 12%, var(--surface)); border-color: color-mix(in srgb, var(--primary) 35%, transparent); }
