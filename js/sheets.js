@@ -666,6 +666,7 @@ export function personDetail(id, back = null) {
         <button class="btn small" data-a="new-task-for" data-id="${id}">Nueva tarea</button>
         ${p.isMe ? '' : `<button class="btn small" data-a="visit-new" data-id="${id}">＋ Anotar visita</button>`}
       </div>
+      ${M.deptsOfPerson(id).length ? `<div class="tagrow">${M.deptsOfPerson(id).map(({ d, head }) => `<button class="chip dept-chip" data-a="dept" data-id="${d.id}">${head ? '★ ' : ''}${esc(d.name)}</button>`).join('')}</div>` : ''}
       ${p.isMe ? '' : followHtml(p)}
       <h3 class="sub-h">Tareas abiertas</h3>
       ${tasks.length ? `<div class="stack">${tasks.map(t => `<button class="card mini" data-a="task-in-sheet" data-id="${t.id}" data-bk="person" data-bid="${id}"><strong>${esc(t.title)}</strong><span class="meta">${esc(M.kindLabel(t.kind))}${t.due ? `, ${fmtShort(t.due)}` : ''}</span></button>`).join('')}</div>` : '<p class="hint">No hay tareas abiertas para esta persona.</p>'}
@@ -769,6 +770,62 @@ function saveStudy(pid, r, form) {
   store.upsert('people', { ...p, study: { active, pub: r.pub || '', lesson: r.lesson || '', every: Number(r.every) || 7 } });
   toast(active ? 'Curso bíblico guardado' : 'Curso marcado como terminado');
   closeOrBack();
+}
+
+// ───────────── Congregación: departamentos del organigrama ─────────────
+export function deptSheet(id, preset = {}) {
+  const d = id ? store.get('depts', id) : null;
+  const v = d || { name: '', ic: 'flag', parentId: preset.parentId || '', headId: '', headName: '', helperIds: [], notes: '' };
+  const block = id ? new Set([id, ...M.deptDescendants(id)]) : new Set();
+  const parents = [...(data.depts || [])].filter(x => !block.has(x.id)).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  const kids = id ? (data.depts || []).filter(x => x.parentId === id).length : 0;
+  open({
+    title: d ? d.name : 'Nuevo departamento', focus: d ? null : '#name',
+    body: `${formTag('dept', d?.id)}
+      ${fld('Nombre', `<input id="name" name="name" required maxlength="80" value="${esc(v.name)}" placeholder="Ej. Audio y video">`, 'name')}
+      ${fld('Depende de', `<select id="parentId" name="parentId"><option value="">Nadie (arriba de todo)</option>${parents.map(x => `<option value="${x.id}" ${x.id === v.parentId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`, 'parentId')}
+      <div class="f"><label for="headId">Responsable</label>${peopleSelect('headId', v.headId, 'Sin asignar')}
+        <input id="headName" name="headName" maxlength="80" value="${esc(v.headId ? '' : v.headName || '')}" placeholder="…o escribe su nombre si no está en Personas" aria-label="Nombre del responsable"></div>
+      <div class="f"><span class="lbl">Ayudantes</span>${sortedPeople().length ? pickList('', sortedPeople(), 'helperIds', v.helperIds || [], p => esc(p.name) + (p.role ? ` <span class="hint">${esc(p.role)}</span>` : '')) : '<p class="hint">Agrega personas en la pestaña Personas para elegirlas aquí.</p>'}</div>
+      <div class="f"><span class="lbl">Icono</span><div class="iconpick">${M.DEPT_ICONS.map(x => `<label><input type="radio" name="ic" value="${x}" ${x === (v.ic || 'flag') ? 'checked' : ''}><span>${ic(x)}</span></label>`).join('')}</div></div>
+      ${fld('Notas <span class="hint">(opcional)</span>', `<textarea id="notes" name="notes" rows="2" maxlength="400">${esc(v.notes || '')}</textarea>`, 'notes')}
+    </form>
+    ${d ? `<button type="button" class="btn pad-top" data-a="dept-new" data-id="${d.id}">＋ Agregar un departamento debajo</button>` : ''}
+    ${kids ? `<p class="hint pad-top">Tiene ${kids} ${kids === 1 ? 'departamento' : 'departamentos'} debajo. Si lo eliminas, esos suben un nivel.</p>` : ''}`,
+    actions: foot('depts', d?.id),
+  });
+}
+function saveDept(id, r, form) {
+  const prev = id ? store.get('depts', id) : {};
+  const helperIds = new FormData(form).getAll('helperIds').filter(x => x !== r.headId);
+  const siblings = (data.depts || []).filter(x => (x.parentId || '') === (r.parentId || '') && x.id !== id);
+  store.upsert('depts', { ...prev, id: id || uid(), name: r.name, ic: r.ic || 'flag', parentId: r.parentId || '', headId: r.headId || '', headName: r.headId ? '' : (r.headName || ''), helperIds, notes: r.notes || '',
+    order: prev.order ?? (siblings.reduce((m, x) => Math.max(m, Number(x.order) || 0), 0) + 1) });
+  closeOrBack();
+}
+// Si se elimina uno, los que dependían de él pasan a depender de su «padre»
+export function deptRemove(id) {
+  const d = store.get('depts', id);
+  if (!d) return;
+  const kids = (data.depts || []).filter(x => x.parentId === id);
+  kids.forEach(k => store.upsert('depts', { ...k, parentId: d.parentId || '' }));
+  store.remove('depts', id);
+  close();
+  toast('Departamento eliminado', 'Deshacer', () => { store.restore('depts', d); kids.forEach(k => store.upsert('depts', { ...store.get('depts', k.id), parentId: id })); });
+}
+// Carga la lista sugerida (solo los que aún no existen con ese nombre)
+export function deptLoadSuggested() {
+  const have = new Map((data.depts || []).map(d => [norm(d.name), d.id]));
+  const idOf = {};
+  let n = 0;
+  M.DEPT_SUGGESTED.forEach((s, i) => {
+    if (have.has(norm(s.n))) { idOf[s.k] = have.get(norm(s.n)); return; }
+    const id = uid();
+    idOf[s.k] = id;
+    store.upsert('depts', { id, name: s.n, ic: s.ic, parentId: s.p ? idOf[s.p] || '' : '', headId: '', headName: '', helperIds: [], notes: '', order: i + 1 });
+    n++;
+  });
+  toast(n ? `Listo: ${n} departamentos. Toca cada uno para poner quién lo atiende` : 'Ya tenías todos los departamentos sugeridos');
 }
 
 // Estas tres conservan la hoja anterior (p. ej. el grupo desde el que se abrió la ficha)
@@ -2283,7 +2340,7 @@ export function importPreview(txt) {
   if (!total) { importPending = null; return toast('El respaldo no tiene elementos'); }
   const replace = counts.reduce((n, [c, l]) => n + l.filter(x => store.get(c, x.id)).length, 0);
   importPending = txt;
-  const names = { notes: 'notas', events: 'eventos', tasks: 'tareas', people: 'personas', groups: 'grupos', meetings: 'reuniones', entries: 'registros de tiempo', profile: 'perfil', weeks: 'semanas con objetivos' };
+  const names = { notes: 'notas', events: 'eventos', tasks: 'tareas', people: 'personas', groups: 'grupos', meetings: 'reuniones', entries: 'registros de tiempo', profile: 'perfil', weeks: 'semanas con objetivos', depts: 'departamentos' };
   open({
     title: 'Restaurar respaldo', back: settings,
     body: `<p>El archivo trae <b>${total}</b> elementos:</p>
@@ -2323,7 +2380,7 @@ export async function autoBackupRestore(date, only) {
 
 // ───────────── Eliminar con opción de deshacer ─────────────
 
-const DELETED = { events: 'Evento eliminado', tasks: 'Tarea eliminada', people: 'Persona eliminada', groups: 'Grupo eliminado', notes: 'Nota eliminada', meetings: 'Reunión eliminada', entries: 'Registro eliminado', weeks: 'Semana eliminada' };
+const DELETED = { events: 'Evento eliminado', tasks: 'Tarea eliminada', people: 'Persona eliminada', groups: 'Grupo eliminado', notes: 'Nota eliminada', meetings: 'Reunión eliminada', entries: 'Registro eliminado', weeks: 'Semana eliminada', depts: 'Departamento eliminado' };
 
 export function removeWithUndo(col, id) {
   const item = store.get(col, id);
@@ -2366,6 +2423,7 @@ export function submit(form) {
     case 'weekplan': return saveWeekPlan(r);
     case 'pin': return savePin(id, r);
     case 'visit': return saveVisit(id, r);
+    case 'dept': return saveDept(id, r, form);
     case 'study': return saveStudy(id, r, form);
   }
 }

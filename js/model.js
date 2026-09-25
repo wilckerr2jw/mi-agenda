@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '5.6';
+export const APP_VERSION = '5.7';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -234,6 +234,7 @@ export const MODULES = [
   { id: 'personas', n: 'Personas' },
   { id: 'notas',    n: 'Notas' },
   { id: 'informe',  n: 'Informe' },
+  { id: 'congregacion', n: 'Congregación' },
 ];
 // ───────────── Accesos rápidos (fila de botones en Hoy y accesos del ícono de la app) ─────────────
 export const QUICK_ACTIONS = [
@@ -455,6 +456,52 @@ export function pastoreoStatus(p, t = today()) {
 }
 export const studentsLate = (t = today()) => data.people.filter(isStudent).filter(p => studyStatus(p, t).late);
 export const pastoreoLate = (t = today()) => (canShepherd() ? data.people.filter(isShepherdable).filter(p => pastoreoStatus(p, t).late) : []);
+
+// ───────────── Congregación: organigrama de departamentos ─────────────
+// depts/{id} = { name, ic, parentId, order, headId, headName, helperIds, notes }
+export const DEPT_SUGGESTED = [
+  { k: 'cuerpo',    n: 'Cuerpo de ancianos',                             ic: 'shield' },
+  { k: 'coord',     n: 'Coordinador del cuerpo de ancianos',             ic: 'flag',     p: 'cuerpo' },
+  { k: 'secre',     n: 'Secretario',                                     ic: 'letter',   p: 'cuerpo' },
+  { k: 'serv',      n: 'Superintendente de servicio',                    ic: 'globe',    p: 'cuerpo' },
+  { k: 'vym',       n: 'Superintendente de la reunión Vida y Ministerio', ic: 'school',  p: 'cuerpo' },
+  { k: 'atalaya',   n: 'Conductor de La Atalaya',                        ic: 'book',     p: 'cuerpo' },
+  { k: 'discursos', n: 'Coordinador de discursos públicos',              ic: 'mic',      p: 'cuerpo' },
+  { k: 'cuentas',   n: 'Cuentas',                                        ic: 'clip',     p: 'coord' },
+  { k: 'mant',      n: 'Mantenimiento del Salón del Reino',              ic: 'hammer',   p: 'coord' },
+  { k: 'limpieza',  n: 'Limpieza',                                       ic: 'building', p: 'coord' },
+  { k: 'av',        n: 'Audio y video',                                  ic: 'mic',      p: 'coord' },
+  { k: 'acom',      n: 'Acomodadores',                                   ic: 'users',    p: 'coord' },
+  { k: 'informes',  n: 'Informes y registros',                           ic: 'clip',     p: 'secre' },
+  { k: 'terr',      n: 'Territorios',                                    ic: 'pin',      p: 'serv' },
+  { k: 'lit',       n: 'Literatura',                                     ic: 'book',     p: 'serv' },
+  { k: 'grupos',    n: 'Grupos de servicio',                             ic: 'users',    p: 'serv' },
+  { k: 'ppub',      n: 'Predicación pública',                            ic: 'cart',     p: 'serv' },
+  { k: 'consejero', n: 'Consejero auxiliar',                             ic: 'chat',     p: 'vym' },
+];
+export const DEPT_ICONS = ['shield', 'flag', 'letter', 'globe', 'school', 'book', 'mic', 'clip', 'hammer', 'building', 'users', 'pin', 'cart', 'chat', 'heart', 'car', 'calendar'];
+const byOrder = (a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || (a.name || '').localeCompare(b.name || '', 'es');
+// Árbol: raíces (sin padre o con un padre que ya no existe) y sus hijos, sin ciclos
+export function deptTree() {
+  const all = data.depts || [];
+  const ids = new Set(all.map(d => d.id));
+  const kids = id => all.filter(d => d.parentId === id && d.id !== id).sort(byOrder);
+  const seen = new Set();
+  const node = d => { if (seen.has(d.id)) return null; seen.add(d.id); return { d, children: kids(d.id).map(node).filter(Boolean) }; };
+  return all.filter(d => !d.parentId || !ids.has(d.parentId)).sort(byOrder).map(node).filter(Boolean);
+}
+// Los que cuelgan de un departamento (para no elegirlos como su «padre»)
+export function deptDescendants(id) {
+  const out = new Set(); const all = data.depts || [];
+  const walk = x => all.filter(d => d.parentId === x).forEach(d => { if (!out.has(d.id)) { out.add(d.id); walk(d.id); } });
+  walk(id);
+  return out;
+}
+export const personName = id => data.people.find(p => p.id === id)?.name || '';
+export const deptHead = d => personName(d.headId) || d.headName || '';
+export const deptHelpers = d => (d.helperIds || []).map(personName).filter(Boolean);
+export const deptsOfPerson = pid => (data.depts || []).filter(d => d.headId === pid || (d.helperIds || []).includes(pid))
+  .map(d => ({ d, head: d.headId === pid })).sort((a, b) => (b.head ? 1 : 0) - (a.head ? 1 : 0) || byOrder(a.d, b.d));
 
 // ───────────── Resumen del año de servicio (para la gráfica) ─────────────
 export function yearSummary(withCredit = false) {

@@ -98,6 +98,9 @@ const TOPICS = [
   { g: 'Mi Informe', t: 'Tu año de servicio', when: c => c.on('informe'),
     b: () => `En Informe, la gráfica «Tu año de servicio» muestra tus horas por mes, tu promedio, tu mejor mes y cuántas tendrías al final del año si sigues así.` },
 
+  { g: 'Personas y notas', t: 'Organigrama de la congregación', when: c => c.on('congregacion'),
+    b: () => `En ${k('Congregación')} toca ${k('Cargar departamentos sugeridos')}, luego cada departamento para poner a su responsable y ayudantes. ${k('Compartir imagen')} lo manda por WhatsApp.` },
+
   // ───── Mi Informe
   { g: 'Mi Informe', t: 'Registrar tiempo', when: c => c.on('informe'),
     b: () => `En Informe toca ${k('+')}, elige la categoría, ajusta con ${k('+1h')} ${k('+5m')}, agrega tus cursos bíblicos y ${k('Guardar')}.` },

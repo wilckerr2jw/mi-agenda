@@ -428,7 +428,7 @@ async function checkPartnerDone(since) {
 // ───── Copia automática semanal ─────
 // users/{uid}/backups/{fecha} = índice { date, counts, parts } y users/{uid}/backupParts/{fecha}_{col}_{n} = trozos de texto.
 // Se guardan las últimas KEEP_BACKUPS; la app las muestra en Ajustes → Mis datos.
-const BACKUP_COLS = ['notes', 'events', 'tasks', 'people', 'groups', 'meetings', 'entries', 'profile', 'weeks'];
+const BACKUP_COLS = ['notes', 'events', 'tasks', 'people', 'groups', 'meetings', 'entries', 'profile', 'weeks', 'depts'];
 const KEEP_BACKUPS = 4, BACKUP_EVERY_DAYS = 7, CHUNK = 300000;
 async function weeklyBackup(uid) {
   const user = db.collection('users').doc(uid);

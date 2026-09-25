@@ -488,6 +488,30 @@ function seguimiento(st) {
   return html;
 }
 
+// ───────────── CONGREGACIÓN: organigrama ─────────────
+function orgNode({ d, children }, depth) {
+  const head = M.deptHead(d), helpers = M.deptHelpers(d);
+  return `<li class="org-li d${Math.min(depth, 3)}"><button class="org-node" data-a="dept" data-id="${d.id}">
+      <span class="org-ic">${ic(d.ic || 'flag', 'sm')}</span>
+      <span class="grow"><strong>${esc(d.name)}</strong>
+        <span class="meta">${head ? `★ ${esc(head)}` : '<i>Sin responsable</i>'}</span>
+        ${helpers.length ? `<span class="meta">${esc(helpers.slice(0, 3).join(', '))}${helpers.length > 3 ? ` y ${helpers.length - 3} más` : ''}</span>` : ''}</span>
+    </button>${children.length ? `<ul class="org-ul">${children.map(c => orgNode(c, depth + 1)).join('')}</ul>` : ''}</li>`;
+}
+export function congregacion() {
+  const tree = M.deptTree();
+  const all = data.depts || [];
+  const empty_ = !all.length;
+  const noHead = all.filter(d => !M.deptHead(d)).length;
+  return `${head('Congregación', actions())}
+  <section><div class="sec-h"><h2>🏛 Organigrama</h2>${empty_ ? '' : `<span class="hint">${all.length} departamentos${noHead ? ` · ${noHead} sin responsable` : ''}</span>`}</div>
+  ${empty_ ? empty('Arma el organigrama de tu congregación: quién atiende cada departamento y quiénes le ayudan.', `<div class="stack"><button class="btn primary" data-a="dept-suggest">Cargar departamentos sugeridos</button><button class="btn" data-a="dept-new">Empezar desde cero</button></div>`, 'users')
+    : `<div class="org-tools"><button class="btn small" data-a="org-share">${ic('chat', 'sm')} Compartir imagen</button><button class="btn small ghost" data-a="dept-new">＋ Departamento</button><button class="btn small ghost" data-a="dept-suggest">Sugeridos</button></div>
+      <ul class="org-ul org-root">${tree.map(n => orgNode(n, 0)).join('')}</ul>
+      <p class="hint pad">Toca un departamento para poner a su responsable y ayudantes, cambiarle el nombre o moverlo debajo de otro. La imagen lleva nombres: compártela solo con quien corresponda.</p>`}
+  </section>`;
+}
+
 // ───────────── NOTAS Y REUNIONES ─────────────
 
 export function notasList(ui) {

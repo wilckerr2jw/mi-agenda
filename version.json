@@ -1,8 +1,8 @@
 {
-  "version": "5.6",
+  "version": "5.7",
   "notes": [
-    "📖 Seguimiento de cursos bíblicos, revisitas y pastoreo (Personas → Seguimiento)",
-    "🎤 Mis asignaciones: con tema y aviso para prepararte",
-    "📊 Gráfica de tu año de servicio en Informe"
+    "🏛 Nuevo menú Congregación con el organigrama de departamentos",
+    "Responsable y ayudantes de cada departamento, elegidos de tus Personas",
+    "Comparte el organigrama como imagen"
   ]
 }

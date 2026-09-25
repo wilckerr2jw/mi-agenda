@@ -11,7 +11,7 @@
 
 import { firebaseConfig, FIREBASE_VERSION } from './config.js';
 
-export const COLS = ['notes', 'events', 'tasks', 'people', 'groups', 'meetings', 'entries', 'profile', 'weeks'];
+export const COLS = ['notes', 'events', 'tasks', 'people', 'groups', 'meetings', 'entries', 'profile', 'weeks', 'depts'];
 export const data = Object.fromEntries(COLS.map(c => [c, []]));
 
 // Estado de la sesión en modo nube: si es administrador y qué tipo de perfil tiene asignado

@@ -20,7 +20,7 @@ const ui = {
   personas: { q: '', seg: 'personas', g: '', pv: '' },
   notas: { seg: 'notas', q: '', tag: '' },
 };
-const ROUTES = ['hoy', 'agenda', 'tareas', 'personas', 'notas', 'informe'];
+const ROUTES = ['hoy', 'agenda', 'tareas', 'personas', 'notas', 'informe', 'congregacion'];
 
 // ───────────── Pintado ─────────────
 
@@ -53,7 +53,7 @@ function render() {
     b.hidden = b.dataset.v !== 'hoy' && !M.isModuleVisible(b.dataset.v);
     b.setAttribute('aria-current', b.dataset.v === ui.route ? 'page' : 'false');
   });
-  $('#fab').setAttribute('aria-label', { hoy: 'Agregar', agenda: 'Agregar evento', tareas: 'Nueva tarea', personas: ui.personas.seg === 'grupos' ? 'Nuevo grupo' : 'Nueva persona', notas: ui.notas.seg === 'reuniones' ? 'Nueva reunión' : 'Nueva nota', informe: 'Editar mes actual' }[ui.route]);
+  $('#fab').setAttribute('aria-label', { hoy: 'Agregar', agenda: 'Agregar evento', tareas: 'Nueva tarea', personas: ui.personas.seg === 'grupos' ? 'Nuevo grupo' : 'Nueva persona', notas: ui.notas.seg === 'reuniones' ? 'Nueva reunión' : 'Nueva nota', informe: 'Editar mes actual', congregacion: 'Nuevo departamento' }[ui.route]);
   $('#fab').hidden = ui.route === 'agenda' && !!ui.agenda.picking;   // al seleccionar varios, el botón + no tapa «Eliminar»
   if (focused !== null) { const q = $('#q'); q?.focus(); q?.setSelectionRange(focused, focused); }
   window.scrollTo(0, y);
@@ -101,6 +101,7 @@ function fab() {
     case 'personas': return ui.personas.seg === 'grupos' ? S.groupSheet(null) : S.personSheet(null);
     case 'notas': return ui.notas.seg === 'reuniones' ? S.meetingSheet(null) : S.noteSheet(null);
     case 'informe': return S.catPickSheet(today().slice(0, 7));
+    case 'congregacion': return S.deptSheet(null);
   }
 }
 
@@ -174,6 +175,10 @@ document.addEventListener('click', e => {
     case 'person-in-sheet': return S.personDetail(id, () => S.groupDetail(el.dataset.bid));
     case 'keep': return S.keepSheet();
     case 'auto-backups': return S.autoBackupsSheet();
+    case 'dept': return S.deptSheet(id);
+    case 'dept-new': return S.deptSheet(null, { parentId: id || '' });
+    case 'dept-suggest': S.deptLoadSuggested(); return render();
+    case 'org-share': return import('./orgimg.js').then(O => O.shareOrg());
     case 'visit-new': return S.visitSheet(id, v);
     case 'visit-del': return S.visitDelete(id, v);
     case 'study-edit': return S.studySheet(id);
@@ -273,7 +278,7 @@ document.addEventListener('click', e => {
         meeting: () => S.meetingSheet(null),
       }[v]?.());
     // datos
-    case 'delete': return S.removeWithUndo(el.dataset.col, id);
+    case 'delete': return el.dataset.col === 'depts' ? S.deptRemove(id) : S.removeWithUndo(el.dataset.col, id);
     case 'export': return download(`mi-agenda-${today()}.json`, store.exportAll());
     case 'signout': S.close(); return store.account.signOut();
   }

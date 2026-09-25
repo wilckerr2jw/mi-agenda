@@ -176,12 +176,13 @@ code { font-size: .9em; background: var(--surface-2); padding: 1px 6px; border-r
 #tabs {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: 640px; z-index: 20;
-  display: grid; grid-template-columns: repeat(6, 1fr);
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
   background: var(--surface); border-top: 1px solid var(--line);
   padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
 }
 .tab { display: grid; justify-items: center; gap: 2px; padding: 2px 0; font-size: 11px; font-weight: 550; color: var(--ink-2); text-align: center; }
-.tab .pill { width: 50px; height: 30px; border-radius: 15px; display: grid; place-items: center; }
+.tab > span:last-child { max-width: 100%; hyphens: manual; line-height: 1.15; font-size: 10.5px; letter-spacing: -.1px; }
+.tab .pill { width: min(50px, 100%); height: 30px; border-radius: 15px; display: grid; place-items: center; }
 .tab[aria-current="page"] { color: var(--primary); font-weight: 700; }
 .tab[aria-current="page"] .pill { background: var(--primary-soft); }
 
@@ -909,3 +910,24 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 .year-stats span { padding: 8px; border-radius: 10px; background: var(--surface-2); }
 .year-stats b { display: block; font-size: 16px; }
 .year-stats small { display: block; font-size: 11.5px; color: var(--ink-2); }
+
+/* Congregación: organigrama (v5.7) */
+.org-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.org-ul { list-style: none; margin: 0; padding: 0; }
+.org-ul .org-ul { margin-left: 14px; padding-left: 14px; border-left: 2px solid var(--line); }
+.org-li { position: relative; margin: 0 0 8px; }
+.org-ul .org-ul > .org-li::before { content: ''; position: absolute; left: -14px; top: 26px; width: 12px; border-top: 2px solid var(--line); }
+.org-node { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; padding: 10px 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.org-node:active { background: var(--surface-2); }
+.org-node strong { display: block; font-size: 15px; }
+.org-node .meta { display: block; }
+.org-node .meta i { color: var(--warn); font-style: normal; }
+.org-ic { flex: none; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); }
+.org-li.d0 > .org-node { border-color: color-mix(in srgb, var(--primary) 45%, transparent); background: color-mix(in srgb, var(--primary) 7%, var(--surface)); }
+.org-li.d1 > .org-node .org-ic { background: color-mix(in srgb, var(--c-reunion) 18%, var(--surface)); color: var(--c-reunion); }
+.iconpick { display: flex; flex-wrap: wrap; gap: 6px; }
+.iconpick label { position: relative; }
+.iconpick input { position: absolute; opacity: 0; inset: 0; }
+.iconpick span { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--surface); }
+.iconpick input:checked + span { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+.dept-chip { font-size: 12.5px; }
