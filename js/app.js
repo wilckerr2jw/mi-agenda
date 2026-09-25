@@ -23,6 +23,19 @@ const ROUTES = ['hoy', 'agenda', 'tareas', 'personas', 'notas', 'informe'];
 
 // ───────────── Pintado ─────────────
 
+// Rutinas que se marcaron como hechas desde un aviso (se aplican cuando el evento ya está cargado)
+let pendingDone = null;
+function queueDone(eid, day) { if (eid && day) { pendingDone = { eid, day, until: Date.now() + 30000 }; applyPendingDone(); } }
+function applyPendingDone() {
+  if (!pendingDone) return;
+  if (Date.now() > pendingDone.until) { pendingDone = null; return; }
+  const e = store.get('events', pendingDone.eid);
+  if (!e) return;
+  const { day } = pendingDone; pendingDone = null;
+  if (!M.isDoneBy(e, day, store.doneId())) store.toggleDone(e, day);
+  toast(`✓ Marcado como hecho: ${e.title}`);
+}
+
 function render() {
   const view = $('#view');
   const focused = document.activeElement?.id === 'q' ? document.activeElement.selectionStart : null;
@@ -530,6 +543,13 @@ async function boot() {
       : 'No se pudo guardar. Se reintentará cuando haya conexión.');
   });
   store.onData(() => { if (!$('#app').hidden) render(); });
+  // «✓ Ya lo hice» desde un aviso: marca la rutina en cuanto se cargan los datos
+  store.onData(applyPendingDone);
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.get('hecho')) { queueDone(q.get('hecho'), q.get('dia')); history.replaceState(history.state, '', location.pathname + location.hash); }
+  } catch { /* sin parámetros */ }
+  navigator.serviceWorker?.addEventListener('message', ev => { if (ev.data?.type === 'hecho') queueDone(ev.data.eid, ev.data.day); });
 
   registerServiceWorker();
 

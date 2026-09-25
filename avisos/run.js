@@ -125,7 +125,7 @@ async function buildMessage(uid, p, now) {
   }
 
   if (!lines.length) return null;
-  return { title: 'Mi Agenda · tu día', body: lines.join('\n'), url: './', tag: `agenda-${today}` };
+  return { title: 'Mi Agenda · tu día', body: lines.join('\n'), url: './', tag: `agenda-${today}`, kind: 'daily' };
 }
 
 // ───── Envío ─────
@@ -176,7 +176,7 @@ async function checkNewVersion() {
     try {
       const devices = await devicesOf(u.id);
       if (!devices.length || !(await prefsOf(u.id)).updates) continue;
-      sent += await sendTo(u.id, devices, { title: `Mi Agenda: versión nueva ${v}`, body, url: './', tag: `version-${v}` });
+      sent += await sendTo(u.id, devices, { title: `Mi Agenda: versión nueva ${v}`, body, url: './', tag: `version-${v}`, kind: 'update' });
     } catch (e) { log.warn('Aviso de versión no enviado', { error: e.message }); }
   }
   log.info('Aviso de versión', { v, sent });
@@ -210,7 +210,7 @@ async function checkShared(since) {
         if (!p.shared) continue;
         const what = p.details ? `: ${after.title || 'evento'}${after.date ? ` (${shortDate(after.date)}${after.time ? ` ${fmtTime(after.time)}` : ''})` : ''}` : '';
         const body = isNew ? `👥 ${actorName} te compartió un evento${what}` : `✏️ ${actorName} cambió un evento compartido${what}`;
-        sent += await sendTo(uid, devices, { title: 'Mi Agenda Teocrática', body, url: './', tag: `shared-${d.id}` });
+        sent += await sendTo(uid, devices, { title: 'Mi Agenda Teocrática', body, url: './', tag: `shared-${d.id}`, kind: 'shared' });
       } catch (e) { log.warn('Aviso compartido no enviado', e.message); }
     }
     await metaRef.set({ members: after.members || [], sig, at: new Date().toISOString() });
@@ -227,7 +227,7 @@ async function checkTest(uid, devices) {
   const t = await ref.get();
   if (!t.exists) return 0;
   await ref.delete();
-  return sendTo(uid, devices, { title: 'Mi Agenda Teocrática', body: '✓ Los avisos funcionan en este teléfono.', url: './', tag: 'prueba' });
+  return sendTo(uid, devices, { title: 'Mi Agenda Teocrática', body: '✓ Los avisos funcionan en este teléfono.', url: './', tag: 'prueba', kind: 'test' });
 }
 
 // ───── Aviso diario de un usuario ─────
@@ -278,42 +278,42 @@ async function buildPlan(uid, p, now) {
   const hidden = new Set(prof.sharedHidden || []);
   const own = docs(await user.collection('events').get());
   const shared = docs(await db.collection('shared').where('members', 'array-contains', uid).get()).filter(e => !hidden.has(e.id));
-  const events = [...own, ...shared];
+  const events = [...own.map(e => ({ ...e, _eid: e.id })), ...shared.map(e => ({ ...e, _eid: `sh_${e.id}` }))];
   const items = [];
-  const add = (at, key, body, title = 'Mi Agenda Teocrática') => { if (at >= 0 && at < 24 * 60) items.push({ at, key, title, body }); };
+  const add = (at, key, body, kind = '', eid = '', title = 'Mi Agenda Teocrática') => { if (at >= 0 && at < 24 * 60) items.push({ at, key, title, body, kind, eid }); };
   const before = Math.max(0, Number(p.before) || 0);
 
   events.filter(e => occursOn(e, today)).forEach(e => {
     const s = toMin(e.time);
     const done = (e.doneLog?.[today] || []).includes(uid);
-    if (p.soon && s != null && before) add(s - before, `ev:${e.id}:${today}`, `⏰ En ${before} min: ${e.title || 'evento'} (${fmtTime(e.time)})${e.place ? ` · ${e.place}` : ''}`);
+    if (p.soon && s != null && before) add(s - before, `ev:${e.id}:${today}`, `⏰ En ${before} min: ${e.title || 'evento'} (${fmtTime(e.time)})${e.place ? ` · ${e.place}` : ''}`, isRoutine(e) ? 'routine' : 'soon');
     if (isRoutine(e) && !done) {
       const endM = toMin(e.endTime) ?? (s != null ? s + 60 : null);
-      if (p.routine) add(endM != null ? Math.min(endM + 30, 23 * 60 + 30) : 21 * 60, `rt:${e.id}:${today}`, `📖 Aún no marcaste «${e.title || 'tu rutina'}» de hoy. Si ya lo hiciste, tócalo ✓ en la app.`);
+      if (p.routine) add(endM != null ? Math.min(endM + 30, 23 * 60 + 30) : 21 * 60, `rt:${e.id}:${today}`, `📖 Aún no marcaste «${e.title || 'tu rutina'}» de hoy. ¿Ya lo hiciste?`, 'routine', e._eid);
       const st = streakOf(e, uid, today);
-      if (p.streak && st >= 3) add(21 * 60 + 15, `st:${e.id}:${today}`, `🔥 Llevas ${st} días seguidos con «${e.title}». ¡No pierdas la racha hoy!`);
+      if (p.streak && st >= 3) add(21 * 60 + 15, `st:${e.id}:${today}`, `🔥 Llevas ${st} días seguidos con «${e.title}». ¡No pierdas la racha hoy!`, 'streak', e._eid);
     }
   });
   if (p.taskTime) {
     docs(await user.collection('tasks').where('due', '==', today).get())
       .filter(t => t.status !== 'hecha' && isMine(t) && toMin(t.dueTime) != null)
-      .forEach(t => add(toMin(t.dueTime) - before, `tk:${t.id}:${today}`, p.details ? `📋 A las ${fmtTime(t.dueTime)}: ${t.title}` : `📋 Tienes una tarea a las ${fmtTime(t.dueTime)}`));
+      .forEach(t => add(toMin(t.dueTime) - before, `tk:${t.id}:${today}`, p.details ? `📋 A las ${fmtTime(t.dueTime)}: ${t.title}` : `📋 Tienes una tarea a las ${fmtTime(t.dueTime)}`, 'task'));
   }
   if (p.meetingSoon) {
     docs(await user.collection('meetings').where('date', '==', today).get()).filter(m => toMin(m.time) != null).forEach(m => {
       const n = (m.agenda || []).length;
-      add(toMin(m.time) - 60, `mt:${m.id}:${today}`, `🗓 En 1 hora: ${p.details && m.title ? m.title : 'reunión'} (${fmtTime(m.time)})${n ? ` · agenda de ${plural(n, 'punto', 'puntos')}` : ''}${n && !m.agendaSentAt ? ' · aún no la enviaste' : ''}`);
+      add(toMin(m.time) - 60, `mt:${m.id}:${today}`, `🗓 En 1 hora: ${p.details && m.title ? m.title : 'reunión'} (${fmtTime(m.time)})${n ? ` · agenda de ${plural(n, 'punto', 'puntos')}` : ''}${n && !m.agendaSentAt ? ' · aún no la enviaste' : ''}`, 'meeting');
     });
   }
   if (p.tomorrow) {
     const tmr = events.filter(e => occursOn(e, tomorrow) && e.time).sort((a, b) => a.time.localeCompare(b.time));
-    if (tmr.length) add(21 * 60 + 30, `tm:${today}`, `🌙 Mañana: ${plural(tmr.length, 'evento', 'eventos')}; el primero, ${tmr[0].title} a las ${fmtTime(tmr[0].time)}.`);
+    if (tmr.length) add(21 * 60 + 30, `tm:${today}`, `🌙 Mañana: ${plural(tmr.length, 'evento', 'eventos')}; el primero, ${tmr[0].title} a las ${fmtTime(tmr[0].time)}.`, 'tomorrow');
   }
   if (p.report && now.day <= 3) {
     const [y, m] = today.split('-').map(Number);
     const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
     const had = !(await user.collection('entries').where('date', '>=', `${prev}-01`).where('date', '<=', `${prev}-31`).limit(1).get()).empty;
-    if (had) add(Number(p.hour || 7) * 60 + 30, `rp:${prev}`, `📊 Recuerda enviar tu informe de ${MESES[Number(prev.slice(5)) - 1]}. Ábrelo en Mi Informe → Enviar.`);
+    if (had) add(Number(p.hour || 7) * 60 + 30, `rp:${prev}`, `📊 Recuerda enviar tu informe de ${MESES[Number(prev.slice(5)) - 1]}. Ábrelo en Mi Informe → Enviar.`, 'report');
   }
   return items.sort((a, b) => a.at - b.at);
 }
@@ -332,7 +332,7 @@ async function dayReminders(uid, devices) {
   const already = new Set(plan.sent || []);
   const due = plan.items.filter(it => it.at <= now.min && it.at > now.min - 40 && !already.has(it.key));
   let n = 0;
-  for (const it of due) { n += await sendTo(uid, devices, { title: it.title, body: it.body, url: './', tag: it.key }); already.add(it.key); }
+  for (const it of due) { n += await sendTo(uid, devices, { title: it.title, body: it.body, url: './', tag: it.key, kind: it.kind || '', eid: it.eid || '', day: it.eid ? now.date : '' }); already.add(it.key); }
   if (stale || due.length) await ref.set({ ...plan, sent: [...already] });
   return n;
 }
@@ -351,7 +351,7 @@ async function checkPartnerDone(since) {
       if (uid === who) continue;
       const devices = await devicesOf(uid);
       if (!devices.length || !(await prefsOf(uid)).partner) continue;
-      n += await sendTo(uid, devices, { title: 'Mi Agenda Teocrática', body: `✓ ${name} ya hizo «${e.title || 'la rutina'}»${(e.doneLog?.[day] || []).includes(uid) ? ' (y tú también 🙌)' : '. ¿Y tú?'}`, url: './', tag: `pd-${d.id}-${day}` });
+      n += await sendTo(uid, devices, { title: 'Mi Agenda Teocrática', body: `✓ ${name} ya hizo «${e.title || 'la rutina'}»${(e.doneLog?.[day] || []).includes(uid) ? ' (y tú también 🙌)' : '. ¿Y tú?'}`, url: './', tag: `pd-${d.id}-${day}`, kind: 'partner', ...((e.doneLog?.[day] || []).includes(uid) ? {} : { eid: `sh_${d.id}`, day }) });
     }
   }
   return n;

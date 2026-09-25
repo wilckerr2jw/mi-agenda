@@ -6,13 +6,13 @@
 //  · Datos y sesión (Firestore / Auth): no se tocan; Firestore tiene su propia caché sin conexión.
 // Al añadir archivos nuevos a la app, agrégalos a SHELL y sube el número de VERSION.
 
-const VERSION = 'agenda-v4.7';
+const VERSION = 'agenda-v4.8';
 const CDN = 'agenda-cdn';
 const SHELL = [
   './', 'index.html', 'guia.html', 'manifest.webmanifest',
   'css/styles.css',
   'js/agenda.js', 'js/app.js', 'js/config.js', 'js/guide.js', 'js/tour.js', 'js/junta.js', 'js/keep.js', 'js/lock.js', 'js/notify.js', 'js/reports.js', 'js/model.js', 'js/sheets.js', 'js/store.js', 'js/theme.js', 'js/util.js', 'js/views.js', 'js/weekimg.js', 'js/weekcal.js',
-  'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
+  'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/n-badge.png',
 ];
 
 self.addEventListener('install', e => {
@@ -64,28 +64,47 @@ async function cacheFirst(req) {
 }
 
 // ───── Avisos (notificaciones push) ─────
-// El servidor manda solo datos { title, body, url }; aquí se muestra el aviso.
+// El servidor manda solo datos { title, body, url, tag, kind, eid, day }; aquí se arma el aviso:
+// ícono según el tipo, vibración y, en las rutinas, el botón «✓ Ya lo hice» (se marca sin entrar a la app).
+const KIND_ICON = { soon: 'n-soon', routine: 'n-routine', streak: 'n-streak', task: 'n-task', meeting: 'n-meeting', partner: 'n-partner',
+  tomorrow: 'n-tomorrow', report: 'n-report', shared: 'n-shared', update: 'n-update', daily: 'n-daily', test: 'n-test' };
+const KIND_VIBRATE = { soon: [200, 100, 200], meeting: [300, 120, 300], streak: [120, 60, 120, 60, 260], routine: [150, 80, 150], test: [100, 60, 100, 60, 100] };
+
 self.addEventListener('push', e => {
   let p = {};
   try { p = e.data ? e.data.json() : {}; } catch { p = { data: { body: e.data?.text() || '' } }; }
   const d = p.data || p.notification || p;
+  const icon = `icons/${KIND_ICON[d.kind] || 'icon-192'}.png`;
+  const actions = d.eid && d.day ? [{ action: 'done', title: '✓ Ya lo hice' }, { action: 'open', title: 'Abrir' }] : [];
   e.waitUntil(self.registration.showNotification(d.title || 'Mi Agenda Teocrática', {
     body: d.body || '',
-    icon: 'icons/icon-192.png',
-    badge: 'icons/icon-192.png',
+    icon,
+    badge: 'icons/n-badge.png',
     tag: d.tag || 'agenda-diaria',
     renotify: true,
-    data: { url: d.url || './' },
+    vibrate: KIND_VIBRATE[d.kind] || [180, 90, 180],
+    requireInteraction: d.kind === 'soon' || d.kind === 'meeting',
+    actions,
+    timestamp: Date.now(),
+    data: { url: d.url || './', eid: d.eid || '', day: d.day || '' },
   }));
 });
 
-// Al tocar el aviso: abre la app (o la trae al frente si ya estaba abierta)
+// Al tocar el aviso: abre la app (o la trae al frente). «✓ Ya lo hice» abre la app marcando esa rutina.
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const url = new URL(e.notification.data?.url || './', self.registration.scope).href;
+  const nd = e.notification.data || {};
+  let url = new URL(nd.url || './', self.registration.scope);
+  if (e.action === 'done' && nd.eid) { url.searchParams.set('hecho', nd.eid); url.searchParams.set('dia', nd.day); }
+  url = url.href;
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
     const open = list.find(c => c.url.startsWith(self.registration.scope));
-    if (open) { open.focus(); if ('navigate' in open && url !== open.url) return open.navigate(url).catch(() => {}); return; }
+    if (open) {
+      if (e.action === 'done') open.postMessage({ type: 'hecho', eid: nd.eid, day: nd.day });
+      open.focus();
+      if (e.action !== 'done' && 'navigate' in open && url !== open.url) return open.navigate(url).catch(() => {});
+      return;
+    }
     return self.clients.openWindow(url);
   }));
 });

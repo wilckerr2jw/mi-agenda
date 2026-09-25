@@ -1,7 +1,7 @@
 {
-  "version": "4.7",
+  "version": "4.8",
   "notes": [
-    "Ajustes ordenados en un menú por temas, con buscador",
-    "Avisos: ahora siempre aparecen en Ajustes → Avisos"
+    "Avisos con ícono propio y vibración según el tipo",
+    "Botón «✓ Ya lo hice» en los avisos de rutinas"
   ]
 }
