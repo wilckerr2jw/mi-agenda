@@ -20,16 +20,18 @@ initializeApp({ credential: applicationDefault(), projectId: PROJECT });
 const db = getFirestore();
 const log = { info: (...a) => console.log(...a), warn: (...a) => console.warn(...a), error: (...a) => console.error(...a) };
 
-const DEFAULTS = { hour: 7, tasks: true, events: true, junta: true, supervise: true, shared: true, updates: true, weekly: true, details: false };
+const DEFAULTS = { hour: 7, tasks: true, events: true, junta: true, supervise: true, shared: true, updates: true, weekly: true, details: false,
+  before: 10, soon: true, routine: true, streak: true, taskTime: true, meetingSoon: true, partner: true, tomorrow: true, report: true };
 const CATCH_UP_HOURS = 3;          // si una hora falla, lo intenta en las 3 siguientes
 const SUPERVISE_DAYS = 7;
 
 // ───── Fechas en la zona horaria del usuario ─────
 function localNow(tz) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23', weekday: 'short',
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', weekday: 'short',
   }).formatToParts(new Date()).map(p => [p.type, p.value]));
-  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour), monday: parts.weekday === 'Mon', sunday: parts.weekday === 'Sun' };
+  const hour = Number(parts.hour) % 24;
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour, min: hour * 60 + Number(parts.minute), monday: parts.weekday === 'Mon', sunday: parts.weekday === 'Sun', day: Number(parts.day) };
 }
 const toDate = iso => new Date(`${iso}T12:00:00Z`);
 const addDays = (iso, n) => { const d = toDate(iso); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -140,7 +142,7 @@ async function sendTo(uid, devices, msg) {
   res.responses.forEach((r, i) => {
     const code = r.error?.code || '';
     if (/registration-token-not-registered|invalid-registration-token|invalid-argument/.test(code)) gone.push(devices.find(d => d.token === tokens[i]));
-    else if (r.error) log.warn('Aviso no enviado', { code });
+    else if (r.error) log.warn('Aviso no enviado', code, r.error.message);
   });
   await Promise.all(gone.filter(Boolean).map(d => db.collection('users').doc(uid).collection('devices').doc(d.id).delete().catch(() => {})));
   return res.successCount;
@@ -181,8 +183,10 @@ async function checkNewVersion() {
 // ───── Eventos compartidos: avisa a los demás cuando alguien comparte o cambia uno ─────
 // sharedMeta/{id} (solo el servidor lo usa) recuerda a quién ya se avisó y qué versión del evento.
 const SHARED_FIELDS = ['title', 'date', 'time', 'endTime', 'place', 'theme', 'notes', 'repeat', 'category'];
+const forceStale = new Set();   // cuentas con eventos compartidos que cambiaron: se rehace su plan
 async function checkShared(since) {
   const snap = await db.collection('shared').where('updatedAt', '>', since).get();
+  snap.docs.forEach(d => (d.data().members || []).forEach(u => forceStale.add(u)));
   let sent = 0;
   for (const d of snap.docs) {
     const after = d.data();
@@ -239,24 +243,139 @@ async function daily(uid, devices) {
   return n;
 }
 
+// ═════════════ AVISOS DURANTE EL DÍA (cada 5 minutos) ═════════════
+// Para no leer toda la base de datos cada 5 minutos, se arma un «plan» del día por usuario
+// (users/{uid}/meta/plan) y solo se vuelve a armar cuando cambia algo, cambia el día o pasa 1 hora.
+const toMin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+const hm = m => fmtTime(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const isRoutine = e => e.repeat && e.repeat !== 'none' && (e.category === 'estudio' || e.category === 'personal' || Object.keys(e.doneLog || {}).length > 0);
+function streakOf(e, uid, today) {
+  let n = 0;
+  for (let i = 1, d = addDays(today, -1); i < 400 && d >= (e.date || d); i++, d = addDays(d, -1)) {
+    if (!occursOn(e, d)) continue;
+    if (!(e.doneLog?.[d] || []).includes(uid)) break;
+    n++;
+  }
+  return n;
+}
+
+async function changedSince(uid, since) {
+  const user = db.collection('users').doc(uid);
+  for (const c of ['events', 'tasks', 'meetings', 'profile']) {
+    const q = await user.collection(c).where('updatedAt', '>', since).limit(1).get();
+    if (!q.empty) return true;
+  }
+  return false;
+}
+
+async function buildPlan(uid, p, now) {
+  const user = db.collection('users').doc(uid);
+  const today = now.date, tomorrow = addDays(today, 1);
+  const prof = (await db.doc(`users/${uid}/profile/me`).get()).data() || {};
+  const hidden = new Set(prof.sharedHidden || []);
+  const own = docs(await user.collection('events').get());
+  const shared = docs(await db.collection('shared').where('members', 'array-contains', uid).get()).filter(e => !hidden.has(e.id));
+  const events = [...own, ...shared];
+  const items = [];
+  const add = (at, key, body, title = 'Mi Agenda Teocrática') => { if (at >= 0 && at < 24 * 60) items.push({ at, key, title, body }); };
+  const before = Math.max(0, Number(p.before) || 0);
+
+  events.filter(e => occursOn(e, today)).forEach(e => {
+    const s = toMin(e.time);
+    const done = (e.doneLog?.[today] || []).includes(uid);
+    if (p.soon && s != null && before) add(s - before, `ev:${e.id}:${today}`, `⏰ En ${before} min: ${e.title || 'evento'} (${fmtTime(e.time)})${e.place ? ` · ${e.place}` : ''}`);
+    if (isRoutine(e) && !done) {
+      const endM = toMin(e.endTime) ?? (s != null ? s + 60 : null);
+      if (p.routine) add(endM != null ? Math.min(endM + 30, 23 * 60 + 30) : 21 * 60, `rt:${e.id}:${today}`, `📖 Aún no marcaste «${e.title || 'tu rutina'}» de hoy. Si ya lo hiciste, tócalo ✓ en la app.`);
+      const st = streakOf(e, uid, today);
+      if (p.streak && st >= 3) add(21 * 60 + 15, `st:${e.id}:${today}`, `🔥 Llevas ${st} días seguidos con «${e.title}». ¡No pierdas la racha hoy!`);
+    }
+  });
+  if (p.taskTime) {
+    docs(await user.collection('tasks').where('due', '==', today).get())
+      .filter(t => t.status !== 'hecha' && isMine(t) && toMin(t.dueTime) != null)
+      .forEach(t => add(toMin(t.dueTime) - before, `tk:${t.id}:${today}`, p.details ? `📋 A las ${fmtTime(t.dueTime)}: ${t.title}` : `📋 Tienes una tarea a las ${fmtTime(t.dueTime)}`));
+  }
+  if (p.meetingSoon) {
+    docs(await user.collection('meetings').where('date', '==', today).get()).filter(m => toMin(m.time) != null).forEach(m => {
+      const n = (m.agenda || []).length;
+      add(toMin(m.time) - 60, `mt:${m.id}:${today}`, `🗓 En 1 hora: ${p.details && m.title ? m.title : 'reunión'} (${fmtTime(m.time)})${n ? ` · agenda de ${plural(n, 'punto', 'puntos')}` : ''}${n && !m.agendaSentAt ? ' · aún no la enviaste' : ''}`);
+    });
+  }
+  if (p.tomorrow) {
+    const tmr = events.filter(e => occursOn(e, tomorrow) && e.time).sort((a, b) => a.time.localeCompare(b.time));
+    if (tmr.length) add(21 * 60 + 30, `tm:${today}`, `🌙 Mañana: ${plural(tmr.length, 'evento', 'eventos')}; el primero, ${tmr[0].title} a las ${fmtTime(tmr[0].time)}.`);
+  }
+  if (p.report && now.day <= 3) {
+    const [y, m] = today.split('-').map(Number);
+    const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+    const had = !(await user.collection('entries').where('date', '>=', `${prev}-01`).where('date', '<=', `${prev}-31`).limit(1).get()).empty;
+    if (had) add(Number(p.hour || 7) * 60 + 30, `rp:${prev}`, `📊 Recuerda enviar tu informe de ${MESES[Number(prev.slice(5)) - 1]}. Ábrelo en Mi Informe → Enviar.`);
+  }
+  return items.sort((a, b) => a.at - b.at);
+}
+
+async function dayReminders(uid, devices) {
+  const tz = devices.find(d => d.tz)?.tz || 'America/Caracas';
+  const now = localNow(tz);
+  const p = await prefsOf(uid);
+  const ref = db.doc(`users/${uid}/meta/plan`);
+  let plan = (await ref.get()).data();
+  const stale = forceStale.has(uid) || !plan || plan.date !== now.date || Date.now() - Date.parse(plan.builtAt || 0) > 3600e3 || await changedSince(uid, plan.builtAt);
+  if (stale) {
+    const sent = plan && plan.date === now.date ? plan.sent || [] : [];
+    plan = { date: now.date, builtAt: new Date().toISOString(), items: await buildPlan(uid, p, now), sent };
+  }
+  const already = new Set(plan.sent || []);
+  const due = plan.items.filter(it => it.at <= now.min && it.at > now.min - 40 && !already.has(it.key));
+  let n = 0;
+  for (const it of due) { n += await sendTo(uid, devices, { title: it.title, body: it.body, url: './', tag: it.key }); already.add(it.key); }
+  if (stale || due.length) await ref.set({ ...plan, sent: [...already] });
+  return n;
+}
+
+// Alguien marcó hecha una rutina compartida: avisa a los demás («✓ Persona B ya hizo…»)
+async function checkPartnerDone(since) {
+  const snap = await db.collection('shared').where('doneAt', '>', since).get();
+  snap.docs.forEach(d => (d.data().members || []).forEach(u => forceStale.add(u)));
+  let n = 0;
+  for (const d of snap.docs) {
+    const e = d.data();
+    const who = e.doneBy, day = e.doneDay;
+    if (!who || !day || !(e.doneLog?.[day] || []).includes(who)) continue;
+    const name = e.memberNames?.[who] || 'Alguien';
+    for (const uid of e.members || []) {
+      if (uid === who) continue;
+      const devices = await devicesOf(uid);
+      if (!devices.length || !(await prefsOf(uid)).partner) continue;
+      n += await sendTo(uid, devices, { title: 'Mi Agenda Teocrática', body: `✓ ${name} ya hizo «${e.title || 'la rutina'}»${(e.doneLog?.[day] || []).includes(uid) ? ' (y tú también 🙌)' : '. ¿Y tú?'}`, url: './', tag: `pd-${d.id}-${day}` });
+    }
+  }
+  return n;
+}
+
 async function main() {
   const runRef = db.doc('meta/avisos');
   const lastRun = (await runRef.get()).data()?.lastRun || new Date(Date.now() - 2 * 3600e3).toISOString();
   const startedAt = new Date().toISOString();
   await checkNewVersion().catch(e => log.error('Versión', e.message));
   await checkShared(lastRun).catch(e => log.error('Compartidos', e.message));
+  const partner = await checkPartnerDone(lastRun).catch(e => { log.error('Rutinas compartidas', e.message); return 0; });
   const users = await db.collection('directory').get();
-  let tests = 0, sent = 0;
+  let tests = 0, sent = 0, during = 0, phones = 0, withPhone = 0;
   for (const u of users.docs) {
     try {
       const devices = await devicesOf(u.id);
       if (!devices.length) continue;
+      withPhone++; phones += devices.length;
       tests += await checkTest(u.id, devices);
       sent += await daily(u.id, devices);
+      during += await dayReminders(u.id, devices);
     } catch (e) { log.error('Error con un usuario', e.message); }
   }
   await runRef.set({ lastRun: startedAt }, { merge: true });
-  log.info('Listo', { usuarios: users.size, diarios: sent, pruebas: tests });
+  log.info('Listo', { cuentas: users.size, cuentasConAvisos: withPhone, telefonos: phones, resumenDiario: sent, avisosDelDia: during, pruebas: tests, rutinasCompartidas: partner });
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });

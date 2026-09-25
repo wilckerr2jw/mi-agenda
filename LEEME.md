@@ -200,7 +200,7 @@ El proyecto de Firebase se queda en el plan gratuito (Spark): FCM no cobra. La c
 3. En la app: **Ajustes → Avisos → Recibir avisos en este teléfono** y **Enviar un aviso de prueba** (llega en menos de una hora).
 4. En GitHub → Actions → **Avisos** → *Run workflow* lo ejecuta en el momento (útil para probar).
 
-Uso de GitHub: ~1 minuto por hora (≈ 750 de los 2000 minutos gratis al mes de un repositorio privado).
+Frecuencia: con el repositorio **público** y la variable `CADA5` = `si` (Settings → Secrets and variables → Actions → Variables) corre cada 5 minutos (avisos «en 10 min…», sin costo). Sin esa variable corre una vez por hora (≈ 750 de los 2000 minutos gratis al mes de un repositorio privado). El plan de avisos de cada usuario se guarda en `users/{uid}/meta/plan` y solo se rehace cuando algo cambia, para no gastar lecturas de Firestore.
 Los avisos de eventos compartidos y el de versión nueva llegan en la siguiente ejecución (hasta 1 hora).
 
 Datos: `users/{uid}/devices/{id}` (`token`, `tz`) guarda la dirección de cada teléfono; `users/{uid}/meta/notif`

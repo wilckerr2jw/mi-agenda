@@ -1903,16 +1903,29 @@ function notifSettingsHtml() {
     ${N.blocked() ? '<p class="hint warn">Los avisos están bloqueados para esta app. Actívalos en los ajustes del navegador o del teléfono y vuelve aquí.</p>' : ''}
     <div class="stack pad">
       <label class="check"><input type="checkbox" id="notif-toggle" ${on ? 'checked' : ''}> Recibir avisos en este teléfono</label>
-      ${on ? `<label class="mini-f"><span>Hora del aviso</span><select id="notif-hour">${hours.map(h => `<option value="${h}" ${h === Number(p.hour) ? 'selected' : ''}>${hh(h)}</option>`).join('')}</select></label>
+      ${on ? `<p class="hint ok">✓ Este teléfono está registrado para recibir avisos.</p>
+        <p class="hint pick-h"><b>Resumen de la mañana</b></p>
+        <label class="mini-f"><span>Hora del resumen</span><select id="notif-hour">${hours.map(h => `<option value="${h}" ${h === Number(p.hour) ? 'selected' : ''}>${hh(h)}</option>`).join('')}</select></label>
         ${opt('tasks', 'Tareas para hoy y atrasadas')}
         ${opt('events', 'Compromisos de hoy')}
-        ${opt('junta', 'Reunión de mañana (y si falta enviar la agenda)')}
+        ${opt('junta', 'Reunión de hoy o mañana (y si falta enviar la agenda)')}
         ${opt('supervise', 'Los lunes: tareas que supervisas')}
+        ${opt('weekly', 'Los domingos: resumen de la semana y lo que viene')}
+        <p class="hint pick-h"><b>Durante el día</b></p>
+        ${opt('soon', 'Antes de cada evento')}
+        <label class="mini-f"><span>¿Cuánto antes?</span><select id="notif-before">${[5, 10, 15, 30, 60].map(n => `<option value="${n}" ${n === Number(p.before) ? 'selected' : ''}>${n < 60 ? `${n} min` : '1 hora'}</option>`).join('')}</select></label>
+        ${opt('taskTime', 'Tareas con hora (a la misma anticipación)')}
+        ${opt('meetingSoon', 'Reuniones: 1 hora antes, con su agenda')}
+        ${opt('routine', 'Rutina sin marcar («aún no marcaste la lectura de hoy»)')}
+        ${opt('streak', 'Racha en peligro (9:15 p. m.)')}
+        ${opt('partner', 'Cuando alguien hace una rutina compartida contigo')}
+        ${opt('tomorrow', 'Por la noche: lo que tienes mañana (9:30 p. m.)')}
+        ${opt('report', 'Primeros días del mes: enviar tu informe')}
+        <p class="hint pick-h"><b>Otros</b></p>
         ${opt('shared', 'Cuando alguien te comparte o cambia un evento')}
         ${opt('updates', 'Cuando hay una versión nueva de la app')}
-        ${opt('weekly', 'Los domingos: resumen de la semana y lo que viene')}
-        ${opt('details', 'Mostrar los títulos en el aviso')}
-        <p class="hint">${p.details ? '⚠️ Los títulos se verán en la pantalla bloqueada.' : 'Sin títulos: el aviso solo dice cuántas cosas tienes (más privado).'}</p>
+        ${opt('details', 'Mostrar los títulos de tareas y reuniones')}
+        <p class="hint">${p.details ? '⚠️ Los títulos se verán en la pantalla bloqueada.' : 'Los eventos siempre dicen su nombre; las tareas y reuniones, no (más privado).'} Los avisos pueden llegar hasta unos 5 minutos antes o después.</p>
         <button type="button" class="btn" data-a="notif-test">Enviar un aviso de prueba</button>` : ''}
     </div>`;
 }

@@ -282,6 +282,7 @@ document.addEventListener('change', e => {
   if (t.id === 'bio-toggle') return S.bioToggle(t.checked, t);
   if (t.id === 'notif-toggle') return S.notifToggle(t.checked, t);
   if (t.id === 'notif-hour') { N.setPref('hour', Number(t.value)); return; }
+  if (t.id === 'notif-before') { N.setPref('before', Number(t.value)); return; }
   if (t.matches?.('input[data-a="notif-pref"]')) { N.setPref(t.dataset.v, t.checked); if (t.dataset.v === 'details') S.settings(); return; }
   if (t.matches?.('input[data-a="ag-pick"]')) return S.agendaTogglePick(t.dataset.id);
   if (t.matches?.('select[data-admin-uid]')) return S.adminSetType(t.dataset.adminUid, t.value, t);

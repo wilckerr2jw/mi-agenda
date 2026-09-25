@@ -1,8 +1,8 @@
 {
-  "version": "4.5",
+  "version": "4.6",
   "notes": [
-    "Toca un espacio de la Semana para crear un evento",
-    "Vista de 3 días, colores por evento y plantillas de semana",
-    "Resumen de la semana los domingos"
+    "Avisos antes de cada evento y tareas con hora",
+    "«Aún no marcaste la lectura de hoy» y racha en peligro",
+    "Aviso cuando alguien hace una rutina compartida"
   ]
 }

@@ -214,7 +214,8 @@ export function toggleDone(ev, iso) {
     if (i >= 0) data.events[i] = { ...ev, doneLog };
     notify();
     const ref = fb.fs.doc(fb.db, 'shared', ev.sharedId);
-    fb.fs.updateDoc(ref, new fb.fs.FieldPath('doneLog', iso), on ? fb.fs.arrayUnion(who) : fb.fs.arrayRemove(who)).catch(onError);
+    fb.fs.updateDoc(ref, new fb.fs.FieldPath('doneLog', iso), on ? fb.fs.arrayUnion(who) : fb.fs.arrayRemove(who),
+      'doneAt', new Date().toISOString(), 'doneBy', who, 'doneDay', iso).catch(onError);
   } else upsert('events', { ...ev, doneLog });
   return on;
 }
