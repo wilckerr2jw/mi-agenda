@@ -13,7 +13,7 @@ import { $, $$, esc, today, toast, photoToDataUrl } from './util.js';
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
 const ui = {
   route: 'hoy',
-  agenda: { ym: today().slice(0, 7), sel: today() },
+  agenda: { ym: today().slice(0, 7), sel: today(), mode: (() => { try { return localStorage.getItem('miagenda.agendaVista') || 'mes'; } catch { return 'mes'; } })() },
   tareas: { f: 'activas', p: '', m: '' },
   personas: { q: '', seg: 'personas', g: '', pv: '' },
   notas: { seg: 'notas', q: '', tag: '' },
@@ -104,9 +104,10 @@ document.addEventListener('click', e => {
     case 'new-event': return S.eventSheet(null, { date: el.dataset.date });
     case 'skip-occ': case 'unskip-occ': return S.toggleSkipOccurrence(id, el.dataset.date);
     case 'cal-sel': ui.agenda.sel = el.dataset.date; return render();
+    case 'agenda-mode': ui.agenda.mode = v; try { localStorage.setItem('miagenda.agendaVista', v); } catch { /* sin almacenamiento */ } return render();
     case 'cal-prev': return shiftMonth(-1);
     case 'cal-next': return shiftMonth(1);
-    case 'cal-today': ui.agenda = { ym: today().slice(0, 7), sel: today() }; return render();
+    case 'cal-today': ui.agenda = { ...ui.agenda, ym: today().slice(0, 7), sel: today() }; return render();
     // tareas
     case 'task': return S.taskSheet(id);
     case 'new-task': return S.taskSheet(null);
@@ -263,6 +264,7 @@ document.addEventListener('change', e => {
   if (t.matches?.('input[data-a="notif-pref"]')) { N.setPref(t.dataset.v, t.checked); if (t.dataset.v === 'details') S.settings(); return; }
   if (t.matches?.('input[data-a="ag-pick"]')) return S.agendaTogglePick(t.dataset.id);
   if (t.matches?.('select[data-admin-uid]')) return S.adminSetType(t.dataset.adminUid, t.value, t);
+  if (t.id === 'repeat' && t.form?.dataset.form === 'event') { const box = document.getElementById('repeat-days'); if (box) box.hidden = t.value !== 'days'; return; }
   if (t.matches?.('select[data-otro]')) {   // «✏️ Nuevo tipo…» muestra el campo de texto
     const box = document.getElementById(t.dataset.otro);
     if (box) { box.hidden = t.value !== '__otro'; if (!box.hidden) box.querySelector('input')?.focus(); }

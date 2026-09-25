@@ -742,3 +742,15 @@ body.privacy #app, body.privacy #sheet-root { filter: blur(14px); }
 /* ───── Eventos compartidos (v4.1) ───── */
 .shared-note { background: var(--primary-soft, rgba(29,95,90,.1)); border-radius: 12px; padding: 10px 12px; margin: 0 0 12px; font-size: .92em; line-height: 1.4; }
 .meta.shared-tag { color: var(--primary); font-weight: 600; }
+
+/* ───── Agenda: vistas y días de la semana (v4.2) ───── */
+.seg.ag-views { margin: 0 0 12px; }
+.day-block { margin-bottom: 6px; }
+.day-block .sec-h h2 { font-size: 1.02rem; }
+.tl.all .tl-item { grid-template-columns: 4px 1fr; padding-left: 8px; }
+.daypick { display: flex; flex-wrap: wrap; gap: 6px; }
+.daypick label { position: relative; }
+.daypick input { position: absolute; opacity: 0; inset: 0; }
+.daypick span { display: inline-block; min-width: 44px; padding: 8px 6px; text-align: center; border-radius: 10px; border: 1px solid var(--line); background: var(--card, transparent); font-weight: 600; font-size: .9rem; }
+.daypick input:checked + span { background: var(--primary); color: #fff; border-color: var(--primary); }
+.daypick input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }

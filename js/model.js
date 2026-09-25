@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '4.1.1';
+export const APP_VERSION = '4.2';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -343,7 +343,16 @@ export function serviceYearMonths(startYear = serviceYearStart()) {
 }
 
 // ¿El evento ocurre en esa fecha? (soporta repetición semanal y saltarse semanas puntuales)
-export const REPEATS = { none: 'No se repite', weekly: 'Cada semana', biweekly: 'Cada 2 semanas', monthly: 'Cada mes (mismo día)' };
+export const REPEATS = { none: 'No se repite', daily: 'Cada día', days: 'Algunos días de la semana', weekly: 'Cada semana', biweekly: 'Cada 2 semanas', monthly: 'Cada mes (mismo día)' };
+// Días para «Algunos días de la semana» (0 = domingo, como getDay), en el orden en que se muestran
+export const REPEAT_DAYS = [[1, 'Lun'], [2, 'Mar'], [3, 'Mié'], [4, 'Jue'], [5, 'Vie'], [6, 'Sáb'], [0, 'Dom']];
+const weekdayOf = iso => new Date(`${iso}T12:00:00`).getDay();
+// Texto corto de la repetición: «Cada día», «Lun, Mar, Vie», «Cada semana (martes)»…
+export function repeatText(ev) {
+  if (ev.repeat === 'days') { const d = ev.days || []; return d.length === 7 ? 'Cada día' : REPEAT_DAYS.filter(([n]) => d.includes(n)).map(([, t]) => t).join(', ') || 'Sin días'; }
+  if (ev.repeat === 'weekly' || ev.repeat === 'biweekly') return `${REPEATS[ev.repeat]} (${['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][weekdayOf(ev.date)]})`;
+  return REPEATS[ev.repeat] || REPEATS.none;
+}
 export const isRepeating = ev => !!ev.repeat && ev.repeat !== 'none';
 
 export function occursOn(ev, iso) {
@@ -351,6 +360,8 @@ export function occursOn(ev, iso) {
   if ((ev.skipDates || []).includes(iso)) return false;
   if (iso < ev.date) return ev.date === iso;
   switch (ev.repeat) {
+    case 'daily':    return true;
+    case 'days':     return (ev.days || []).includes(weekdayOf(iso));
     case 'weekly':   return diffDays(iso, ev.date) % 7 === 0;
     case 'biweekly': return diffDays(iso, ev.date) % 14 === 0;
     case 'monthly':  return iso.slice(8, 10) === ev.date.slice(8, 10);

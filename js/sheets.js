@@ -145,6 +145,8 @@ export function eventSheet(id, preset = {}, back) {
       </div>
       ${owner ? '' : '</div>'}
       ${fld('Repetición', `<select id="repeat" name="repeat">${options(M.REPEATS, v.repeat || 'none')}</select>`, 'repeat')}
+      <div class="f" id="repeat-days" ${v.repeat === 'days' ? '' : 'hidden'}><span class="lbl">¿Qué días?</span>
+        <div class="daypick">${M.REPEAT_DAYS.map(([n, t]) => `<label><input type="checkbox" name="days" value="${n}" ${(v.days || []).includes(n) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div></div>
       ${fld('Notas', `<textarea id="notes" name="notes" rows="3">${esc(v.notes || '')}</textarea>`, 'notes')}
       ${isCloud && owner ? `<div class="f" id="share-box"><span class="lbl">Compartir con <span class="hint">(otras cuentas de la app)</span></span><p class="hint">Cargando cuentas…</p></div>` : ''}
     </form>
@@ -182,7 +184,9 @@ function saveEvent(id, r, form) {
   const prev = id ? store.get('events', id) : {};
   const companionGroupIds = new FormData(form).getAll('companionGroupIds');
   const companionPersonIds = new FormData(form).getAll('companionPersonIds');
-  const item = { ...prev, id: id || uid(), title: r.title, category, date: r.date, time: r.time, endTime: r.endTime, place: r.place, companionId: r.companionId, companionGroupIds, companionPersonIds, repeat: r.repeat, notes: r.notes, theme: (r.theme || '').trim(), skipDates: prev.skipDates || [] };
+  const days = new FormData(form).getAll('days').map(Number);
+  if (r.repeat === 'days' && !days.length) { toast('Marca al menos un día'); return; }
+  const item = { ...prev, id: id || uid(), title: r.title, category, date: r.date, time: r.time, endTime: r.endTime, place: r.place, companionId: r.companionId, companionGroupIds, companionPersonIds, repeat: r.repeat, days: r.repeat === 'days' ? days : [], notes: r.notes, theme: (r.theme || '').trim(), skipDates: prev.skipDates || [] };
   const fd = new FormData(form);
   if (isCloud && fd.get('shareLoaded') && (!prev.sharedId || store.isSharedOwner(prev))) {
     const chosen = fd.getAll('shareWith');
@@ -1884,7 +1888,10 @@ export function importPreview(txt) {
   try { parsed = JSON.parse(txt); } catch { importPending = null; return toast('El archivo no es un respaldo válido'); }
   const src = parsed.data || parsed;
   const counts = store.COLS.map(c => [c, Array.isArray(src[c]) ? src[c].filter(x => x && x.id) : []]);
-  const total = counts.reduce((n, [, l]) => n + l.length, 0);
+  const rm = parsed.remove || {};
+  const removes = store.COLS.map(c => [c, (Array.isArray(rm[c]) ? rm[c] : []).filter(id => store.get(c, id))]);
+  const nRemove = removes.reduce((n, [, l]) => n + l.length, 0);
+  const total = counts.reduce((n, [, l]) => n + l.length, 0) + nRemove;
   if (!total) { importPending = null; return toast('El respaldo no tiene elementos'); }
   const replace = counts.reduce((n, [c, l]) => n + l.filter(x => store.get(c, x.id)).length, 0);
   importPending = txt;
@@ -1893,6 +1900,7 @@ export function importPreview(txt) {
     title: 'Restaurar respaldo', back: settings,
     body: `<p>El archivo trae <b>${total}</b> elementos:</p>
       <ul class="steps">${counts.filter(([, l]) => l.length).map(([c, l]) => `<li>${l.length} ${names[c]}</li>`).join('')}</ul>
+      ${nRemove ? `<p class="err pad">Y se quitarán ${nRemove}: ${removes.filter(([, l]) => l.length).map(([c, l]) => `${l.length} ${names[c]}`).join(', ')}.</p>` : ''}
       ${replace ? `<p class="err pad">${replace} ya existen y se reemplazarán por la versión del respaldo.</p>` : '<p class="hint pad">Nada de lo que tienes ahora se reemplaza.</p>'}`,
     actions: `<button type="button" class="btn ghost" data-a="sheet-close">Cancelar</button><button type="button" class="btn primary" data-a="import-confirm">Restaurar</button>`,
   });

@@ -1,8 +1,7 @@
 {
-  "version": "4.1",
+  "version": "4.2",
   "notes": [
-    "Eventos compartidos entre cuentas",
-    "Tema sugerido en los eventos",
-    "Aviso cuando hay una versión nueva"
+    "Repetir cada día o algunos días de la semana",
+    "Agenda en lista: próximos días y todos los eventos"
   ]
 }

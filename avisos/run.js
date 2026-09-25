@@ -48,6 +48,8 @@ function occursOn(ev, iso) {
   if ((ev.skipDates || []).includes(iso)) return false;
   if (iso < ev.date) return ev.date === iso;
   switch (ev.repeat) {
+    case 'daily': return true;
+    case 'days': return (ev.days || []).includes(toDate(iso).getUTCDay());
     case 'weekly': return diffDays(iso, ev.date) % 7 === 0;
     case 'biweekly': return diffDays(iso, ev.date) % 14 === 0;
     case 'monthly': return iso.slice(8, 10) === ev.date.slice(8, 10);

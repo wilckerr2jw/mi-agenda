@@ -150,8 +150,54 @@ export function hoy() {
 
 // ───────────── AGENDA (calendario mensual) ─────────────
 
+// Selector de vista de la Agenda: calendario, lista de los próximos días o todos los eventos
+const agendaSeg = mode => `<div class="seg ag-views" role="tablist" aria-label="Vista">
+  ${[['mes', 'Mes'], ['proximos', 'Próximos'], ['todos', 'Todos']].map(([k, n]) => `<button data-a="agenda-mode" data-v="${k}" aria-pressed="${mode === k}">${n}</button>`).join('')}</div>`;
+
+const LIST_DAYS = 30;
+function agendaUpcoming() {
+  const t = today();
+  let html = '';
+  for (let i = 0; i < LIST_DAYS; i++) {
+    const d = parseISO(t); d.setDate(d.getDate() + i);
+    const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const a = M.agendaFor(iso);
+    const entries = M.entriesFor(a);
+    if (!entries.length && !a.tasks.length) continue;
+    html += `<section class="day-block"><div class="sec-h"><h2>${i === 0 ? 'Hoy · ' : i === 1 ? 'Mañana · ' : ''}${cap(fmtLong(iso))}</h2><button class="btn small ghost" data-a="new-event" data-date="${iso}" aria-label="Agregar evento el ${fmtLong(iso)}">${ic('plus', 'sm')}</button></div>
+      ${entries.length ? `<div class="tl">${entries.map(x => tlItem(x, iso)).join('')}</div>` : ''}
+      ${a.tasks.length ? `<div class="stack">${a.tasks.map(taskRow).join('')}</div>` : ''}</section>`;
+  }
+  return html || empty(`No hay nada en los próximos ${LIST_DAYS} días.`, '<button class="btn" data-a="new-event">Agregar evento</button>', 'calendar');
+}
+
+// Cada evento una sola vez (con su repetición): para revisar, compartir o borrar los que se repiten
+function agendaAll() {
+  const t = today();
+  const evs = [...data.events].sort((a, b) => (a.time || '99').localeCompare(b.time || '99') || (a.title || '').localeCompare(b.title || '', 'es'));
+  const repeating = evs.filter(e => M.isRepeating(e));
+  const once = evs.filter(e => !M.isRepeating(e) && e.date >= t).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+  const row = e => {
+    const cat = M.catOf(e.category);
+    const when = [M.isRepeating(e) ? M.repeatText(e) : cap(fmtShort(e.date)), e.time ? fmtTime(e.time) + (e.endTime ? `–${fmtTime(e.endTime)}` : '') : ''].filter(Boolean).join(' · ');
+    return `<button class="tl-item" style="--c:${cat.c}" data-a="event" data-id="${e.id}">
+      <span class="bar"></span>
+      <span class="tl-body"><strong>${esc(e.title)}</strong><span class="meta">${esc(when)}</span>
+      ${e.theme ? `<span class="meta">💬 ${esc(e.theme)}</span>` : ''}
+      ${e.sharedId ? `<span class="meta shared-tag">👥 ${store.isSharedOwner(e) ? 'Compartido' : `De ${esc(e.ownerName || 'otra cuenta')}`}</span>` : ''}</span></button>`;
+  };
+  if (!repeating.length && !once.length) return empty('Aún no tienes eventos.', '<button class="btn" data-a="new-event">Agregar evento</button>', 'calendar');
+  return `${repeating.length ? `<section><div class="sec-h"><h2>Se repiten (${repeating.length})</h2></div><div class="tl all">${repeating.map(row).join('')}</div></section>` : ''}
+    ${once.length ? `<section><div class="sec-h"><h2>Próximos, una sola vez (${once.length})</h2></div><div class="tl all">${once.map(row).join('')}</div></section>` : ''}`;
+}
+
 export function agenda(ui) {
   const st = ui.agenda;
+  if (st.mode === 'proximos' || st.mode === 'todos') {
+    return `<header class="top cal-top"><h1>Agenda</h1><div class="cal-nav"><button class="btn small" data-a="new-event">${ic('plus', 'sm')} Evento</button></div></header>
+      ${agendaSeg(st.mode)}
+      ${st.mode === 'proximos' ? agendaUpcoming() : agendaAll()}`;
+  }
   const [y, m] = st.ym.split('-').map(Number);
   const days = new Date(y, m, 0).getDate();
   const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;   // la semana empieza en lunes
@@ -182,6 +228,7 @@ export function agenda(ui) {
       <button class="icon-btn" data-a="cal-next" aria-label="Mes siguiente">${ic('right')}</button>
     </div>
   </header>
+  ${agendaSeg('mes')}
   <div class="cal-wd" aria-hidden="true">${['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div>
   <div class="cal">${cells}</div>
   <section>
