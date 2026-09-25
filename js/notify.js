@@ -19,6 +19,14 @@ const ls = {
 };
 
 // ¿Se puede ofrecer en este teléfono? (nube + clave configurada + navegador compatible)
+// Por qué no se pueden activar aquí (texto para el usuario) o '' si sí se puede
+export function unsupportedReason() {
+  if (!isCloud) return 'Los avisos necesitan una cuenta (modo nube). En modo local no están disponibles.';
+  if (/^PEGA/i.test(VAPID_KEY || '')) return 'Falta la clave de avisos en js/config.js (VAPID_KEY).';
+  if (needsInstall()) return 'En iPhone los avisos solo funcionan con la app instalada: en Safari toca Compartir → «Añadir a pantalla de inicio» y ábrela desde ese ícono (iOS 16.4 o más).';
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return 'Este navegador no admite avisos. Abre la app en Chrome (Android) o instálala desde Chrome.';
+  return '';
+}
 export const supported = () => isCloud && !/^PEGA/i.test(VAPID_KEY || '') && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 export const isOn = () => !!ls.get() && typeof Notification !== 'undefined' && Notification.permission === 'granted';
 export const blocked = () => typeof Notification !== 'undefined' && Notification.permission === 'denied';

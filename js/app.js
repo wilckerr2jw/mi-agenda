@@ -99,7 +99,8 @@ document.addEventListener('click', e => {
     // navegación
     case 'nav': return go(v);
     case 'fab': return fab();
-    case 'settings': return S.settings();
+    case 'settings': return S.settings('');
+    case 'set-sec': return S.settings(v);
     case 'search': return S.searchSheet();
     case 'sheet-close': return S.closeOrBack();
     // eventos y calendario
@@ -249,6 +250,7 @@ document.addEventListener('click', e => {
 document.addEventListener('input', e => {
   if (e.target.id === 'q') { ui[ui.route].q = e.target.value; refreshList(); }
   else if (e.target.id === 'cat-name') S.catNameInput(e.target.value);
+  else if (e.target.id === 'set-q') S.settingsFilter(e.target.value);
   else if (e.target.dataset?.agreements) S.refreshAgreements();
   else if (e.target.classList?.contains('pp-q')) S.pickerFilter(e.target);
   else if (e.target.classList?.contains('pp-other')) S.pickerChanged(e.target);

@@ -840,3 +840,14 @@ body.wc-dragging, body.wc-dragging * { cursor: grabbing !important; user-select:
 .colorpick input:checked + span { box-shadow: 0 0 0 3px var(--ink); }
 .colorpick input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 3px; }
 .hint.ok { color: var(--primary); font-weight: 600; }
+
+/* ───── Ajustes en menú (v4.7) ───── */
+.set-search { width: 100%; margin: 0 0 10px; }
+.set-menu { display: grid; gap: 6px; }
+.set-item { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 12px; border-radius: 14px; background: var(--surface-2); }
+.set-item:active { background: var(--primary-soft); }
+.set-item strong { display: block; }
+.set-item .meta { display: block; }
+.set-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; background: var(--surface); flex: none; }
+.set-item[hidden] { display: none; }
+.set-item .grow { flex: 1; min-width: 0; }

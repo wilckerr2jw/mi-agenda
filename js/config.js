@@ -24,4 +24,4 @@ export const FIREBASE_VERSION = '12.19.0';
 // Avisos en el teléfono (notificaciones). Se saca en la consola de Firebase:
 // Configuración del proyecto → Cloud Messaging → Certificados push web → «Generar par de claves».
 // Copia la clave pública aquí. Mientras diga «PEGA…», la opción de avisos no aparece.
-export const VAPID_KEY = 'PEGA_AQUI_LA_CLAVE_VAPID';
+export const VAPID_KEY = 'BATZKELosd0nmrjAumqj1M_jmhjjybdmdMxL-B_G1hHqX94aDH0ZURwuK2UziFULSvk-vy3c00r8P-HXid6MZ_8';

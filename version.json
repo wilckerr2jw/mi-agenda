@@ -1,8 +1,7 @@
 {
-  "version": "4.6",
+  "version": "4.7",
   "notes": [
-    "Avisos antes de cada evento y tareas con hora",
-    "«Aún no marcaste la lectura de hoy» y racha en peligro",
-    "Aviso cuando alguien hace una rutina compartida"
+    "Ajustes ordenados en un menú por temas, con buscador",
+    "Avisos: ahora siempre aparecen en Ajustes → Avisos"
   ]
 }

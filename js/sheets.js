@@ -1840,66 +1840,102 @@ export function renderSearchResults(q) {
 
 // ───────────── Ajustes ─────────────
 
-export function settings() {
-  const t = Theme.pref();
-  const themeSeg = [['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Oscuro']]
-    .map(([k, n]) => `<button data-a="theme-set" data-v="${k}" aria-pressed="${t === k}">${n}</button>`).join('');
-  const modules = M.MODULES.map(m => `<label class="check"><input type="checkbox" data-a="toggle-module" data-v="${m.id}" ${M.isModuleVisible(m.id) ? 'checked' : ''}> ${esc(m.n)}</label>`).join('');
+// ───────────── Ajustes: menú por temas; cada tema abre su propia pantalla ─────────────
+let setSec = '';   // tema abierto ('' = el menú)
+const SETTINGS_SECS = [
+  { id: 'perfil', ic: '👤', n: 'Mi perfil', d: 'Tu nombre, foto y cuenta', k: 'nombre foto cuenta sesión correo perfil tipo meta' },
+  { id: 'apariencia', ic: '🎨', n: 'Apariencia', d: 'Tema claro u oscuro, color y tamaño de letra', k: 'tema oscuro claro color letra tamaño' },
+  { id: 'avisos', ic: '🔔', n: 'Avisos', d: 'Notificaciones en este teléfono', k: 'avisos notificaciones recordatorios prueba hora racha' },
+  { id: 'privacidad', ic: '🔒', n: 'Privacidad', d: 'PIN y huella', k: 'pin huella bloqueo privacidad cara' },
+  { id: 'medida', ic: '🧩', n: 'La app a mi medida', d: 'Secciones, accesos rápidos y tipos propios', k: 'secciones accesos rápidos tipos ocultar módulos compartidos' },
+  { id: 'datos', ic: '💾', n: 'Mis datos', d: 'Respaldo, restaurar e importar', k: 'respaldo restaurar importar keep exportar datos cerrar sesión' },
+  { id: 'ayuda', ic: '❓', n: 'Ayuda', d: 'Guía, recorrido e instalar en el teléfono', k: 'ayuda guía recorrido instalar' },
+  { id: 'admin', ic: '🛡️', n: 'Administración', d: 'Aprobar cuentas y tipos de perfil', k: 'administrar usuarios cuentas aprobar', admin: true },
+];
+
+export function settings(sec) {
+  if (sec !== undefined) setSec = sec;
+  if (setSec) return settingsSection(setSec);
+  const list = SETTINGS_SECS.filter(x => !x.admin || session.isAdmin);
   open({
     title: 'Ajustes',
-    body: `<p>${isCloud ? `Sesión iniciada como <b>${esc(account.user?.email || '')}</b>.` : 'Modo local: los datos están solo en este teléfono.'}</p>
-      ${isCloud && M.PROFILE_TYPES[session.type] ? `<p class="hint">Tipo de perfil: <b>${esc(M.PROFILE_TYPES[session.type].n)}</b>.</p>` : ''}
-      ${session.isAdmin ? `<h3 class="sub-h">Administración</h3><div class="stack"><button class="btn" data-a="admin">${ic('shield', 'sm')} Administrar usuarios</button></div>` : ''}
-      ${isCloud ? '' : '<p class="hint pad">Para sincronizar entre dispositivos, pega tu configuración de Firebase en <code>js/config.js</code>. Todo lo que guardes ahora se puede pasar después con «Restaurar respaldo».</p>'}
-      <h3 class="sub-h">Apariencia</h3>
-      <div class="seg">${themeSeg}</div>
+    body: `<input id="set-q" class="set-search" type="search" placeholder="¿Qué quieres cambiar? (ej. avisos, color, PIN)" aria-label="Buscar en ajustes" autocomplete="off">
+      <div class="set-menu">${list.map(x => `<button type="button" class="set-item" data-a="set-sec" data-v="${x.id}" data-k="${esc(norm(x.n + ' ' + x.d + ' ' + x.k))}">
+        <span class="set-ic" aria-hidden="true">${x.ic}</span><span class="grow"><strong>${esc(x.n)}</strong><span class="meta">${esc(x.d)}</span></span>${ic('right', 'sm')}</button>`).join('')}</div>
+      <p class="hint set-none" hidden>No encontré ese ajuste. Prueba con otra palabra.</p>
+      <p class="hint pad">${isCloud ? `Sesión: <b>${esc(account.user?.email || '')}</b> · ` : 'Modo local · '}Versión ${M.APP_VERSION}</p>`,
+  });
+}
+export function settingsFilter(q) {
+  const n = norm(q || '');
+  let shown = 0;
+  document.querySelectorAll('.set-item').forEach(b => { const ok = !n || b.dataset.k.includes(n); b.hidden = !ok; if (ok) shown++; });
+  const none = document.querySelector('.set-none'); if (none) none.hidden = !!shown;
+}
+const settingsMenu = () => { setSec = ''; settings(); };
+
+function settingsSection(id) {
+  const sec = SETTINGS_SECS.find(x => x.id === id);
+  if (!sec) { setSec = ''; return settings(); }
+  const body = {
+    perfil: () => `<p>${isCloud ? `Sesión iniciada como <b>${esc(account.user?.email || '')}</b>.` : 'Modo local: los datos están solo en este teléfono.'}</p>
+      ${isCloud && M.PROFILE_TYPES[session.type] ? `<p class="hint">Tipo de perfil: <b>${esc(M.PROFILE_TYPES[session.type].n)}</b> (lo asigna el administrador).</p>` : ''}
+      ${M.profile().myName ? `<p class="hint">Tu nombre: <b>${esc(M.profile().myName)}</b></p>` : '<p class="hint warn">Aún no escribiste tu nombre: así otros te encuentran al compartir y la app sabe qué tareas te tocan.</p>'}
+      <div class="stack pad"><button class="btn primary" data-a="profile">Editar mi perfil</button>
+      ${isCloud ? '<button class="btn ghost danger" data-a="signout">Cerrar sesión</button>' : ''}</div>
+      ${isCloud ? '' : '<p class="hint pad">Para sincronizar entre dispositivos, pega tu configuración de Firebase en <code>js/config.js</code>. Todo lo que guardes ahora se puede pasar después con «Restaurar respaldo».</p>'}`,
+    apariencia: () => {
+      const t = Theme.pref();
+      return `<p class="hint pick-h">Tema</p>
+      <div class="seg">${[['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([k, n]) => `<button data-a="theme-set" data-v="${k}" aria-pressed="${t === k}">${n}</button>`).join('')}</div>
       <p class="hint pick-h">Color de la app</p>
       <div class="swatches" role="radiogroup" aria-label="Color de la app">${Theme.ACCENTS.map(x => `<button type="button" class="swatch" data-a="accent-set" data-v="${x.id}" style="--sw:${x.c}" aria-pressed="${Theme.accent() === x.id}" aria-label="${esc(x.n)}"><i></i><span>${esc(x.n)}</span></button>`).join('')}</div>
       <p class="hint pick-h">Tamaño de letra</p>
       <div class="seg">${Theme.SIZES.map(x => `<button data-a="size-set" data-v="${x.id}" aria-pressed="${Theme.size() === x.id}">${esc(x.n)}</button>`).join('')}</div>
-      <h3 class="sub-h">Accesos rápidos</h3>
+      <p class="hint pad">El color de cada evento se elige dentro del evento.</p>`;
+    },
+    avisos: () => notifSettingsHtml(),
+    privacidad: () => Lock.isEnabled()
+      ? `<p class="hint">La app pide tu PIN al abrirla${Lock.delay() ? ` y al volver después de ${Lock.delay()} min` : ' y cada vez que vuelves a ella'}.</p>
+         <div class="stack pad"><label class="mini-f"><span>Pedir el PIN al volver después de</span><select id="pin-delay">${[0, 1, 5, 15, 30].map(n => `<option value="${n}" ${n === Lock.delay() ? 'selected' : ''}>${n ? `${n} min` : 'Siempre'}</option>`).join('')}</select></label>
+         <label class="check" id="bio-row" hidden><input type="checkbox" id="bio-toggle" ${Lock.bioEnabled() ? 'checked' : ''}> Desbloquear también con la huella</label>
+         <button class="btn" data-a="pin" data-v="change">Cambiar PIN</button><button class="btn ghost danger" data-a="pin" data-v="off">Quitar el PIN</button></div>`
+      : `<p class="hint">Protege lo que guardas si alguien toma tu teléfono: la app pedirá un PIN al abrirla. Después podrás usar también la huella.</p><div class="stack pad"><button class="btn" data-a="pin" data-v="on">🔒 Activar bloqueo con PIN</button></div>`,
+    medida: () => `<h3 class="sub-h">Accesos rápidos</h3>
       <p class="hint">Botones que aparecen en Hoy para lo que más usas.</p>
       <div class="stack pad">${M.QUICK_ACTIONS.filter(q => !q.mod || M.isModuleVisible(q.mod)).map(q => `<label class="check"><input type="checkbox" data-a="toggle-quick" data-v="${q.id}" ${M.quickActions().some(x => x.id === q.id) ? 'checked' : ''}> ${esc(q.n)}</label>`).join('')}</div>
       <h3 class="sub-h">Secciones visibles</h3>
       <p class="hint">Apaga las que no uses; siempre puedes volver a activarlas aquí. «Hoy» siempre está disponible.</p>
-      <div class="stack pad">${modules}</div>
+      <div class="stack pad">${M.MODULES.map(m => `<label class="check"><input type="checkbox" data-a="toggle-module" data-v="${m.id}" ${M.isModuleVisible(m.id) ? 'checked' : ''}> ${esc(m.n)}</label>`).join('')}</div>
       ${typesSettingsHtml()}
-      <h3 class="sub-h">Privacidad</h3>
-      ${Lock.isEnabled()
-        ? `<p class="hint">La app pide tu PIN al abrirla${Lock.delay() ? ` y al volver después de ${Lock.delay()} min` : ' y cada vez que vuelves a ella'}.</p>
-           <div class="stack pad"><label class="mini-f"><span>Pedir el PIN al volver después de</span><select id="pin-delay">${[0, 1, 5, 15, 30].map(n => `<option value="${n}" ${n === Lock.delay() ? 'selected' : ''}>${n ? `${n} min` : 'Siempre'}</option>`).join('')}</select></label>
-           <label class="check" id="bio-row" hidden><input type="checkbox" id="bio-toggle" ${Lock.bioEnabled() ? 'checked' : ''}> Desbloquear también con la huella</label>
-           <button class="btn" data-a="pin" data-v="change">Cambiar PIN</button><button class="btn ghost danger" data-a="pin" data-v="off">Quitar el PIN</button></div>`
-        : `<p class="hint">Protege lo que guardas si alguien toma tu teléfono: la app pedirá un PIN al abrirla.</p><div class="stack pad"><button class="btn" data-a="pin" data-v="on">🔒 Activar bloqueo con PIN</button></div>`}
-      ${(M.profile().sharedHidden || []).length ? `<h3 class="sub-h">Eventos compartidos</h3><p class="hint">Quitaste ${M.profile().sharedHidden.length} de tu agenda.</p><div class="stack pad"><button class="btn" data-a="shared-unhide">Volver a mostrarlos</button></div>` : ''}
-      ${notifSettingsHtml()}
-      <h3 class="sub-h">Tus datos</h3>
+      ${(M.profile().sharedHidden || []).length ? `<h3 class="sub-h">Eventos compartidos</h3><p class="hint">Quitaste ${M.profile().sharedHidden.length} de tu agenda.</p><div class="stack pad"><button class="btn" data-a="shared-unhide">Volver a mostrarlos</button></div>` : ''}`,
+    datos: () => `<p class="hint">Haz un respaldo de vez en cuando: guarda una copia de todo en un archivo.</p>
       <div class="stack">
-        <button class="btn" data-a="keep">Importar notas de Google Keep</button>
-        <button class="btn" data-a="export">Descargar respaldo</button>
+        <button class="btn primary" data-a="export">Descargar respaldo</button>
         <label class="btn file">Restaurar respaldo<input type="file" id="import-file" accept="application/json,.json" hidden></label>
-        ${isCloud ? '<button class="btn ghost danger" data-a="signout">Cerrar sesión</button>' : ''}
-      </div>
-      <h3 class="sub-h">Ayuda</h3>
-      <div class="stack"><button class="btn" data-a="tour">${ic('flag', 'sm')} Recorrido por la app</button>
+        <button class="btn" data-a="keep">Importar notas de Google Keep</button>
+      </div>`,
+    ayuda: () => `<div class="stack"><button class="btn" data-a="tour">${ic('flag', 'sm')} Recorrido por la app</button>
         <button class="btn" data-a="guide">${ic('book', 'sm')} Guía rápida</button>
-        ${session.isAdmin ? `<a class="btn ghost" href="guia.html" target="_blank" rel="noopener">Guía completa para compartir</a>` : ''}</div>
+        ${session.isAdmin ? '<a class="btn ghost" href="guia.html" target="_blank" rel="noopener">Guía completa para compartir</a>' : ''}</div>
       <h3 class="sub-h">Instalar en el teléfono</h3>
       <p class="hint">Android (Chrome): menú ⋮ y «Instalar app». iPhone (Safari): botón Compartir y «Añadir a pantalla de inicio».</p>
       <p class="hint pad">Versión ${M.APP_VERSION}</p>`,
-  });
-  settingsBio();
+    admin: () => `<p class="hint">Las cuentas nuevas aparecen como «Pendiente»: elige su tipo y se les abre la app. No ves los datos de nadie.</p><div class="stack pad"><button class="btn primary" data-a="admin">${ic('shield', 'sm')} Administrar usuarios</button></div>`,
+  }[id];
+  open({ title: `${sec.ic} ${sec.n}`, back: settingsMenu, body: body() });
+  if (id === 'privacidad') settingsBio();
 }
 
 // Avisos en el teléfono (solo aparece si la app está en la nube y tiene la clave de avisos)
 function notifSettingsHtml() {
-  if (!N.supported()) return '';
+  const why = N.unsupportedReason();
+  if (why) return `<p class="hint warn">${why}</p>`;
   const on = N.isOn(), p = N.prefs();
   const hours = Array.from({ length: 17 }, (_, i) => i + 5);
   const hh = h => `${h % 12 || 12}:00 ${h < 12 ? 'a. m.' : 'p. m.'}`;
   const opt = (k, n) => `<label class="check"><input type="checkbox" data-a="notif-pref" data-v="${k}" ${p[k] ? 'checked' : ''}> ${n}</label>`;
-  return `<h3 class="sub-h">Avisos</h3>
-    <p class="hint">Un solo aviso al día, a la hora que elijas, con lo que tienes pendiente. Se activa en cada teléfono por separado.</p>
+  return `<p class="hint">Un resumen por la mañana y avisos durante el día (antes de tus eventos, rutinas sin marcar…). Se activa en cada teléfono por separado.</p>
     ${N.blocked() ? '<p class="hint warn">Los avisos están bloqueados para esta app. Actívalos en los ajustes del navegador o del teléfono y vuelve aquí.</p>' : ''}
     <div class="stack pad">
       <label class="check"><input type="checkbox" id="notif-toggle" ${on ? 'checked' : ''}> Recibir avisos en este teléfono</label>
