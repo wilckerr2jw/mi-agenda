@@ -32,6 +32,7 @@ function render() {
     b.setAttribute('aria-current', b.dataset.v === ui.route ? 'page' : 'false');
   });
   $('#fab').setAttribute('aria-label', { hoy: 'Agregar', agenda: 'Agregar evento', tareas: 'Nueva tarea', personas: ui.personas.seg === 'grupos' ? 'Nuevo grupo' : 'Nueva persona', notas: ui.notas.seg === 'reuniones' ? 'Nueva reunión' : 'Nueva nota', informe: 'Editar mes actual' }[ui.route]);
+  $('#fab').hidden = ui.route === 'agenda' && !!ui.agenda.picking;   // al seleccionar varios, el botón + no tapa «Eliminar»
   if (focused !== null) { const q = $('#q'); q?.focus(); q?.setSelectionRange(focused, focused); }
   window.scrollTo(0, y);
 }
@@ -104,7 +105,10 @@ document.addEventListener('click', e => {
     case 'new-event': return S.eventSheet(null, { date: el.dataset.date });
     case 'skip-occ': case 'unskip-occ': return S.toggleSkipOccurrence(id, el.dataset.date);
     case 'cal-sel': ui.agenda.sel = el.dataset.date; return render();
-    case 'agenda-mode': ui.agenda.mode = v; try { localStorage.setItem('miagenda.agendaVista', v); } catch { /* sin almacenamiento */ } return render();
+    case 'ev-pick-mode': ui.agenda.picking = v === 'on'; ui.agenda.picked = []; return render();
+    case 'ev-pick-all': { const ids = v.split(',').filter(Boolean); const cur = new Set(ui.agenda.picked || []); const all = ids.every(x => cur.has(x)); ids.forEach(x => (all ? cur.delete(x) : cur.add(x))); ui.agenda.picked = [...cur]; return render(); }
+    case 'ev-bulk-delete': { const n = S.removeManyWithUndo('events', ui.agenda.picked || []); ui.agenda.picking = false; ui.agenda.picked = []; render(); return n; }
+    case 'agenda-mode': ui.agenda.picking = false; ui.agenda.mode = v; try { localStorage.setItem('miagenda.agendaVista', v); } catch { /* sin almacenamiento */ } return render();
     case 'cal-prev': return shiftMonth(-1);
     case 'cal-next': return shiftMonth(1);
     case 'cal-today': ui.agenda = { ...ui.agenda, ym: today().slice(0, 7), sel: today() }; return render();
@@ -264,6 +268,7 @@ document.addEventListener('change', e => {
   if (t.matches?.('input[data-a="notif-pref"]')) { N.setPref(t.dataset.v, t.checked); if (t.dataset.v === 'details') S.settings(); return; }
   if (t.matches?.('input[data-a="ag-pick"]')) return S.agendaTogglePick(t.dataset.id);
   if (t.matches?.('select[data-admin-uid]')) return S.adminSetType(t.dataset.adminUid, t.value, t);
+  if (t.matches?.('input[data-a="ev-pick"]')) { const cur = new Set(ui.agenda.picked || []); t.checked ? cur.add(t.value) : cur.delete(t.value); ui.agenda.picked = [...cur]; return render(); }
   if (t.id === 'repeat' && t.form?.dataset.form === 'event') { const box = document.getElementById('repeat-days'); if (box) box.hidden = t.value !== 'days'; return; }
   if (t.matches?.('select[data-otro]')) {   // «✏️ Nuevo tipo…» muestra el campo de texto
     const box = document.getElementById(t.dataset.otro);

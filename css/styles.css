@@ -754,3 +754,12 @@ body.privacy #app, body.privacy #sheet-root { filter: blur(14px); }
 .daypick span { display: inline-block; min-width: 44px; padding: 8px 6px; text-align: center; border-radius: 10px; border: 1px solid var(--line); background: var(--card, transparent); font-weight: 600; font-size: .9rem; }
 .daypick input:checked + span { background: var(--primary); color: #fff; border-color: var(--primary); }
 .daypick input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Selección múltiple de eventos */
+.bulk-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; min-height: 36px; }
+.pick-row { grid-template-columns: 24px 4px 1fr !important; cursor: pointer; }
+.pick-row input { width: 20px; height: 20px; align-self: center; accent-color: var(--primary); }
+.pick-row.on { background: var(--primary-soft); }
+.bulk-bar { position: sticky; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: var(--surface, #fff); border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,.15); }
+.btn.danger-fill { background: #B3261E; color: #fff; border-color: #B3261E; }
+.btn.danger-fill[disabled] { opacity: .45; }

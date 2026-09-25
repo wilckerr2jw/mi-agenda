@@ -172,23 +172,33 @@ function agendaUpcoming() {
 }
 
 // Cada evento una sola vez (con su repetición): para revisar, compartir o borrar los que se repiten
-function agendaAll() {
+function agendaAll(st) {
   const t = today();
+  const picking = !!st.picking, picked = new Set(st.picked || []);
   const evs = [...data.events].sort((a, b) => (a.time || '99').localeCompare(b.time || '99') || (a.title || '').localeCompare(b.title || '', 'es'));
   const repeating = evs.filter(e => M.isRepeating(e));
   const once = evs.filter(e => !M.isRepeating(e) && e.date >= t).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
   const row = e => {
     const cat = M.catOf(e.category);
     const when = [M.isRepeating(e) ? M.repeatText(e) : cap(fmtShort(e.date)), e.time ? fmtTime(e.time) + (e.endTime ? `–${fmtTime(e.endTime)}` : '') : ''].filter(Boolean).join(' · ');
-    return `<button class="tl-item" style="--c:${cat.c}" data-a="event" data-id="${e.id}">
-      <span class="bar"></span>
+    const body = `<span class="bar"></span>
       <span class="tl-body"><strong>${esc(e.title)}</strong><span class="meta">${esc(when)}</span>
       ${e.theme ? `<span class="meta">💬 ${esc(e.theme)}</span>` : ''}
-      ${e.sharedId ? `<span class="meta shared-tag">👥 ${store.isSharedOwner(e) ? 'Compartido' : `De ${esc(e.ownerName || 'otra cuenta')}`}</span>` : ''}</span></button>`;
+      ${e.sharedId ? `<span class="meta shared-tag">👥 ${store.isSharedOwner(e) ? 'Compartido' : `De ${esc(e.ownerName || 'otra cuenta')}`}</span>` : ''}</span>`;
+    return picking
+      ? `<label class="tl-item pick-row ${picked.has(e.id) ? 'on' : ''}" style="--c:${cat.c}"><input type="checkbox" data-a="ev-pick" value="${e.id}" ${picked.has(e.id) ? 'checked' : ''} aria-label="Seleccionar ${esc(e.title)}">${body}</label>`
+      : `<button class="tl-item" style="--c:${cat.c}" data-a="event" data-id="${e.id}">${body}</button>`;
   };
-  if (!repeating.length && !once.length) return empty('Aún no tienes eventos.', '<button class="btn" data-a="new-event">Agregar evento</button>', 'calendar');
-  return `${repeating.length ? `<section><div class="sec-h"><h2>Se repiten (${repeating.length})</h2></div><div class="tl all">${repeating.map(row).join('')}</div></section>` : ''}
-    ${once.length ? `<section><div class="sec-h"><h2>Próximos, una sola vez (${once.length})</h2></div><div class="tl all">${once.map(row).join('')}</div></section>` : ''}`;
+  const secHead = (title, list) => `<div class="sec-h"><h2>${title} (${list.length})</h2>${picking ? `<button class="btn small ghost" data-a="ev-pick-all" data-v="${list.map(e => e.id).join(',')}">${list.every(e => picked.has(e.id)) ? 'Quitar todos' : 'Marcar todos'}</button>` : ''}</div>`;
+  if (!evs.length) return empty('Aún no tienes eventos.', '<button class="btn" data-a="new-event">Agregar evento</button>', 'calendar');
+  const past = evs.filter(e => !M.isRepeating(e) && e.date < t).sort((a, b) => b.date.localeCompare(a.date));
+  return `<div class="bulk-top">${picking
+      ? `<span class="hint">Toca los eventos que quieras eliminar.</span><button class="btn small ghost" data-a="ev-pick-mode" data-v="off">Cancelar</button>`
+      : `<button class="btn small" data-a="ev-pick-mode" data-v="on">${ic('check', 'sm')} Seleccionar varios</button>`}</div>
+    ${repeating.length ? `<section>${secHead('Se repiten', repeating)}<div class="tl all">${repeating.map(row).join('')}</div></section>` : ''}
+    ${once.length ? `<section>${secHead('Próximos, una sola vez', once)}<div class="tl all">${once.map(row).join('')}</div></section>` : ''}
+    ${past.length ? `<section>${secHead('Ya pasaron', past)}<div class="tl all">${past.map(row).join('')}</div></section>` : ''}
+    ${picking ? `<div class="bulk-bar"><span><b>${picked.size}</b> ${picked.size === 1 ? 'seleccionado' : 'seleccionados'}</span><button class="btn danger-fill" data-a="ev-bulk-delete" ${picked.size ? '' : 'disabled'}>Eliminar</button></div>` : ''}`;
 }
 
 export function agenda(ui) {
@@ -196,7 +206,7 @@ export function agenda(ui) {
   if (st.mode === 'proximos' || st.mode === 'todos') {
     return `<header class="top cal-top"><h1>Agenda</h1><div class="cal-nav"><button class="btn small" data-a="new-event">${ic('plus', 'sm')} Evento</button></div></header>
       ${agendaSeg(st.mode)}
-      ${st.mode === 'proximos' ? agendaUpcoming() : agendaAll()}`;
+      ${st.mode === 'proximos' ? agendaUpcoming() : agendaAll(st)}`;
   }
   const [y, m] = st.ym.split('-').map(Number);
   const days = new Date(y, m, 0).getDate();

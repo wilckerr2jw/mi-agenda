@@ -1924,6 +1924,15 @@ export function removeWithUndo(col, id) {
   toast(DELETED[col] || 'Eliminado', 'Deshacer', () => store.restore(col, item));
 }
 
+// Elimina varios de una vez (con «Deshacer» para todos). Los eventos que otros te compartieron solo se quitan de tu agenda.
+export function removeManyWithUndo(col, ids) {
+  const items = ids.map(id => store.get(col, id)).filter(Boolean);
+  if (!items.length) return 0;
+  items.forEach(x => store.remove(col, x.id));
+  toast(`${items.length} ${items.length === 1 ? 'eliminado' : 'eliminados'}`, 'Deshacer', () => items.forEach(x => store.restore(col, x)), 9000);
+  return items.length;
+}
+
 // ───────────── Envío de formularios ─────────────
 
 function formValues(form) {
