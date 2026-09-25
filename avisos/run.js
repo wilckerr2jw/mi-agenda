@@ -6,8 +6,10 @@
 //  2. Eventos compartidos: avisa a los demás cuando alguien comparte o cambia uno (desde la ejecución anterior).
 //  3. Aviso de prueba: si alguien tocó «Enviar un aviso de prueba» (users/{uid}/meta/test), se lo manda.
 //  4. Aviso diario: a cada usuario, a la hora que eligió (Ajustes → Avisos), con lo pendiente del día.
+//  5. Copia automática semanal de los datos de cada cuenta (se guardan las últimas 4).
 //
-// Privacidad: por defecto el aviso solo dice CUÁNTAS cosas hay, sin títulos. No se guarda nada aparte.
+// Privacidad: por defecto el aviso solo dice CUÁNTAS cosas hay, sin títulos. La copia semanal queda dentro de la
+// misma cuenta (users/{uid}/…), con las mismas reglas: solo su dueño la puede ver.
 // Credenciales: la cuenta de servicio del secreto FIREBASE_SERVICE_ACCOUNT (Google Application Default Credentials).
 
 const { initializeApp, applicationDefault } = require('firebase-admin/app');
@@ -394,6 +396,41 @@ async function checkPartnerDone(since) {
   return n;
 }
 
+// ───── Copia automática semanal ─────
+// users/{uid}/backups/{fecha} = índice { date, counts, parts } y users/{uid}/backupParts/{fecha}_{col}_{n} = trozos de texto.
+// Se guardan las últimas KEEP_BACKUPS; la app las muestra en Ajustes → Mis datos.
+const BACKUP_COLS = ['notes', 'events', 'tasks', 'people', 'groups', 'meetings', 'entries', 'profile', 'weeks'];
+const KEEP_BACKUPS = 4, BACKUP_EVERY_DAYS = 7, CHUNK = 300000;
+async function weeklyBackup(uid) {
+  const user = db.collection('users').doc(uid);
+  const metaRef = user.collection('meta').doc('backup');
+  const last = (await metaRef.get()).data()?.last;
+  if (last && Date.now() - Date.parse(last) < (BACKUP_EVERY_DAYS - 0.25) * 86400e3) return 0;
+  const date = new Date().toISOString().slice(0, 10);
+  const counts = {}, parts = {};
+  let total = 0, batch = db.batch(), ops = 0;
+  const put = (ref, d) => { batch.set(ref, d); if (++ops >= 400) { const b = batch; batch = db.batch(); ops = 0; return b.commit(); } return null; };
+  for (const c of BACKUP_COLS) {
+    const items = (await user.collection(c).get()).docs.map(d => ({ ...d.data(), id: d.id }));
+    counts[c] = items.length; total += items.length;
+    const txt = JSON.stringify(items);
+    const n = Math.max(1, Math.ceil(txt.length / CHUNK));
+    parts[c] = n;
+    for (let i = 0; i < n; i++) { const w = put(user.collection('backupParts').doc(`${date}_${c}_${i}`), { date, col: c, i, text: txt.slice(i * CHUNK, (i + 1) * CHUNK) }); if (w) await w; }
+  }
+  if (!total) { await batch.commit(); await metaRef.set({ last: new Date().toISOString() }, { merge: true }); return 0; }
+  const wi = put(user.collection('backups').doc(date), { date, at: new Date().toISOString(), counts, parts, total }); if (wi) await wi;
+  await batch.commit();
+  await metaRef.set({ last: new Date().toISOString() }, { merge: true });
+  // Borra las más viejas
+  const all = (await user.collection('backups').get()).docs.map(d => d.id).sort().reverse();
+  for (const old of all.slice(KEEP_BACKUPS)) {
+    const ps = await user.collection('backupParts').where('date', '==', old).get();
+    await Promise.all([...ps.docs.map(d => d.ref.delete()), user.collection('backups').doc(old).delete()]);
+  }
+  return 1;
+}
+
 async function main() {
   const runRef = db.doc('meta/avisos');
   const lastRun = (await runRef.get()).data()?.lastRun || new Date(Date.now() - 2 * 3600e3).toISOString();
@@ -402,8 +439,9 @@ async function main() {
   await checkShared(lastRun).catch(e => log.error('Compartidos', e.message));
   const partner = await checkPartnerDone(lastRun).catch(e => { log.error('Rutinas compartidas', e.message); return 0; });
   const users = await db.collection('directory').get();
-  let tests = 0, sent = 0, during = 0, phones = 0, withPhone = 0;
+  let tests = 0, sent = 0, during = 0, phones = 0, withPhone = 0, backups = 0;
   for (const u of users.docs) {
+    try { backups += await weeklyBackup(u.id); } catch (e) { log.error('Copia semanal', e.message); }
     try {
       const devices = await devicesOf(u.id);
       if (!devices.length) continue;
@@ -414,7 +452,7 @@ async function main() {
     } catch (e) { log.error('Error con un usuario', e.message); }
   }
   await runRef.set({ lastRun: startedAt }, { merge: true });
-  log.info('Listo', { cuentas: users.size, cuentasConAvisos: withPhone, telefonos: phones, resumenDiario: sent, avisosDelDia: during, pruebas: tests, rutinasCompartidas: partner, entregadosAGoogle: stats.ok, fallidos: stats.fallidos, errores: stats.errores });
+  log.info('Listo', { cuentas: users.size, cuentasConAvisos: withPhone, telefonos: phones, resumenDiario: sent, avisosDelDia: during, pruebas: tests, copiasSemanales: backups, rutinasCompartidas: partner, entregadosAGoogle: stats.ok, fallidos: stats.fallidos, errores: stats.errores });
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });

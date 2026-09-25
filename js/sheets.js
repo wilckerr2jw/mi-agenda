@@ -1915,7 +1915,10 @@ function settingsSection(id) {
         <button class="btn primary" data-a="export">Descargar respaldo</button>
         <label class="btn file">Restaurar respaldo<input type="file" id="import-file" accept="application/json,.json" hidden></label>
         <button class="btn" data-a="keep">Importar notas de Google Keep</button>
-      </div>`,
+      </div>
+      <h3 class="sub-h">🛟 Copias automáticas</h3>
+      ${isCloud ? `<p class="hint">Cada semana se guarda sola una copia de todo en tu cuenta (se conservan las últimas 4). Si algo se borra, lo recuperas desde aquí.</p>
+      <div class="stack pad"><button class="btn" data-a="auto-backups">Ver copias automáticas</button></div>` : '<p class="hint">Disponibles solo con cuenta (modo nube).</p>'}`,
     ayuda: () => `${Nat.isNative ? `<h3 class="sub-h">App de Android</h3><p class="hint">Estás usando la app instalada${Nat.state.version ? ` (versión ${esc(Nat.state.version)})` : ''}. Las pantallas se actualizan solas; cuando haya una app nueva te aparecerá un aviso en Hoy.</p>
         <div class="stack pad"><button class="btn" data-a="apk-update">Descargar la última app</button></div>`
       : `<h3 class="sub-h">📲 App para Android</h3><p class="hint">Instala la app de Android: avisos exactos aunque no haya internet, con sus propios sonidos, y se abre como cualquier app.</p>
@@ -2185,6 +2188,27 @@ export function importConfirm() {
   try { const n = store.importAll(importPending); close(); toast(`${n} elementos restaurados`); }
   catch { toast('El archivo no es un respaldo válido'); }
   importPending = null;
+}
+
+// ───────────── Copias automáticas (cada semana) ─────────────
+let autoList = [];
+export async function autoBackupsSheet() {
+  open({ title: 'Copias automáticas', back: () => settingsSection('datos'), body: '<div id="ab-list"><p class="hint">Buscando tus copias…</p></div>' });
+  const box = () => document.getElementById('ab-list');
+  try { autoList = await store.listBackups(); } catch { autoList = []; if (box()) box().innerHTML = '<p class="err">No se pudieron leer las copias. Revisa la conexión.</p>'; return; }
+  if (!box()) return;
+  box().innerHTML = autoList.length ? `<p class="hint">Elige una copia. Primero verás qué trae y confirmas; no se borra nada de lo que tienes ahora.</p>
+    <div class="stack">${autoList.map(b => `<div class="card mini"><strong>${esc(fmtShort(b.date))}</strong>
+      <span class="meta">${b.total || 0} elementos${b.counts?.profile ? ' · incluye tu perfil' : ''}</span>
+      <div class="row-btns"><button class="btn small" data-a="ab-restore" data-v="${esc(b.date)}">Restaurar todo</button>${b.counts?.profile ? `<button class="btn small ghost" data-a="ab-restore" data-v="${esc(b.date)}" data-only="profile">Solo perfil y ajustes</button>` : ''}</div></div>`).join('')}</div>`
+    : '<p class="hint">Todavía no hay copias. La primera se hace sola en las próximas horas.</p>';
+}
+export async function autoBackupRestore(date, only) {
+  const b = autoList.find(x => x.date === date);
+  if (!b) return;
+  toast('Preparando la copia…');
+  try { importPreview(await store.loadBackup(b, only ? [only] : store.COLS)); }
+  catch { toast('No se pudo abrir la copia. Revisa la conexión.'); }
 }
 
 // ───────────── Eliminar con opción de deshacer ─────────────

@@ -99,6 +99,28 @@ export function importAll(json) {
   return n;
 }
 
+// Copias automáticas de cada semana (las hace el servidor; ver avisos/run.js)
+export async function listBackups() {
+  if (!fb || !account.user) return [];
+  const snap = await fb.fs.getDocs(fb.fs.collection(fb.db, 'users', account.user.uid, 'backups'));
+  return snap.docs.map(d => d.data()).filter(b => b.date).sort((a, b) => b.date.localeCompare(a.date));
+}
+// Arma el respaldo de una copia (todas las colecciones o solo las pedidas), con el mismo formato del archivo
+export async function loadBackup(b, cols = COLS) {
+  const out = {};
+  for (const c of cols) {
+    const n = b.parts?.[c] || 0;
+    if (!n || b.counts?.[c] === 0) continue;
+    let txt = '';
+    for (let i = 0; i < n; i++) {
+      const d = await fb.fs.getDoc(fb.fs.doc(fb.db, 'users', account.user.uid, 'backupParts', `${b.date}_${c}_${i}`));
+      txt += d.data()?.text || '';
+    }
+    out[c] = JSON.parse(txt || '[]');
+  }
+  return JSON.stringify({ app: 'mi-agenda-teocrática', version: 1.3, exportedAt: b.at, data: out });
+}
+
 // ═════════════════════════════ MODO LOCAL ═════════════════════════════
 const LS_KEY = 'miagenda.datos.v1';
 

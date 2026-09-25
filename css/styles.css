@@ -868,3 +868,6 @@ body.wc-dragging, body.wc-dragging * { cursor: grabbing !important; user-select:
 /* Sin conexión (v5.2) */
 body.offline::before { content: "Sin conexión · lo que guardes se enviará al volver"; position: fixed; top: env(safe-area-inset-top); left: 50%; transform: translateX(-50%); z-index: 60;
   background: #37474F; color: #fff; font-size: 12px; padding: 5px 12px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+
+/* Copias automáticas (v5.5) */
+.row-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }

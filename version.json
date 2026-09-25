@@ -1,8 +1,7 @@
 {
-  "version": "5.4",
+  "version": "5.5",
   "notes": [
-    "Corrección: la app ya no puede borrar tu perfil (rol y metas) al abrirse",
-    "El resumen de la mañana dice cuántas horas te tocan hoy",
-    "Aviso cuando no hay conexión"
+    "🛟 Copia automática de todo cada semana (Ajustes → Mis datos)",
+    "Puedes restaurar la copia completa o solo tu perfil y ajustes"
   ]
 }

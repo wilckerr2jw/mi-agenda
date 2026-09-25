@@ -173,6 +173,8 @@ document.addEventListener('click', e => {
     case 'edit-group': return S.groupSheet(id, () => S.groupDetail(id));
     case 'person-in-sheet': return S.personDetail(id, () => S.groupDetail(el.dataset.bid));
     case 'keep': return S.keepSheet();
+    case 'auto-backups': return S.autoBackupsSheet();
+    case 'ab-restore': return S.autoBackupRestore(el.dataset.v, el.dataset.only);
     case 'keep-import': return S.keepImport();
     case 'theme': Theme.toggle(); return render();
     case 'theme-set': Theme.set(v); render(); return S.settings();
