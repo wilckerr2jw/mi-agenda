@@ -1,6 +1,6 @@
 {
   "appId": "app.miagenda.teocratica",
-  "appName": "Mi Agenda",
+  "appName": "Agenda Teocrática",
   "webDir": "www",
   "server": {
     "url": "https://mi-agenda-app-855f1.web.app",

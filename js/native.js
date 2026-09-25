@@ -11,7 +11,7 @@ const C = window.Capacitor;
 export const isNative = !!C?.isNativePlatform?.();
 const plug = name => C?.Plugins?.[name];
 const REPO = 'wilckerr2jw/mi-agenda';
-export const APK_URL = `https://github.com/${REPO}/releases/latest/download/mi-agenda.apk`;
+export const APK_URL = `https://github.com/${REPO}/releases/latest/download/agenda-teocratica.apk`;
 
 // Canales: cada tipo de aviso con su sonido (los archivos están en la app: res/raw)
 const CHANNELS = [

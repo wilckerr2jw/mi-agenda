@@ -36,6 +36,8 @@ export const supported = () => isCloud && !/^PEGA/i.test(VAPID_KEY || '') && 'se
 export const isOn = () => !!ls.get() && typeof Notification !== 'undefined' && Notification.permission === 'granted';
 export const blocked = () => typeof Notification !== 'undefined' && Notification.permission === 'denied';
 export const prefs = () => ({ ...DEFAULTS, ...(M.profile().notif || {}) });
+// ¿Es un teléfono o tableta? (con la app de Android, a los teléfonos no se les repiten los avisos por la web)
+export const isMobile = () => /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
 export const tz = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Caracas'; } catch { return 'America/Caracas'; } };
 
 // iPhone: solo funciona con la app instalada en la pantalla de inicio (iOS 16.4 o más)
@@ -61,7 +63,7 @@ export async function enable() {
   const id = ls.get() || newId();
   const t = await token();
   if (!t) return 'No se pudo registrar el teléfono';
-  await store.saveDevice(id, { token: t, tz: tz() });
+  await store.saveDevice(id, { token: t, tz: tz(), mobile: isMobile() });
   ls.set(id);
   if (!M.profile().notif) store.upsert('profile', { ...M.profile(), id: 'me', notif: { ...DEFAULTS } });
   return '';
@@ -84,7 +86,7 @@ export async function refresh() {
   try { if (localStorage.getItem(KEY + '.dia') === day) return; } catch { /* sin almacenamiento */ }
   try {
     const t = await token();
-    if (t) await store.saveDevice(ls.get(), { token: t, tz: tz() });
+    if (t) await store.saveDevice(ls.get(), { token: t, tz: tz(), mobile: isMobile() });
     try { localStorage.setItem(KEY + '.dia', day); } catch { /* sin almacenamiento */ }
   } catch (e) { console.warn('No se pudo renovar el aviso', e); }
 }

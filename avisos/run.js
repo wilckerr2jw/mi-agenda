@@ -231,11 +231,13 @@ async function checkTest(uid, devices) {
 }
 
 // ───── Aviso diario de un usuario ─────
-async function daily(uid, devices) {
-  const tz = devices.find(d => d.tz)?.tz || 'America/Caracas';
+async function daily(uid, allDevices) {
+  const tz = allDevices.find(d => d.tz)?.tz || 'America/Caracas';
   const now = localNow(tz);
   const p = await prefsOf(uid);
-  if (p._native) return 0;   // usa la app de Android: el teléfono ya programa estos avisos
+  // Con la app de Android, el teléfono ya programa estos avisos: por la web solo van a la computadora
+  const devices = p._native ? allDevices.filter(d => d.mobile === false) : allDevices;
+  if (!devices.length) return 0;
   const hour = Number(p.hour);
   if (now.hour < hour || now.hour >= hour + CATCH_UP_HOURS) return 0;
   const metaRef = db.doc(`users/${uid}/meta/notif`);
@@ -331,11 +333,13 @@ async function buildPlan(uid, p, now) {
   return items.sort((a, b) => a.at - b.at);
 }
 
-async function dayReminders(uid, devices) {
-  const tz = devices.find(d => d.tz)?.tz || 'America/Caracas';
+async function dayReminders(uid, allDevices) {
+  const tz = allDevices.find(d => d.tz)?.tz || 'America/Caracas';
   const now = localNow(tz);
   const p = await prefsOf(uid);
-  if (p._native) return 0;   // usa la app de Android: el teléfono ya programa estos avisos
+  // Con la app de Android, el teléfono ya programa estos avisos: por la web solo van a la computadora
+  const devices = p._native ? allDevices.filter(d => d.mobile === false) : allDevices;
+  if (!devices.length) return 0;
   const ref = db.doc(`users/${uid}/meta/plan`);
   let plan = (await ref.get()).data();
   const stale = forceStale.has(uid) || !plan || plan.date !== now.date || Date.now() - Date.parse(plan.builtAt || 0) > 3600e3 || await changedSince(uid, plan.builtAt);

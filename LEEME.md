@@ -155,7 +155,7 @@ administrador) y `directory/{uid}` (correo y nombre de cada cuenta, para la list
   4 canales y sonidos (`res/raw/*.mp3`), botón «✓ Ya lo hice» y «📝 Registrar ahora», y revisa si hay APK nuevo
   (último release `apk-N` de GitHub frente al número de versión instalado).
 - **GitHub Actions → App Android** (`.github/workflows/android.yml`) construye el APK firmado y lo publica en
-  Releases. Descarga fija: `https://github.com/wilckerr2jw/mi-agenda/releases/latest/download/mi-agenda.apk`.
+  Releases. Descarga fija: `https://github.com/wilckerr2jw/mi-agenda/releases/latest/download/agenda-teocratica.apk`.
 - **Llave de firma** (una sola vez): en `.publicar/android-llave.txt` están los dos secretos que hay que crear en
   GitHub → Settings → Secrets and variables → Actions: `ANDROID_KEYSTORE_PASS` y `ANDROID_KEYSTORE_B64`.
   Guarda también `.publicar/miagenda.jks`: **sin esa llave no se pueden publicar actualizaciones de la app**.

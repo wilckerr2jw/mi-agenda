@@ -65,7 +65,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app-android/android/app/build/outputs/apk/release/app-release.apk mi-agenda.apk
-          gh release create "apk-${{ github.run_number }}" mi-agenda.apk \
-            --title "App Android 1.${{ github.run_number }}" \
-            --notes "Instálala encima de la anterior: no se borra nada. Descarga: mi-agenda.apk" --latest
+          cp app-android/android/app/build/outputs/apk/release/app-release.apk agenda-teocratica.apk
+          gh release create "apk-${{ github.run_number }}" agenda-teocratica.apk \
+            --title "Agenda Teocrática 1.${{ github.run_number }}" \
+            --notes "Instálala encima de la anterior: no se borra nada. Descarga: agenda-teocratica.apk" --latest
