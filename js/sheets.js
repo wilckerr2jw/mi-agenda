@@ -12,6 +12,7 @@ import * as A from './agenda.js';
 import * as Lock from './lock.js';
 import * as R from './reports.js';
 import * as J from './junta.js';
+import { hhmm } from './weekcal.js';
 import * as N from './notify.js';
 
 // Permite que app.js reaccione a lo guardado (p. ej. saltar a esa fecha en el calendario)
@@ -180,6 +181,68 @@ export function occEdit(id, date) {
   } else store.upsert('events', copy);
   toast(`Ahora cambia lo que quieras del ${fmtShort(date)}; las demás fechas siguen igual`);
   setTimeout(() => eventSheet(newId), 50);
+}
+
+// ───── Mover o cambiar la duración en la vista Semana (arrastrando) ─────
+let pendingMove = null, afterMove = null;
+const weekdayOf = iso => new Date(`${iso}T12:00:00`).getDay();
+const diffD = (a, b) => Math.round((new Date(`${a}T12:00:00`) - new Date(`${b}T12:00:00`)) / 86400000);
+export function calMove(c, redraw) {
+  afterMove = redraw;
+  const time = hhmm(c.start);
+  if (c.kind === 'meeting') {
+    const m = store.get('meetings', c.id);
+    if (!m) return;
+    store.upsert('meetings', { ...m, date: c.toDate, time });
+    return toast(`Reunión movida al ${fmtShort(c.toDate)}, ${fmtTime12(time)}`, 'Deshacer', () => store.upsert('meetings', m));
+  }
+  const e = store.get('events', c.id);
+  if (!e) return;
+  const end = e.endTime || c.resized ? hhmm(c.end) : '';
+  if (!M.isRepeating(e)) {
+    store.upsert('events', { ...e, date: c.toDate, time, endTime: end });
+    return toast(c.resized ? 'Duración cambiada' : `Movido al ${fmtShort(c.toDate)}, ${fmtTime12(time)}`, 'Deshacer', () => store.upsert('events', e));
+  }
+  pendingMove = { c, time, end };
+  const dayChanged = c.toDate !== c.fromDate;
+  open({
+    title: c.resized ? 'Cambiar la duración' : 'Mover evento',
+    body: `<p><b>${esc(e.title)}</b> se repite (${esc(M.repeatText(e))}). ¿Qué quieres cambiar?</p>
+      <p class="hint">Nuevo horario: ${dayChanged ? `${fmtShort(c.toDate)}, ` : ''}${fmtTime12(time)}${end ? ` – ${fmtTime12(end)}` : ''}</p>
+      <div class="stack pad">
+        <button type="button" class="btn primary" data-a="cal-move-one">Solo el ${fmtShort(c.occ)}</button>
+        <button type="button" class="btn" data-a="cal-move-all">Todas las fechas</button>
+      </div>`,
+    actions: '<button type="button" class="btn ghost" data-a="cal-move-cancel">Cancelar</button>',
+  });
+}
+const fmtTime12 = t => { const [h, m] = t.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'a. m.' : 'p. m.'}`; };
+export function calMoveCancel() { pendingMove = null; close(); afterMove?.(); }
+export function calMoveApply(all) {
+  const pm = pendingMove; pendingMove = null;
+  close();
+  if (!pm) return;
+  const { c, time, end } = pm;
+  const e = store.get('events', c.id);
+  if (!e) return afterMove?.();
+  if (all) {
+    const delta = diffD(c.toDate, c.fromDate);
+    const next = { ...e, time, endTime: end };
+    if (delta) {
+      if (e.repeat === 'days') { const from = weekdayOf(c.fromDate), to = weekdayOf(c.toDate); next.days = [...new Set((e.days || []).map(d => (d === from ? to : d)))]; }
+      else if (e.repeat !== 'daily') next.date = addDays(e.date, delta);
+    }
+    store.upsert('events', next);
+    toast('Cambiado en todas las fechas', 'Deshacer', () => store.upsert('events', e));
+  } else {
+    const copy = { ...copyOf(e), id: uid(), date: c.toDate, time, endTime: end, repeat: 'none', days: [], skipDates: [], exceptionOf: e.sharedId || e.id };
+    store.upsert('events', { ...e, skipDates: [...new Set([...(e.skipDates || []), c.occ])].sort() });
+    let made = copy;
+    if (e.sharedId && isCloud) made = store.shareEvent(copy, (e.members || []).filter(u => u !== account.user?.uid), e.memberNames || {}) || copy;
+    else store.upsert('events', copy);
+    toast(`Solo el ${fmtShort(c.occ)} cambió`, 'Deshacer', () => { store.remove('events', made.id); store.upsert('events', e); });
+  }
+  afterMove?.();
 }
 
 // ───── Compartir varios eventos a la vez ─────

@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '4.3';
+export const APP_VERSION = '4.4';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -401,6 +401,7 @@ export function streak(ev, who, from = today()) {
 }
 
 // ───── Semana en cuadro (como un calendario impreso): filas por hora, columnas por día ─────
+export const addDaysISO = addDays;
 export function mondayOf(iso) { const d = parseISO(iso); const w = (d.getDay() + 6) % 7; return addDays(iso, -w); }
 export function weekGrid(monday) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));

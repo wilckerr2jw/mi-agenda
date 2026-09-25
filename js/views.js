@@ -2,6 +2,7 @@
 
 import { data, isCloud } from './store.js';
 import * as store from './store.js';
+import * as WC from './weekcal.js';
 import { esc, ic, today, parseISO, fmtLong, fmtShort, fmtMonth, fmtTime, timeParts, relDays, norm, initials, pad, MESES, DIAS, cap, avatarHtml } from './util.js';
 import * as M from './model.js';
 import { resolved } from './theme.js';
@@ -215,20 +216,49 @@ function agendaAll(st) {
     ${picking ? `<div class="bulk-bar"><span><b>${picked.size}</b> ${picked.size === 1 ? 'seleccionado' : 'seleccionados'}</span><span class="quick">${isCloud ? `<button class="btn" data-a="ev-bulk-share" ${picked.size ? '' : 'disabled'}>👥 Compartir</button>` : ''}<button class="btn danger-fill" data-a="ev-bulk-delete" ${picked.size ? '' : 'disabled'}>Eliminar</button></span></div>` : ''}`;
 }
 
-// Semana en cuadro, como el calendario impreso (se puede enviar como imagen)
+// Semana como calendario: cada evento en su hora y con su duración; se mueve arrastrando (js/weekcal.js)
 function agendaWeek(st) {
   const monday = st.week || M.mondayOf(today());
-  const g = M.weekGrid(monday);
+  const days = Array.from({ length: 7 }, (_, i) => M.addDaysISO(monday, i));
   const t = today();
-  const head = g.days.map(iso => `<th class="${iso === t ? 'today' : ''}"><span>${cap(DIAS[parseISO(iso).getDay()]).slice(0, 3)}</span><b>${Number(iso.slice(8))}</b></th>`).join('');
-  const body = g.rows.map(r => `<tr><th class="wk-h">${r.time ? fmtTime(r.time) : 'Sin hora'}</th>${r.cells.map(list => `<td>${list.map(x => `<button class="wk-item" style="--c:${x.color}" data-a="${x.kind}" data-id="${x.item.id}" ${x.kind === 'event' && M.isRepeating(x.item) && x.iso !== x.item.date ? `data-occ="${x.iso}"` : ''}>${esc(x.item.title)}${x.item.endTime ? `<small>hasta ${fmtTime(x.item.endTime)}</small>` : ''}</button>`).join('')}</td>`).join('')}</tr>`).join('');
-  const last = g.days[6];
+  const { START_H, END_H, PX_H } = WC;
+  const allDay = days.map(() => []);
+  const cols = days.map((iso, di) => {
+    const a = M.agendaFor(iso);
+    const items = [...a.events.map(e => ({ kind: 'event', item: e })), ...a.meetings.map(m => ({ kind: 'meeting', item: m }))];
+    const timed = [];
+    items.forEach(x => { const sp = WC.span(x.item); if (sp) timed.push({ ...x, ...sp }); else allDay[di].push(x); });
+    return WC.lanes(timed).map(x => {
+      const isM = x.kind === 'meeting';
+      const color = isM ? 'var(--c-mtg)' : M.catOf(x.item.category).c;
+      const occ = !isM && M.isRepeating(x.item) && iso !== x.item.date ? iso : '';
+      const s0 = Math.max(x.s, START_H * 60), e0 = Math.min(Math.max(x.e, s0 + 15), END_H * 60);
+      const top = (s0 - START_H * 60) / 60 * PX_H, h = Math.max(18, (e0 - s0) / 60 * PX_H - 2);
+      const w = 100 / x.lanes;
+      return `<div class="wc-ev ${h < 34 ? 'tiny' : ''}" role="button" tabindex="0" style="--c:${color};top:${top}px;height:${h}px;left:calc(${x.lane * w}% + 2px);width:calc(${w}% - 4px)"
+        data-a="${x.kind}" data-id="${x.item.id}" ${occ ? `data-occ="${occ}"` : ''} data-kind="${x.kind}" data-date="${iso}" data-s="${x.s}" data-e="${x.e}" data-drag>
+        <b>${esc(x.item.title)}</b><span class="wc-t">${fmtTime(x.item.time)}${x.item.endTime ? ` – ${fmtTime(x.item.endTime)}` : ''}</span><i class="wc-resize" aria-hidden="true"></i></div>`;
+    }).join('');
+  });
+  const hours = Array.from({ length: END_H - START_H }, (_, i) => START_H + i);
+  const now = new Date(); const nowMin = now.getHours() * 60 + now.getMinutes();
+  const head = days.map(iso => `<div class="wc-dh ${iso === t ? 'today' : ''}"><span>${cap(DIAS[parseISO(iso).getDay()]).slice(0, 3)}</span><b>${Number(iso.slice(8))}</b></div>`).join('');
+  const hasAllDay = allDay.some(l => l.length);
   return `<div class="wk-nav"><button class="icon-btn" data-a="wk-move" data-v="-7" aria-label="Semana anterior">${ic('left')}</button>
-      <strong>${fmtShort(monday)} – ${fmtShort(last)}</strong>
+      <strong>${fmtShort(monday)} – ${fmtShort(days[6])}</strong>
       <button class="icon-btn" data-a="wk-move" data-v="7" aria-label="Semana siguiente">${ic('right')}</button></div>
     <div class="quick wk-actions"><button class="btn small" data-a="wk-move" data-v="0">Esta semana</button><button class="btn small primary" data-a="wk-share">Enviar como imagen</button></div>
-    ${g.rows.length ? `<div class="wk-scroll"><table class="wk-table"><thead><tr><th class="wk-h">Hora</th>${head}</tr></thead><tbody>${body}</tbody></table></div>`
-      : empty('No hay eventos esta semana.', '<button class="btn" data-a="new-event">Agregar evento</button>', 'calendar')}`;
+    <p class="hint wc-help">Arrastra un evento para cambiarlo de hora o de día (con el dedo: mantenlo presionado y muévelo). La rayita de abajo cambia cuánto dura.</p>
+    <div class="wc-scroll" id="wc-scroll">
+      <div class="wc-grid" style="--ph:${PX_H}px">
+        <div class="wc-head"><div class="wc-gut"></div>${head}</div>
+        ${hasAllDay ? `<div class="wc-allday"><div class="wc-gut">Sin hora</div>${allDay.map(l => `<div class="wc-ad">${l.map(x => `<button class="wc-chip" style="--c:${x.kind === 'meeting' ? 'var(--c-mtg)' : M.catOf(x.item.category).c}" data-a="${x.kind}" data-id="${x.item.id}">${esc(x.item.title)}</button>`).join('')}</div>`).join('')}</div>` : ''}
+        <div class="wc-body" style="height:${(END_H - START_H) * PX_H}px">
+          <div class="wc-times">${hours.map(h => `<span style="top:${(h - START_H) * PX_H}px">${h % 12 || 12} ${h < 12 ? 'a. m.' : 'p. m.'}</span>`).join('')}</div>
+          ${days.map((iso, i) => `<div class="wc-col ${iso === t ? 'today' : ''}" data-date="${iso}"><div class="wc-evs">${cols[i]}</div>${iso === t && nowMin >= START_H * 60 ? `<i class="wc-now" style="top:${(nowMin - START_H * 60) / 60 * PX_H}px"></i>` : ''}</div>`).join('')}
+        </div>
+      </div>
+    </div>`;
 }
 
 export function agenda(ui) {

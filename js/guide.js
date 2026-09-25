@@ -44,8 +44,8 @@ const TOPICS = [
   // ───── Agenda y tareas
   { g: 'Agenda y tareas', t: 'Marcar como hecho y rachas', when: c => c.on('agenda'),
     b: () => `En los eventos que se repiten (texto diario, lectura…) aparece un círculo a la derecha: tócalo para marcarlo ${k('hecho')} ese día. Si lo haces varios días seguidos verás 🔥 y cuántos van. En los compartidos también ves ✓ quién más lo hizo.` },
-  { g: 'Agenda y tareas', t: 'Semana en cuadro', when: c => c.on('agenda'),
-    b: () => `Agenda → ${k('Semana')}: toda la semana por horas, como un calendario impreso. Muévete con las flechas y toca ${k('Enviar como imagen')} para mandarla por WhatsApp.` },
+  { g: 'Agenda y tareas', t: 'Semana: mover y cambiar la duración', when: c => c.on('agenda'),
+    b: () => `Agenda → ${k('Semana')}: toda la semana por horas, como un calendario. <b>Arrastra</b> un evento para cambiarlo de hora o de día (con el dedo: mantenlo presionado un momento y muévelo); la rayita de abajo cambia cuánto dura. Si se repite, te pregunta si es ${k('Solo el …')} o ${k('Todas las fechas')}. ${k('Enviar como imagen')} la manda por WhatsApp.` },
   { g: 'Agenda y tareas', t: 'Cambiar solo un día o duplicar', when: c => c.on('agenda'),
     b: () => `Toca un evento que se repite en una fecha puntual y elige ${k('Cambiar solo el …')}: ese día queda aparte (otra hora, otro lugar) y los demás siguen igual. Con ${k('Duplicar evento')} creas uno parecido sin escribir todo otra vez.` },
   { g: 'Agenda y tareas', t: 'Compartir un evento', when: c => c.cloud && c.on('agenda'),

@@ -1,8 +1,7 @@
 {
-  "version": "4.3",
+  "version": "4.4",
   "notes": [
-    "Marca como hecho tus rutinas y mira tu racha 🔥",
-    "Semana en cuadro para enviar como imagen",
-    "Compartir varios, duplicar y cambiar solo un día"
+    "Semana como calendario: arrastra los eventos para moverlos",
+    "Cambia cuánto dura un evento con la rayita de abajo"
   ]
 }

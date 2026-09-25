@@ -785,3 +785,42 @@ body.privacy #app, body.privacy #sheet-root { filter: blur(14px); }
 .wk-table thead .wk-h { background: var(--primary); color: #fff; z-index: 2; }
 .wk-item { display: block; width: 100%; text-align: left; margin: 0 0 4px; padding: 5px 6px 5px 8px; border-radius: 8px; border-left: 4px solid var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); font-weight: 600; line-height: 1.25; }
 .wk-item small { display: block; font-weight: 500; color: var(--ink-2); font-size: 11px; }
+
+/* ───── Semana como calendario (arrastrar para mover) · v4.4 ───── */
+.wc-help { margin: 0 0 8px; }
+.wc-scroll { overflow: auto; max-height: max(440px, calc(100vh - 290px)); border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.wc-grid { --gut: 52px; min-width: calc(var(--gut) + 7 * 76px); position: relative; }
+.wc-head, .wc-allday { display: grid; grid-template-columns: var(--gut) repeat(7, 1fr); }
+.wc-head { position: sticky; top: 0; z-index: 4; background: var(--primary); color: #fff; }
+.wc-dh { text-align: center; padding: 6px 2px; font-weight: 600; }
+.wc-dh span { display: block; font-size: 11px; opacity: .85; }
+.wc-dh.today { background: var(--ink); }
+.wc-gut { position: sticky; left: 0; z-index: 3; background: inherit; font-size: 11px; color: var(--ink-2); padding: 4px; }
+.wc-head .wc-gut { background: var(--primary); }
+.wc-allday { border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.wc-allday .wc-gut { background: var(--surface-2); }
+.wc-ad { padding: 3px; border-left: 1px solid var(--line); }
+.wc-chip { display: block; width: 100%; text-align: left; font-size: 11px; font-weight: 600; padding: 3px 5px; margin-bottom: 3px; border-radius: 6px; border-left: 3px solid var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+.wc-body { position: relative; display: grid; grid-template-columns: var(--gut) repeat(7, 1fr);
+  background-image: repeating-linear-gradient(to bottom, var(--line) 0 1px, transparent 1px var(--ph)); background-position: 0 0; }
+.wc-times { position: sticky; left: 0; z-index: 3; background: var(--surface); border-right: 1px solid var(--line); }
+.wc-times span { position: absolute; right: 6px; transform: translateY(-50%); font-size: 10.5px; color: var(--ink-2); white-space: nowrap; }
+.wc-times span:first-child { transform: none; }
+.wc-col { position: relative; border-left: 1px solid var(--line); }
+.wc-col.today { background: color-mix(in srgb, var(--primary) 6%, transparent); }
+.wc-evs { position: absolute; inset: 0; }
+.wc-ev { position: absolute; overflow: hidden; border-radius: 8px; padding: 3px 5px 8px 7px; font-size: 11.5px; line-height: 1.2; cursor: grab;
+  background: color-mix(in srgb, var(--c) 20%, var(--surface)); border-left: 4px solid var(--c); box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  touch-action: pan-x pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: box-shadow .15s, transform .15s; }
+.wc-ev b { display: block; font-weight: 650; }
+.wc-ev .wc-t { display: block; font-size: 10.5px; color: var(--ink-2); }
+.wc-ev.tiny { padding-top: 1px; }
+.wc-ev.tiny .wc-t { display: none; }
+.wc-ev.tiny b { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.wc-ev:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.wc-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 9px; cursor: ns-resize; }
+.wc-resize::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 18px; height: 3px; margin-left: -9px; border-radius: 2px; background: color-mix(in srgb, var(--c) 70%, transparent); }
+.wc-ev.dragging { z-index: 6; cursor: grabbing; box-shadow: 0 8px 22px rgba(0,0,0,.25); transform: scale(1.02); opacity: .95; }
+body.wc-dragging, body.wc-dragging * { cursor: grabbing !important; user-select: none !important; }
+.wc-now { position: absolute; left: 0; right: 0; height: 2px; background: #D93025; z-index: 5; pointer-events: none; }
+.wc-now::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: #D93025; }

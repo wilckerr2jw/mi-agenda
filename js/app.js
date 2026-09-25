@@ -8,6 +8,7 @@ import * as Theme from './theme.js';
 import { startTour } from './tour.js';
 import * as Lock from './lock.js';
 import * as N from './notify.js';
+import * as WC from './weekcal.js';
 import { $, $$, esc, today, toast, photoToDataUrl, addDays } from './util.js';
 
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
@@ -35,6 +36,7 @@ function render() {
   $('#fab').hidden = ui.route === 'agenda' && !!ui.agenda.picking;   // al seleccionar varios, el botón + no tapa «Eliminar»
   if (focused !== null) { const q = $('#q'); q?.focus(); q?.setSelectionRange(focused, focused); }
   window.scrollTo(0, y);
+  if (ui.route === 'agenda' && ui.agenda.mode === 'semana') WC.mount(c => S.calMove(c, render));
 }
 
 function go(route) {
@@ -114,6 +116,9 @@ document.addEventListener('click', e => {
     case 'ev-dup': return S.eventSheet(null, { copyOf: id });
     case 'wk-move': { const n = Number(v); ui.agenda.week = n ? addDays(ui.agenda.week || M.mondayOf(today()), n) : M.mondayOf(today()); return render(); }
     case 'wk-share': return import('./weekimg.js').then(W => W.shareWeek(ui.agenda.week || M.mondayOf(today())));
+    case 'cal-move-one': return S.calMoveApply(false);
+    case 'cal-move-all': return S.calMoveApply(true);
+    case 'cal-move-cancel': return S.calMoveCancel();
     case 'ev-bulk-delete': { const n = S.removeManyWithUndo('events', ui.agenda.picked || []); ui.agenda.picking = false; ui.agenda.picked = []; render(); return n; }
     case 'agenda-mode': ui.agenda.picking = false; ui.agenda.mode = v; try { localStorage.setItem('miagenda.agendaVista', v); } catch { /* sin almacenamiento */ } return render();
     case 'cal-prev': return shiftMonth(-1);
