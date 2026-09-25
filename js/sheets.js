@@ -1919,7 +1919,7 @@ function settingsSection(id) {
     ayuda: () => `${Nat.isNative ? `<h3 class="sub-h">App de Android</h3><p class="hint">Estás usando la app instalada${Nat.state.version ? ` (versión ${esc(Nat.state.version)})` : ''}. Las pantallas se actualizan solas; cuando haya una app nueva te aparecerá un aviso en Hoy.</p>
         <div class="stack pad"><button class="btn" data-a="apk-update">Descargar la última app</button></div>`
       : `<h3 class="sub-h">📲 App para Android</h3><p class="hint">Instala la app de Android: avisos exactos aunque no haya internet, con sus propios sonidos, y se abre como cualquier app.</p>
-        <div class="stack pad"><a class="btn primary" href="${Nat.APK_URL}">Descargar la app (APK)</a></div>
+        <div class="stack pad"><a class="btn primary" href="${Nat.APK_URL}" download>Descargar la app (APK)</a><a class="btn ghost small" href="${Nat.APK_URL_GITHUB}">¿No descarga? Probar desde GitHub</a></div>
         <details class="howto"><summary>Cómo instalarla</summary><ol><li>Toca <b>Descargar la app</b> desde el teléfono Android.</li><li>Abre el archivo <b>agenda-teocratica.apk</b> que se descargó. Si el teléfono lo pide, permite «Instalar apps de este origen».</li><li>Toca <b>Instalar</b> y ábrela. Entra con tu mismo correo: verás todo lo tuyo.</li><li>Las actualizaciones: cuando haya una nueva, la app te lo dice en Hoy y la instalas igual, encima de la anterior (no se borra nada).</li></ol></details>`}
       <div class="stack"><button class="btn" data-a="tour">${ic('flag', 'sm')} Recorrido por la app</button>
         <button class="btn" data-a="guide">${ic('book', 'sm')} Guía rápida</button>

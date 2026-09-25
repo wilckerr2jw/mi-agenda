@@ -24,6 +24,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Incluir la última app de Android en la web
+        run: curl -fsSL -o agenda-teocratica.apk https://github.com/${{ github.repository }}/releases/latest/download/agenda-teocratica.apk || echo "Aún no hay APK publicado"
+
       - name: Iniciar sesión en Google Cloud
         uses: google-github-actions/auth@v2
         with:

@@ -11,7 +11,9 @@ const C = window.Capacitor;
 export const isNative = !!C?.isNativePlatform?.();
 const plug = name => C?.Plugins?.[name];
 const REPO = 'wilckerr2jw/mi-agenda';
-export const APK_URL = `https://github.com/${REPO}/releases/latest/download/agenda-teocratica.apk`;
+// La app se descarga desde la misma web (rápido); GitHub queda de respaldo
+export const APK_URL = 'https://mi-agenda-app-855f1.web.app/agenda-teocratica.apk';
+export const APK_URL_GITHUB = `https://github.com/${REPO}/releases/latest/download/agenda-teocratica.apk`;
 
 // Canales: cada tipo de aviso con su sonido (los archivos están en la app: res/raw)
 const CHANNELS = [
@@ -167,7 +169,7 @@ export async function checkUpdate() {
     const rel = await res.json();
     const n = Number(String(rel.tag_name || '').replace(/\D/g, '')) || 0;
     const asset = (rel.assets || []).find(a => /\.apk$/i.test(a.name));
-    state.update = n > state.build ? { build: n, name: rel.name || `1.${n}`, notes: rel.body || '', url: asset?.browser_download_url || APK_URL } : null;
+    state.update = n > state.build ? { build: n, name: rel.name || `1.${n}`, notes: rel.body || '', url: APK_URL, alt: asset?.browser_download_url || APK_URL_GITHUB } : null;
     handlers.changed();
   } catch { /* sin internet: se revisa después */ }
 }
