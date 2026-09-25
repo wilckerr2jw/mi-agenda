@@ -102,6 +102,21 @@ async function buildMessage(uid, p, now) {
     }
   }
 
+  // Con meta de horas: cómo vas y cuánto te toca hoy para llegar
+  const prof = (await db.doc(`users/${uid}/profile/me`).get()).data() || {};
+  if (prof.goalEnabled && Number(prof.goalMonthly) > 0) {
+    const mid = today.slice(0, 7), goal = Number(prof.goalMonthly);
+    const ents = docs(await user.collection('entries').where('date', '>=', `${mid}-01`).where('date', '<=', `${mid}-31`).get());
+    const done = ents.reduce((a, e) => a + (Number(e.minutes) || 0), 0);
+    const [yy, mm] = mid.split('-').map(Number);
+    const dim = new Date(Date.UTC(yy, mm, 0)).getUTCDate(), day = Number(today.slice(8, 10));
+    const expected = goal * 60 * day / dim, left = Math.max(0, goal * 60 - done), daysLeft = Math.max(1, dim - day + 1);
+    const margin = Math.max(60, goal * 60 * 0.08);
+    const emoji = done - expected < -margin ? '🐢' : done - expected > margin ? '🐇' : '🦉';
+    const hmm = m => `${Math.floor(m / 60)}:${String(Math.round(m % 60)).padStart(2, '0')}`;
+    lines.push(left ? `${emoji} Llevas ${hmm(done)} de ${goal} h; hoy te tocan unas ${hmm(Math.ceil(left / daysLeft / 5) * 5)} h` : `🎉 ¡Ya llegaste a tu meta de ${goal} h este mes!`);
+  }
+
   // Domingo: resumen de la semana (rutinas cumplidas) y lo que viene la próxima
   if (p.weekly && now.sunday) {
     const own = docs(await user.collection('events').get());

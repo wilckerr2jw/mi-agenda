@@ -864,3 +864,13 @@ body.wc-dragging, body.wc-dragging * { cursor: grabbing !important; user-select:
 .howto ol { padding-left: 20px; margin: 6px 0; }
 
 .log-now.apk-up { background: color-mix(in srgb, var(--primary) 12%, var(--surface)); border-color: color-mix(in srgb, var(--primary) 35%, transparent); }
+
+/* Cronómetro y sin conexión (v5.2) */
+.timer-card { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 12px 14px; border-radius: 16px; background: var(--primary); color: #fff; }
+.timer-card b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.timer-card small { display: block; opacity: .85; font-size: 12px; }
+.timer-card .btn { background: #fff; color: var(--primary); border-color: #fff; }
+.tc-ic { font-size: 26px; }
+.timer-start { width: 100%; margin-bottom: 8px; }
+body.offline::before { content: "Sin conexión · lo que guardes se enviará al volver"; position: fixed; top: env(safe-area-inset-top); left: 50%; transform: translateX(-50%); z-index: 60;
+  background: #37474F; color: #fff; font-size: 12px; padding: 5px 12px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.2); }

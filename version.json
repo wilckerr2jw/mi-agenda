@@ -1,7 +1,8 @@
 {
-  "version": "5.1",
+  "version": "5.2",
   "notes": [
-    "Widget de Agenda Teocrática para la pantalla de inicio",
-    "«Hoy no salí» en el aviso de la noche"
+    "⏱ Cronómetro: cuenta el tiempo mientras predicas y regístralo al terminar",
+    "El resumen de la mañana dice cuántas horas te tocan hoy",
+    "Aviso cuando no hay conexión"
   ]
 }

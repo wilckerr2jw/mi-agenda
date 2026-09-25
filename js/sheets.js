@@ -2,7 +2,7 @@
 
 import * as store from './store.js';
 import { data, isCloud, account, session } from './store.js';
-import { esc, ic, uid, today, toast, fmtShort, fmtMonth, relDays, initials, telLink, waLink, norm, dateOf, avatarHtml, addDays } from './util.js';
+import { esc, ic, uid, today, toast, fmtTime, fmtShort, fmtMonth, relDays, initials, telLink, waLink, norm, dateOf, avatarHtml, addDays } from './util.js';
 import * as M from './model.js';
 import * as Theme from './theme.js';
 import { readKeep } from './keep.js';
@@ -894,9 +894,11 @@ function saveProfile(r, form) {
 
 // Elegir la categoría antes de registrar tiempo
 export function catPickSheet(mid, back) {
+  const tm = M.timer();
   open({
-    title: 'Mi Informe', back,
-    body: `<div class="cat-list">${Object.entries(M.allServicioCats()).map(([k, c]) =>
+    title: tm ? `Registrar ${M.fmtHM(M.timerMinutes(tm))} h` : 'Mi Informe', back,
+    body: `${tm ? `<p class="hint">Elige en qué registrar el tiempo que contaste (⏱ ${M.fmtHM(M.timerMinutes(tm))} h desde las ${new Date(tm.start).toTimeString().slice(0, 5).replace(/^0/, '')}).</p>` : `<button type="button" class="btn primary timer-start" data-a="timer-start">⏱ Empezar a contar el tiempo</button><p class="hint">O elige una categoría para anotarlo a mano:</p>`}
+      <div class="cat-list">${Object.entries(M.allServicioCats()).map(([k, c]) =>
       `<button type="button" class="cat-btn" style="--c:${c.c}" data-a="new-entry" data-cat="${k}" data-mid="${mid || ''}">${ic(c.ic)}<span>${esc(c.n)}<small>${c.credito ? 'Tiempo de crédito' : 'Tiempo de servicio'}</small></span></button>`
     ).join('')}</div>`,
   });
@@ -916,7 +918,8 @@ export function entrySheet(id, preset = {}, back) {
   const catKey = e ? e.category : preset.cat;
   const cat = M.catServicioOf(catKey);
   const date = e ? e.date : (preset.mid ? `${preset.mid}-01` : today());
-  const minutes = e ? (e.minutes || 0) : 0;
+  const fromTimer = !e && !!M.timer();
+  const minutes = e ? (e.minutes || 0) : fromTimer ? M.timerMinutes() : 0;
   studyDraft = e?.studyNames ? [...e.studyNames] : [];
   const studentNames = sortedPeople().filter(p => norm(p.role || '').includes('estudiante')).map(p => p.name);
   open({
@@ -948,8 +951,22 @@ export function entrySheet(id, preset = {}, back) {
       </div>
       ${fld('Notas', `<textarea id="notes" name="notes" rows="3">${esc(e?.notes || '')}</textarea>`, 'notes')}
     </form>`,
-    actions: foot('entries', e?.id),
+    actions: fromTimer ? `<button type="button" class="btn ghost danger" data-a="timer-discard">Descartar</button><button type="submit" form="f" class="btn primary">Guardar</button>` : foot('entries', e?.id),
   });
+}
+
+// Cronómetro: empezar, y al detener se registra (eligiendo la categoría)
+export function timerStart() {
+  store.upsert('profile', { ...M.profile(), id: 'me', timer: { start: new Date().toISOString() } });
+  close();
+  toast('⏱ Contando el tiempo. Cuando termines toca «Detener y registrar» en Hoy');
+}
+export function timerStop() { catPickSheet(today().slice(0, 7)); }
+export function timerDiscard() {
+  const { timer, ...rest } = M.profile();
+  store.upsert('profile', { ...rest, id: 'me', timer: null });
+  close();
+  toast('Cronómetro descartado');
 }
 
 // Agrega o quita un nombre de la lista de cursos bíblicos del registro, sin perder lo demás del formulario
@@ -987,6 +1004,7 @@ function saveEntry(id, r) {
   let studyNames = [];
   try { studyNames = JSON.parse(r.studies || '[]'); } catch { studyNames = []; }
   store.upsert('entries', { ...prev, id: id || uid(), category: r.category, date: r.date, minutes: parseInt(r.minutes, 10) || 0, studyNames, notes: r.notes });
+  if (!id && M.timer()) store.upsert('profile', { ...M.profile(), id: 'me', timer: null });   // el cronómetro ya quedó registrado
   closeOrBack();
 }
 

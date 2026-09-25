@@ -143,6 +143,7 @@ export function hoy() {
     </div>
     ${actions()}
   </header>
+  ${M.timer() ? `<div class="timer-card"><span class="tc-ic">⏱</span><span class="grow"><b id="timer-live">${M.fmtHM(M.timerMinutes())}</b><small>Contando desde las ${fmtTime(new Date(M.timer().start).toTimeString().slice(0, 5))}</small></span><button class="btn primary small" data-a="timer-stop">Detener y registrar</button></div>` : ''}
   ${Nat.state.update ? `<button class="log-now apk-up" data-a="apk-update">📲 <span><b>Hay una actualización de la app</b><small>Versión ${esc(Nat.state.update.name)}. Toca para descargarla e instalarla.</small></span></button>` : ''}
   ${logToday ? `<button class="log-now" data-a="qa" data-v="time">📝 <span><b>Registra tu actividad de hoy</b><small>Aún no guardaste horas ni cursos. Toca aquí para anotarlos.</small></span></button>` : ''}
   ${juntaHoy ? `<button class="btn primary junta-now" data-a="junta-start" data-id="${juntaHoy.id}">▶ Iniciar la junta de hoy<small>${esc(juntaHoy.title)}${juntaHoy.time ? ` · ${fmtTime(juntaHoy.time)}` : ''}</small></button>` : ''}
