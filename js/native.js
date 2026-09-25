@@ -112,6 +112,12 @@ function planFor(iso, p) {
     if (p.tasks && late) lines.push(`⏰ ${plural(late, 'tarea atrasada', 'tareas atrasadas')}`);
     if (p.events && a.events.length) lines.push(`📅 ${plural(a.events.length, 'compromiso', 'compromisos')} hoy`);
     if (p.junta) a.meetings.forEach(m => lines.push(`🗓 Hoy: ${p.details ? m.title : 'reunión'}${m.time ? ` a las ${fmtTime(m.time)}` : ''}`));
+    if (p.assign) M.assignmentsToPrepare(iso).forEach(({ e, inDays }) => lines.push(`🎤 ${inDays === 0 ? 'Hoy' : inDays === 1 ? 'Mañana' : `En ${inDays} días`}: ${e.asg || 'tu asignación'}${p.details && e.title && e.title !== e.asg ? ` · ${e.title}` : ''}${inDays ? ' (prepárala)' : ''}`));
+    if (p.follow && new Date(`${iso}T12:00:00`).getDay() === 1) {
+      const s = M.studentsLate(iso).length, pl = M.pastoreoLate(iso).length;
+      if (s) lines.push(`📖 ${plural(s, 'curso bíblico espera', 'cursos bíblicos esperan')} tu visita`);
+      if (pl) lines.push(`🐑 ${plural(pl, 'hermano', 'hermanos')} sin visita de pastoreo en ${M.pastoreoMonths()} meses`);
+    }
     // Precursores / con meta: cómo vas y cuánto te toca hoy para llegar
     const v = M.profile();
     if (v.goalEnabled && Number(v.goalMonthly) > 0) {

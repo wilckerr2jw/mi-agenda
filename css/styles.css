@@ -23,6 +23,7 @@
   --c-ancianos: #B5484F;
   --c-estudio: #23859A;
   --c-personal: #75828F;
+  --c-asignacion: #C2185B;
   --c-mtg: #B5484F;
   --c-x1: #B8862B;
   --c-x2: #2F8F6B;
@@ -58,6 +59,7 @@
     --c-ancianos: #DB7178;
     --c-estudio: #4DB0C5;
     --c-personal: #93A0AC;
+    --c-asignacion: #F06292;
     --c-mtg: #DB7178;
     --c-x1: #D9A94E;
     --c-x2: #4FB58C;
@@ -86,6 +88,7 @@
   --c-ancianos: #DB7178;
   --c-estudio: #4DB0C5;
   --c-personal: #93A0AC;
+  --c-asignacion: #F06292;
   --c-mtg: #DB7178;
   --c-x1: #D9A94E;
   --c-x2: #4FB58C;
@@ -871,3 +874,38 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 
 /* Copias automáticas (v5.5) */
 .row-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+/* Seguimiento, asignaciones y año de servicio (v5.6) */
+.follow-card { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 10px; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.follow-card b { display: block; font-size: 15px; }
+.follow-card .meta { display: block; }
+.follow-card.late { border-color: color-mix(in srgb, var(--warn) 55%, transparent); background: color-mix(in srgb, var(--warn) 8%, var(--surface)); }
+.fc-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.card.mini.visit-row { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+.visit-row .grow { flex: 1; min-width: 0; }
+.visit-row .meta { display: block; }
+.card.person.late { border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+.badge.warn { background: var(--warn); color: #fff; }
+.follow-now { background: color-mix(in srgb, var(--c-estudio, var(--primary)) 12%, var(--surface)); border-color: color-mix(in srgb, var(--c-estudio, var(--primary)) 35%, transparent); }
+.follow-opts { margin-bottom: 6px; }
+.asg-card { border-left: 4px solid var(--c-asignacion); }
+.asg-card.prep { background: color-mix(in srgb, var(--c-asignacion) 8%, var(--surface)); }
+.prep-tag { color: var(--c-asignacion); font-weight: 600; }
+.asg-box { padding: 10px 12px; margin: 0 0 12px; border-radius: 12px; background: color-mix(in srgb, var(--c-asignacion) 7%, var(--surface)); }
+.year-card { padding: 14px; margin: 12px 0; }
+.year-chart { width: 100%; height: auto; display: block; margin: 4px 0 8px; }
+.year-chart .yb { fill: var(--primary); opacity: .85; }
+.year-chart .yb.ok { fill: var(--c-s2, var(--primary)); opacity: 1; }
+.year-chart .yb.cur { fill: var(--c-asignacion); }
+.year-chart .yb.fut { fill: var(--line); }
+.year-chart text { font-size: 9px; fill: var(--ink-2); text-anchor: middle; font-family: inherit; }
+.year-chart .yv { fill: var(--ink); font-weight: 600; }
+.year-chart .yg, .year-chart .ya { stroke-width: 1; stroke-dasharray: 4 3; }
+.year-chart .yg { stroke: var(--warn); }
+.year-chart .ya { stroke: var(--ink-2); }
+.year-chart .yg-t, .year-chart .ya-t { text-anchor: end; font-size: 8.5px; }
+.year-chart .yg-t { fill: var(--warn); }
+.year-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; }
+.year-stats span { padding: 8px; border-radius: 10px; background: var(--surface-2); }
+.year-stats b { display: block; font-size: 16px; }
+.year-stats small { display: block; font-size: 11.5px; color: var(--ink-2); }

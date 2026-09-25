@@ -100,6 +100,27 @@ function quickRow() {
   return list.length ? `<nav class="quick-row" id="quick-row" aria-label="Accesos rápidos">${list.map(q => `<button type="button" data-a="qa" data-v="${q.id}"><span class="qi">${ic(q.ic)}</span><span>${esc(q.n)}</span></button>`).join('')}</nav>` : '';
 }
 
+// Hoy: mis próximas asignaciones (las que ya están en tiempo de preparación, resaltadas)
+function assignmentsHoy() {
+  if (!M.isModuleVisible('agenda')) return '';
+  const list = M.upcomingAssignments(today(), 45).slice(0, 3);
+  if (!list.length) return '';
+  return `<section><div class="sec-h"><h2>🎤 Mis asignaciones</h2><button class="btn small ghost" data-a="new-assign" aria-label="Nueva asignación">${ic('plus', 'sm')}</button></div>
+    <div class="stack">${list.map(({ e, date, inDays }) => { const prep = inDays <= (Number(e.prep) || 0); return `<button class="card mini asg-card ${prep ? 'prep' : ''}" data-a="event" data-id="${e.id}" data-occ="${date}">
+      <strong>${esc(e.asg || 'Asignación')}${e.title && e.title !== e.asg ? ` · ${esc(e.title)}` : ''}</strong>
+      <span class="meta">${inDays === 0 ? '<b>Hoy</b>' : inDays === 1 ? '<b>Mañana</b>' : `${esc(fmtShort(date))} · en ${inDays} días`}${e.time ? `, ${fmtTime(e.time)}` : ''}${e.theme ? ` · ${esc(e.theme)}` : ''}</span>
+      ${prep && inDays > 0 ? '<span class="meta prep-tag">✍️ Es tiempo de prepararla</span>' : ''}</button>`; }).join('')}</div></section>`;
+}
+// Hoy: aviso corto si hay cursos bíblicos pendientes (o pastoreo, los lunes)
+function followNotice() {
+  if (!M.isModuleVisible('personas')) return '';
+  const s = M.studentsLate().length;
+  const p = new Date().getDay() === 1 ? M.pastoreoLate().length : 0;
+  if (!s && !p) return '';
+  const parts = [s ? `${s} ${s === 1 ? 'curso bíblico espera' : 'cursos bíblicos esperan'} tu visita` : '', p ? `${p} ${p === 1 ? 'hermano' : 'hermanos'} sin visita de pastoreo reciente` : ''].filter(Boolean);
+  return `<button class="log-now follow-now" data-a="seguimiento">📖 <span><b>Seguimiento</b><small>${parts.join(' y ')}. Toca para verlos.</small></span></button>`;
+}
+
 export function hoy() {
   const t = today(), d = parseISO(t);
   const entries = M.entriesFor(M.agendaFor(t));
@@ -149,6 +170,8 @@ export function hoy() {
   ${tiles.length ? `<div class="tiles">${tiles.join('')}</div>` : `<p class="sub pad">${summary}</p>`}
   ${quickRow()}
   ${isCloud ? '' : `<div class="notice">${ic('pin', 'sm')}<p>Modo local: tus datos están solo en este teléfono. <button class="link" data-a="settings">Ver cómo sincronizar</button></p></div>`}
+  ${followNotice()}
+  ${assignmentsHoy()}
   <section>
     <div class="sec-h"><h2>Agenda de hoy</h2></div>
     ${entries.length ? `<div class="tl">${entries.map(x => tlItem(x, t)).join('')}</div>`
@@ -414,8 +437,10 @@ export function personas(ui) {
   const st = ui.personas;
   const seg = `<div class="seg">
     <button data-a="pseg" data-v="personas" aria-pressed="${st.seg !== 'grupos'}">Personas</button>
-    <button data-a="pseg" data-v="grupos" aria-pressed="${st.seg === 'grupos'}">Grupos</button></div>`;
+    <button data-a="pseg" data-v="grupos" aria-pressed="${st.seg === 'grupos'}">Grupos</button>
+    <button data-a="pseg" data-v="seguimiento" aria-pressed="${st.seg === 'seguimiento'}">Seguimiento</button></div>`;
   if (st.seg === 'grupos') return `${head('Grupos', actions())}${seg}${gruposList()}`;
+  if (st.seg === 'seguimiento') return `${head('Seguimiento', actions())}${seg}${seguimiento(st)}`;
 
   const groups = [...data.groups].sort((a, b) => a.name.localeCompare(b.name, 'es'));
   if (st.g && !groups.some(g => g.id === st.g)) st.g = '';
@@ -429,6 +454,38 @@ export function personas(ui) {
   ${chips}
   ${privSel}
   <div id="results">${personasList(ui)}</div>`;
+}
+
+// ───── Seguimiento: cursos bíblicos, revisitas y pastoreo ─────
+const agoText = days => (days == null ? 'nunca' : days === 0 ? 'hoy' : days === 1 ? 'ayer' : days < 60 ? `hace ${days} días` : `hace ${Math.round(days / 30)} meses`);
+const byNeed = st => (a, b) => { const x = st(a).days, y = st(b).days; return (y == null ? 1e9 : y) - (x == null ? 1e9 : x) || a.name.localeCompare(b.name, 'es'); };
+function followRow(p, st, sub) {
+  return `<button class="card person ${st.late ? 'late' : ''}" data-a="person" data-id="${p.id}">
+    ${avatarHtml(p.photo, esc(initials(p.name)))}
+    <span class="p-body"><strong>${esc(p.name)}</strong><span class="meta">${sub}</span></span>
+    ${st.late ? '<span class="badge warn" title="Hace falta">!</span>' : ''}</button>`;
+}
+function seguimiento(st) {
+  const students = data.people.filter(M.isStudent).sort(byNeed(M.studyStatus));
+  const inter = data.people.filter(M.isInterested).sort(byNeed(M.revisitStatus));
+  const lateS = students.filter(p => M.studyStatus(p).late).length;
+  let html = `<section><div class="sec-h"><h2>📖 Cursos bíblicos</h2><span class="hint">${students.length}${lateS ? ` · ${lateS} pendientes` : ''}</span></div>
+    ${students.length ? `<div class="stack">${students.map(p => { const s = M.studyStatus(p); return followRow(p, s, `${p.study?.lesson ? `Lección ${esc(p.study.lesson)} · ` : ''}estudiaron ${agoText(s.days)}${s.next ? ` · toca ${relDays(s.next)}` : ''}`); }).join('')}</div>`
+      : '<p class="hint pad">Aún no hay estudiantes. En la ficha de una persona toca «Anotar visita» → Curso bíblico, o ponle la relación «Estudiante bíblico».</p>'}</section>`;
+  if (inter.length) html += `<section><div class="sec-h"><h2>🚪 Revisitas</h2><span class="hint">${inter.length}</span></div>
+    <div class="stack">${inter.map(p => { const s = M.revisitStatus(p); return followRow(p, s, `Última visita ${agoText(s.days)}`); }).join('')}</div></section>`;
+  if (M.canShepherd()) {
+    const groups = [...data.groups].sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    const g = st.g && groups.some(x => x.id === st.g) ? st.g : '';
+    const sheep = data.people.filter(M.isShepherdable).filter(p => !g || (p.groupIds || []).includes(g)).sort(byNeed(M.pastoreoStatus));
+    const lateP = sheep.filter(p => M.pastoreoStatus(p).late).length;
+    html += `<section><div class="sec-h"><h2>🐑 Pastoreo</h2><span class="hint">${lateP ? `${lateP} sin visita reciente` : 'al día'}</span></div>
+      <div class="pad follow-opts"><label class="mini-f"><span>Avisar si pasan más de</span><select id="pastoreo-months">${[3, 4, 6, 9, 12].map(n => `<option value="${n}" ${n === M.pastoreoMonths() ? 'selected' : ''}>${n} meses</option>`).join('')}</select></label></div>
+      ${groups.length ? `<div class="chips"><button class="chip" data-a="pfilter" data-v="" aria-pressed="${!g}">Todos</button>${groups.map(x => `<button class="chip" data-a="pfilter" data-v="${x.id}" aria-pressed="${g === x.id}">${esc(x.name)}</button>`).join('')}</div>` : ''}
+      ${sheep.length ? `<div class="stack">${sheep.map(p => { const s = M.pastoreoStatus(p); return followRow(p, s, `${p.role ? `${esc(p.role)} · ` : ''}visita de pastoreo ${agoText(s.days)}`); }).join('')}</div>`
+        : '<p class="hint pad">No hay hermanos en esta lista. Agrega personas en la pestaña Personas.</p>'}</section>`;
+  }
+  return html;
 }
 
 // ───────────── NOTAS Y REUNIONES ─────────────
@@ -580,6 +637,33 @@ export function weekCard(v) {
 
 // ───────────── MI INFORME ─────────────
 
+// Gráfica del año de servicio: horas por mes, promedio y (si hay) la meta del mes
+function yearChart(v) {
+  const y = M.yearSummary();
+  if (!y.total) return '';
+  const goal = v.goalEnabled && Number(v.goalMonthly) > 0 ? Number(v.goalMonthly) * 60 : 0;
+  const max = Math.max(goal, ...y.months.map(m => m.minutes), 60) * 1.12;
+  const W = 336, H = 150, top = 14, bottom = 22, bw = W / 12;
+  const yOf = m => top + (H - top - bottom) * (1 - m / max);
+  const bars = y.months.map((m, i) => {
+    const h = Math.max(m.minutes ? 2 : 0, (H - top - bottom) - (yOf(m.minutes) - top));
+    const x = i * bw + bw * 0.18, w = bw * 0.64;
+    const cls = m.current ? 'cur' : m.id > today().slice(0, 7) ? 'fut' : goal && m.minutes >= goal ? 'ok' : '';
+    return `<g><rect class="yb ${cls}" x="${x.toFixed(1)}" y="${(H - bottom - h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="3"><title>${cap(m.name)}: ${M.fmtHM(m.minutes)} h</title></rect>
+      ${m.minutes ? `<text class="yv" x="${(x + w / 2).toFixed(1)}" y="${(H - bottom - h - 3).toFixed(1)}">${Math.round(m.minutes / 60)}</text>` : ''}
+      <text class="yl" x="${(x + w / 2).toFixed(1)}" y="${H - 7}">${esc(m.name.slice(0, 3))}</text></g>`;
+  }).join('');
+  const line = (m, cls, label) => `<line class="${cls}" x1="0" x2="${W}" y1="${yOf(m).toFixed(1)}" y2="${yOf(m).toFixed(1)}"/><text class="${cls}-t" x="${W - 2}" y="${(yOf(m) - 3).toFixed(1)}">${label}</text>`;
+  return `<div class="card year-card"><div class="sec-h"><h2>Tu año de servicio</h2></div>
+    <svg class="year-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Horas por mes del año de servicio">
+      ${goal ? line(goal, 'yg', `meta ${Math.round(goal / 60)} h`) : ''}${y.avg ? line(y.avg, 'ya', `promedio ${M.fmtHM(y.avg)}`) : ''}${bars}</svg>
+    <div class="year-stats">
+      <span><b>${M.fmtHM(y.avg)}</b><small>promedio al mes</small></span>
+      ${y.best ? `<span><b>${esc(cap(y.best.name))}</b><small>mejor mes · ${M.fmtHM(y.best.minutes)} h</small></span>` : ''}
+      <span><b>${Math.round(y.projection / 60)} h</b><small>si sigues así, al final del año</small></span>
+    </div></div>`;
+}
+
 export function informe() {
   const months = M.serviceYearMonths();
   const start = M.serviceYearStart();
@@ -605,6 +689,7 @@ export function informe() {
   ${goal}
   ${weekCard(v)}
   ${annualGoal}
+  ${yearChart(v)}
   <p class="hint pad">Año de servicio: septiembre a agosto. Toca un mes para ver el detalle o registrar tiempo.</p>
   <div class="stack">${months.map(mo => {
     const t = M.monthTotals(mo.id);

@@ -1,7 +1,8 @@
 {
-  "version": "5.5",
+  "version": "5.6",
   "notes": [
-    "🛟 Copia automática de todo cada semana (Ajustes → Mis datos)",
-    "Puedes restaurar la copia completa o solo tu perfil y ajustes"
+    "📖 Seguimiento de cursos bíblicos, revisitas y pastoreo (Personas → Seguimiento)",
+    "🎤 Mis asignaciones: con tema y aviso para prepararte",
+    "📊 Gráfica de tu año de servicio en Informe"
   ]
 }

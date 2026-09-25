@@ -16,7 +16,7 @@ export function playSound(id = prefs().sound) {
   try { const a = new Audio(`sonidos/${id}.mp3`); a.volume = 0.9; a.play().catch(() => {}); } catch { /* sin audio */ }
 }
 export const DEFAULTS = { sound: 'campanita', logAt: 1230, hour: 7, tasks: true, events: true, junta: true, supervise: true, shared: true, updates: true, weekly: true, details: false,
-  before: 10, soon: true, routine: true, streak: true, taskTime: true, meetingSoon: true, partner: true, tomorrow: true, report: true };
+  before: 10, soon: true, routine: true, streak: true, taskTime: true, meetingSoon: true, partner: true, tomorrow: true, report: true, assign: true, follow: true };
 
 const ls = {
   get: () => { try { return localStorage.getItem(KEY) || ''; } catch { return ''; } },

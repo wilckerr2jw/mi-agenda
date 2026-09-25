@@ -23,7 +23,7 @@ const db = getFirestore();
 const log = { info: (...a) => console.log(...a), warn: (...a) => console.warn(...a), error: (...a) => console.error(...a) };
 
 const DEFAULTS = { hour: 7, tasks: true, events: true, junta: true, supervise: true, shared: true, updates: true, weekly: true, details: false,
-  before: 10, logAt: 1230, soon: true, routine: true, streak: true, taskTime: true, meetingSoon: true, partner: true, tomorrow: true, report: true };
+  before: 10, logAt: 1230, soon: true, routine: true, streak: true, taskTime: true, meetingSoon: true, partner: true, tomorrow: true, report: true, assign: true, follow: true };
 const CATCH_UP_HOURS = 3;          // si una hora falla, lo intenta en las 3 siguientes
 const SUPERVISE_DAYS = 7;
 
@@ -101,6 +101,35 @@ async function buildMessage(uid, p, now) {
       const at = m.time ? ` a las ${fmtTime(m.time)}` : '';
       const pending = m.date === tomorrow && (m.agenda || []).length && !m.agendaSentAt ? ' · falta enviar la agenda' : '';
       lines.push(`🗓 ${when}: ${p.details && m.title ? m.title : 'reunión'}${at}${pending}`);
+    }
+  }
+
+  // Mis asignaciones: desde los días de preparación que elegiste
+  if (p.assign) {
+    const asg = docs(await user.collection('events').where('category', '==', 'asignacion').get());
+    for (const e of asg) {
+      for (let i = 0; i <= 14; i++) {
+        if (!occursOn(e, addDays(today, i))) continue;
+        if (i <= (Number(e.prep) || 0)) lines.push(`🎤 ${i === 0 ? 'Hoy' : i === 1 ? 'Mañana' : `En ${i} días`}: ${e.asg || 'tu asignación'}${p.details && e.title && e.title !== e.asg ? ` · ${e.title}` : ''}${i ? ' (prepárala)' : ''}`);
+        break;
+      }
+    }
+  }
+
+  // Lunes: cursos bíblicos sin estudio reciente y hermanos sin visita de pastoreo (solo cuántos)
+  if (p.follow && now.monday) {
+    const people = docs(await user.collection('people').get());
+    const pr = (await db.doc(`users/${uid}/profile/me`).get()).data() || {};
+    const type = (await db.doc(`access/${uid}`).get()).data()?.type || 'anciano';
+    const last = (x, k) => (x.visits || []).filter(v => v.kind === k).map(v => v.date).sort().pop() || '';
+    const student = x => (x.study ? !!x.study.active : /estudiante/i.test(x.role || ''));
+    const lateS = people.filter(student).filter(x => { const l = last(x, 'estudio'); return !l || diffDays(today, l) > (Number(x.study?.every) || 7); }).length;
+    if (lateS) lines.push(`📖 ${plural(lateS, 'curso bíblico espera', 'cursos bíblicos esperan')} tu visita`);
+    if (type === 'anciano') {
+      const months = Number(pr.pastoreoMonths) || 6;
+      const lateP = people.filter(x => !x.isMe && !student(x) && !/interesad|estudiante|familiar/i.test(x.role || ''))
+        .filter(x => { const l = last(x, 'pastoreo'); return !l || diffDays(today, l) > months * 30; }).length;
+      if (lateP) lines.push(`🐑 ${plural(lateP, 'hermano', 'hermanos')} sin visita de pastoreo en ${months} meses`);
     }
   }
 

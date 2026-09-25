@@ -91,6 +91,13 @@ const TOPICS = [
   { g: 'Personas y notas', t: 'Nombres con apodos', when: c => c.on('personas'),
     b: () => `En la ficha de una persona, ${k('También escrito como')} guarda sus apodos u otras formas de escribir su nombre, para que la app la reconozca en los acuerdos.` },
 
+  { g: 'Personas y notas', t: 'Seguimiento de cursos y pastoreo', when: c => c.on('personas'),
+    b: c => `En la ficha de una persona toca ${k('＋ Anotar visita')} (curso bíblico, revisita${c.elder ? ' o pastoreo' : ''}). En Personas → ${k('Seguimiento')} ves quién necesita tu visita primero.` },
+  { g: 'Agenda y tareas', t: 'Mis asignaciones', when: c => c.on('agenda'),
+    b: () => `Crea un evento de tipo ${k('Mi asignación')}: elige la parte, escribe el tema y cuántos días antes prepararte. Sale en Hoy y en el resumen de la mañana.` },
+  { g: 'Mi Informe', t: 'Tu año de servicio', when: c => c.on('informe'),
+    b: () => `En Informe, la gráfica «Tu año de servicio» muestra tus horas por mes, tu promedio, tu mejor mes y cuántas tendrías al final del año si sigues así.` },
+
   // ───── Mi Informe
   { g: 'Mi Informe', t: 'Registrar tiempo', when: c => c.on('informe'),
     b: () => `En Informe toca ${k('+')}, elige la categoría, ajusta con ${k('+1h')} ${k('+5m')}, agrega tus cursos bíblicos y ${k('Guardar')}.` },

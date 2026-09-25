@@ -6,7 +6,7 @@
 //  · Datos y sesión (Firestore / Auth): no se tocan; Firestore tiene su propia caché sin conexión.
 // Al añadir archivos nuevos a la app, agrégalos a SHELL y sube el número de VERSION.
 
-const VERSION = 'agenda-v5.5';
+const VERSION = 'agenda-v5.6';
 const CDN = 'agenda-cdn';
 const SHELL = [
   './', 'index.html', 'guia.html', 'manifest.webmanifest',

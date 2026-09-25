@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '5.5';
+export const APP_VERSION = '5.6';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -24,7 +24,23 @@ export const CATEGORIAS = {
   ancianos:    { n: 'Cuerpo de ancianos',      c: 'var(--c-ancianos)' },
   estudio:     { n: 'Estudio y preparación',   c: 'var(--c-estudio)' },
   personal:    { n: 'Personal',                c: 'var(--c-personal)' },
+  asignacion:  { n: 'Mi asignación',           c: 'var(--c-asignacion)' },
 };
+
+// Asignaciones (evento de tipo «asignacion»: campo asg = qué parte, prep = días antes para prepararse)
+export const ASG_TYPES = ['Discurso público', 'Tesoros de la Biblia', 'Busquemos perlas escondidas', 'Lectura de la Biblia', 'Seamos mejores maestros', 'Nuestra vida cristiana', 'Estudio bíblico de congregación', 'Presidente', 'Oración', 'Lector', 'Conductor de La Atalaya', 'Comité de servicio', 'Otra'];
+export const PREP_DAYS = [[0, 'Sin aviso'], [1, '1 día antes'], [2, '2 días antes'], [3, '3 días antes'], [5, '5 días antes'], [7, '1 semana antes']];
+export const isAssignment = e => e?.category === 'asignacion';
+// Próxima fecha (desde hoy) de cada asignación dentro de «days» días
+export function upcomingAssignments(from = today(), days = 60) {
+  const out = [];
+  data.events.filter(isAssignment).forEach(e => {
+    for (let i = 0; i <= days; i++) { const iso = addDays(from, i); if (occursOn(e, iso)) { out.push({ e, date: iso, inDays: i }); break; } }
+  });
+  return out.sort((a, b) => (a.date + (a.e.time || '')).localeCompare(b.date + (b.e.time || '')));
+}
+// Las que ya entran en su tiempo de preparación (prep días antes, hasta el mismo día)
+export const assignmentsToPrepare = (from = today()) => upcomingAssignments(from, 14).filter(x => x.inDays <= (Number(x.e.prep) || 0) || x.inDays === 0);
 
 // Tipos de evento que se ofrecen según el perfil (si se edita uno con un tipo oculto, se conserva)
 export function eventCats(current) {
@@ -230,6 +246,8 @@ export const QUICK_ACTIONS = [
   { id: 'week',      n: 'Planear semana',   ic: 'chart',    mod: 'informe' },
   { id: 'supervise', n: 'Por supervisar',   ic: 'check',    mod: 'tareas' },
   { id: 'search',    n: 'Buscar en todo',   ic: 'search',   mod: '' },
+  { id: 'assign',    n: 'Nueva asignación', ic: 'flag',     mod: 'agenda' },
+  { id: 'follow',    n: 'Seguimiento',      ic: 'users',    mod: 'personas' },
 ];
 export const DEFAULT_QUICK = ['time', 'task', 'meeting', 'note'];
 // Los que se muestran: los que eligió el usuario (o los de siempre), sin los de secciones ocultas
@@ -406,6 +424,51 @@ export function streak(ev, who, from = today()) {
 
 // ───── Semana en cuadro (como un calendario impreso): filas por hora, columnas por día ─────
 export const addDaysISO = addDays;
+
+// ───────────── Seguimiento: cursos bíblicos, revisitas y pastoreo ─────────────
+// person.visits = [{ id, date, kind: 'estudio'|'revisita'|'pastoreo', lesson, note }]
+// person.study  = { active, pub, lesson, every }   (every = cada cuántos días estudian)
+export const VISIT_KINDS = { estudio: '📖 Curso bíblico', revisita: '🚪 Revisita', pastoreo: '🐑 Pastoreo' };
+export const canShepherd = () => !profileTypeInfo().hideServCats.includes('pastoreo');
+export const visitKinds = () => Object.fromEntries(Object.entries(VISIT_KINDS).filter(([k]) => k !== 'pastoreo' || canShepherd()));
+export const isStudent = p => !!p && (p.study ? !!p.study.active : /estudiante/i.test(p.role || ''));
+export const isInterested = p => !!p && !isStudent(p) && (/interesad/i.test(p.role || '') || (p.visits || []).some(v => v.kind === 'revisita'));
+export const isShepherdable = p => !!p && !p.isMe && !isStudent(p) && !/interesad|estudiante|familiar/i.test(p.role || '');
+export const visitsOf = (p, kind) => (p.visits || []).filter(v => !kind || v.kind === kind).sort((a, b) => b.date.localeCompare(a.date));
+export const lastVisit = (p, kind) => visitsOf(p, kind)[0]?.date || '';
+export const studyEvery = p => Number(p.study?.every) || 7;
+export const pastoreoMonths = () => Number(profile().pastoreoMonths) || 6;
+export function studyStatus(p, t = today()) {
+  const last = lastVisit(p, 'estudio');
+  const days = last ? diffDays(t, last) : null;
+  return { last, days, late: days == null || days > studyEvery(p), next: last ? addDays(last, studyEvery(p)) : '' };
+}
+export function revisitStatus(p, t = today()) {
+  const last = lastVisit(p, 'revisita');
+  const days = last ? diffDays(t, last) : null;
+  return { last, days, late: days == null || days > 14 };
+}
+export function pastoreoStatus(p, t = today()) {
+  const last = lastVisit(p, 'pastoreo');
+  const days = last ? diffDays(t, last) : null;
+  return { last, days, late: days == null || days > pastoreoMonths() * 30 };
+}
+export const studentsLate = (t = today()) => data.people.filter(isStudent).filter(p => studyStatus(p, t).late);
+export const pastoreoLate = (t = today()) => (canShepherd() ? data.people.filter(isShepherdable).filter(p => pastoreoStatus(p, t).late) : []);
+
+// ───────────── Resumen del año de servicio (para la gráfica) ─────────────
+export function yearSummary(withCredit = false) {
+  const t = today(), cur = t.slice(0, 7);
+  const months = serviceYearMonths().map(mo => ({ ...mo, minutes: monthTotals(mo.id, withCredit).minutes, past: mo.id < cur, current: mo.id === cur }));
+  const counted = months.filter(m => m.past || (m.current && m.minutes > 0));
+  const total = months.reduce((s, m) => s + m.minutes, 0);
+  const avg = counted.length ? counted.reduce((s, m) => s + m.minutes, 0) / counted.length : 0;
+  const best = months.reduce((b, m) => (m.minutes > (b?.minutes || 0) ? m : b), null);
+  const left = months.filter(m => m.id > cur).length + (months.some(m => m.current) ? 1 : 0);
+  const curMin = months.find(m => m.current)?.minutes || 0;
+  const projection = total - curMin + Math.max(curMin, avg) + avg * Math.max(0, left - 1);
+  return { months, total, avg, best: best && best.minutes ? best : null, projection, counted: counted.length };
+}
 export function mondayOf(iso) { const d = parseISO(iso); const w = (d.getDay() + 6) % 7; return addDays(iso, -w); }
 export function weekGrid(monday) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));

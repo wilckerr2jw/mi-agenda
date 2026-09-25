@@ -118,7 +118,7 @@ const copyOf = e => Object.fromEntries(EVENT_COPY.filter(k => e[k] !== undefined
 export function eventSheet(id, preset = {}, back) {
   const e = id ? store.get('events', id) : null;
   const src = !e && preset.copyOf ? store.get('events', preset.copyOf) : null;
-  const v = e || (src ? copyOf(src) : null) || { title: '', category: 'reunion', date: preset.date || today(), time: preset.time || '', endTime: preset.endTime || '', place: '', notes: '', repeat: 'none', companionId: '', companionGroupIds: [], companionPersonIds: [] };
+  const v = e || (src ? copyOf(src) : null) || { title: '', category: preset.category || 'reunion', date: preset.date || today(), prep: preset.category === 'asignacion' ? 3 : 0, time: preset.time || '', endTime: preset.endTime || '', place: '', notes: '', repeat: 'none', companionId: '', companionGroupIds: [], companionPersonIds: [] };
   // Si se abrió tocando una ocurrencia puntual de un evento que se repite, se puede cancelar solo esa semana.
   const occDate = preset.occDate || '';
   const skipped = e && occDate ? (e.skipDates || []).includes(occDate) : false;
@@ -127,12 +127,17 @@ export function eventSheet(id, preset = {}, back) {
   const sh = !!v.sharedId, owner = !sh || store.isSharedOwner(v);
   const others = sh ? (v.members || []).filter(u => u !== account.user?.uid).map(u => v.memberNames?.[u] || 'otra cuenta') : [];
   open({
-    title: e ? 'Editar evento' : src ? 'Duplicar evento' : 'Nuevo evento', back, focus: e ? null : '#title',
+    title: e ? (M.isAssignment(e) ? 'Editar asignación' : 'Editar evento') : src ? 'Duplicar evento' : v.category === 'asignacion' ? 'Nueva asignación' : 'Nuevo evento', back, focus: e ? null : '#title',
     body: `${sh ? `<p class="shared-note">👥 ${owner ? `Lo compartes con <b>${esc(others.join(', '))}</b>` : `Te lo compartió <b>${esc(v.ownerName || 'otra cuenta')}</b>`}. Todos pueden cambiarlo y los cambios les llegan a los demás.${v.updatedByName && v.updatedBy !== account.user?.uid ? ` <span class="hint">Último cambio: ${esc(v.updatedByName)}.</span>` : ''}</p>` : ''}
       ${formTag('event', e?.id)}
       ${fld('Título', `<input id="title" name="title" required maxlength="120" value="${esc(v.title)}" placeholder="Ej. Reunión de entre semana">`, 'title')}
       ${fld('Tipo', typeSelect('category', M.eventCats(v.category), v.category, 'events', M.CATEGORIAS), 'category')}
       ${typeOtro('category', 'Ej. Reunión de circuito')}
+      <div id="asg-box" class="asg-box" ${v.category === 'asignacion' ? '' : 'hidden'}>
+        ${fld('¿Qué asignación es?', `<select id="asg" name="asg">${M.ASG_TYPES.map(x => `<option ${x === (v.asg || M.ASG_TYPES[0]) ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`, 'asg')}
+        ${fld('Avisarme para prepararla', `<select id="prep" name="prep">${M.PREP_DAYS.map(([n, t]) => `<option value="${n}" ${n === (Number(v.prep) || 0) ? 'selected' : ''}>${t}</option>`).join('')}</select>`, 'prep')}
+        <p class="hint">Escribe el tema o la referencia en «Tema sugerido». Te aparece en Hoy y en el resumen de la mañana desde que empieza el tiempo de preparación.</p>
+      </div>
       ${fld('Fecha', `<input id="date" name="date" type="date" required value="${v.date}">`, 'date')}
       <div class="two">
         ${fld('Empieza', `<input id="time" name="time" type="time" value="${v.time || ''}">`, 'time')}
@@ -366,6 +371,7 @@ function saveEvent(id, r, form) {
   const days = new FormData(form).getAll('days').map(Number);
   if (r.repeat === 'days' && !days.length) { toast('Marca al menos un día'); return; }
   const item = { ...prev, id: id || uid(), title: r.title, category, date: r.date, time: r.time, endTime: r.endTime, place: r.place, companionId: r.companionId, companionGroupIds, companionPersonIds, repeat: r.repeat, days: r.repeat === 'days' ? days : [], color: r.color || '', notes: r.notes, theme: (r.theme || '').trim(), skipDates: prev.skipDates || [] };
+  if (category === 'asignacion') { item.asg = r.asg || ''; item.prep = Number(r.prep) || 0; }
   const fd = new FormData(form);
   if (isCloud && fd.get('shareLoaded') && (!prev.sharedId || store.isSharedOwner(prev))) {
     const chosen = fd.getAll('shareWith');
@@ -658,7 +664,9 @@ export function personDetail(id, back = null) {
       ${p.address ? `<p class="meta pad">${ic('pin', 'sm')}${esc(p.address)}</p>` : ''}
       <div class="quick">
         <button class="btn small" data-a="new-task-for" data-id="${id}">Nueva tarea</button>
+        ${p.isMe ? '' : `<button class="btn small" data-a="visit-new" data-id="${id}">＋ Anotar visita</button>`}
       </div>
+      ${p.isMe ? '' : followHtml(p)}
       <h3 class="sub-h">Tareas abiertas</h3>
       ${tasks.length ? `<div class="stack">${tasks.map(t => `<button class="card mini" data-a="task-in-sheet" data-id="${t.id}" data-bk="person" data-bid="${id}"><strong>${esc(t.title)}</strong><span class="meta">${esc(M.kindLabel(t.kind))}${t.due ? `, ${fmtShort(t.due)}` : ''}</span></button>`).join('')}</div>` : '<p class="hint">No hay tareas abiertas para esta persona.</p>'}
       ${doneCount ? `<p class="hint pad">${doneCount} ${doneCount === 1 ? 'tarea completada' : 'tareas completadas'}.</p>` : ''}
@@ -666,6 +674,101 @@ export function personDetail(id, back = null) {
       ${linkedNotes.length ? `<h3 class="sub-h">Notas de la agenda vinculadas</h3><div class="stack">${linkedNotes.map(n => `<button class="card mini" data-a="note-in-sheet" data-id="${n.id}" data-bk="person" data-bid="${id}"><strong>${esc(n.title || 'Sin título')}</strong><span class="meta">${M.noteDate(n) ? fmtShort(M.noteDate(n)) : ''}</span></button>`).join('')}</div>` : ''}`,
     actions: `<button type="button" class="btn ghost" data-a="edit-person" data-id="${id}">Editar</button><button type="button" class="btn primary" data-a="sheet-close">Listo</button>`,
   });
+}
+
+// ───── Seguimiento en la ficha: curso bíblico, revisitas, pastoreo e historial de visitas ─────
+const agoText = days => (days == null ? 'nunca' : days === 0 ? 'hoy' : days === 1 ? 'ayer' : days < 60 ? `hace ${days} días` : `hace ${Math.round(days / 30)} meses`);
+function followHtml(p) {
+  const out = [];
+  if (M.isStudent(p)) {
+    const st = M.studyStatus(p);
+    out.push(`<div class="follow-card ${st.late ? 'late' : ''}"><div class="grow"><b>📖 Curso bíblico</b>
+      <span class="meta">${p.study?.pub ? esc(p.study.pub) : 'Publicación sin indicar'}${p.study?.lesson ? ` · lección ${esc(p.study.lesson)}` : ''}</span>
+      <span class="meta">Última vez: ${agoText(st.days)}${st.next ? ` · próxima: ${relDays(st.next)}` : ''} (cada ${M.studyEvery(p)} días)</span></div>
+      <div class="fc-btns"><button class="btn small primary" data-a="visit-new" data-id="${p.id}" data-v="estudio">Estudiamos</button><button class="btn small ghost" data-a="study-edit" data-id="${p.id}">Ajustar</button></div></div>`);
+  } else if (M.isInterested(p)) {
+    const st = M.revisitStatus(p);
+    out.push(`<div class="follow-card ${st.late ? 'late' : ''}"><div class="grow"><b>🚪 Revisitas</b><span class="meta">Última: ${agoText(st.days)}</span></div>
+      <div class="fc-btns"><button class="btn small primary" data-a="visit-new" data-id="${p.id}" data-v="revisita">La visité</button><button class="btn small ghost" data-a="study-edit" data-id="${p.id}">Empezar curso</button></div></div>`);
+  }
+  if (M.canShepherd() && M.isShepherdable(p)) {
+    const st = M.pastoreoStatus(p);
+    out.push(`<div class="follow-card ${st.late ? 'late' : ''}"><div class="grow"><b>🐑 Pastoreo</b><span class="meta">Última visita: ${agoText(st.days)}${st.late ? ` · más de ${M.pastoreoMonths()} meses` : ''}</span></div>
+      <div class="fc-btns"><button class="btn small primary" data-a="visit-new" data-id="${p.id}" data-v="pastoreo">Lo visité</button></div></div>`);
+  }
+  const vs = M.visitsOf(p).slice(0, 6);
+  if (vs.length) out.push(`<h3 class="sub-h">Visitas</h3><div class="stack">${vs.map(v => `<div class="card mini visit-row"><span class="grow"><strong>${esc(M.VISIT_KINDS[v.kind] || v.kind)} · ${esc(fmtShort(v.date))}</strong>${v.lesson || v.note ? `<span class="meta">${v.lesson ? `Lección ${esc(v.lesson)}` : ''}${v.lesson && v.note ? ' · ' : ''}${esc(v.note || '')}</span>` : ''}</span><button class="icon-btn" data-a="visit-del" data-id="${p.id}" data-v="${v.id}" aria-label="Borrar visita">${ic('x', 'sm')}</button></div>`).join('')}</div>
+    ${(p.visits || []).length > 6 ? `<p class="hint pad">Y ${(p.visits || []).length - 6} visitas más antiguas.</p>` : ''}`);
+  return out.join('');
+}
+
+// Guarda una visita en la ficha (y actualiza «último contacto»)
+function addVisit(p, v) {
+  const visits = [{ id: uid(), ...v }, ...(p.visits || [])].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 200);
+  const extra = {};
+  if (v.kind === 'estudio') extra.study = { every: 7, ...(p.study || {}), active: true, ...(v.lesson ? { lesson: v.lesson } : {}) };
+  store.upsert('people', { ...p, visits, ...extra, lastContact: !p.lastContact || v.date > p.lastContact ? v.date : p.lastContact });
+}
+
+export function visitSheet(pid, kind) {
+  const p = store.get('people', pid);
+  if (!p) return;
+  const b = backFn;
+  const kinds = M.visitKinds();
+  const k = kind && kinds[kind] ? kind : M.isStudent(p) ? 'estudio' : M.isShepherdable(p) && M.canShepherd() ? 'pastoreo' : 'revisita';
+  open({
+    title: `Visita a ${p.name}`, back: () => personDetail(pid, b),
+    body: `${formTag('visit', pid)}
+      ${fld('¿Qué fue?', `<select id="kind" name="kind">${options(kinds, k)}</select>`, 'kind')}
+      ${fld('Fecha', `<input id="date" name="date" type="date" required value="${today()}" max="${today()}">`, 'date')}
+      <div id="visit-lesson" ${k === 'estudio' ? '' : 'hidden'}>${fld('Lección o capítulo que vieron', `<input id="lesson" name="lesson" maxlength="60" value="${esc(p.study?.lesson || '')}" placeholder="Ej. 12">`, 'lesson')}</div>
+      ${fld('Nota <span class="hint">(opcional)</span>', `<textarea id="note" name="note" rows="2" maxlength="400" placeholder="Qué vieron, qué quedó pendiente…"></textarea>`, 'note')}
+    </form>`,
+    actions: '<button type="submit" form="f" class="btn primary">Guardar visita</button>',
+  });
+}
+function saveVisit(pid, r) {
+  const p = store.get('people', pid);
+  if (!p) return close();
+  addVisit(p, { date: r.date || today(), kind: r.kind, lesson: r.kind === 'estudio' ? (r.lesson || '') : '', note: r.note || '' });
+  toast('Visita anotada');
+  closeOrBack();
+}
+export function visitDelete(pid, vid) {
+  const p = store.get('people', pid);
+  if (!p) return;
+  const prev = p.visits || [];
+  store.upsert('people', { ...p, visits: prev.filter(v => v.id !== vid) });
+  toast('Visita borrada', 'Deshacer', () => { const q = store.get('people', pid); if (q) store.upsert('people', { ...q, visits: prev }); personDetail(pid, backFn); });
+  personDetail(pid, backFn);
+}
+
+// Datos del curso bíblico (publicación, lección, frecuencia) o empezar / terminar el curso
+export function studySheet(pid) {
+  const p = store.get('people', pid);
+  if (!p) return;
+  const b = backFn;
+  const s = { every: 7, pub: '', lesson: '', ...(p.study || {}) };
+  const active = M.isStudent(p) || !p.study;
+  open({
+    title: `Curso bíblico · ${p.name}`, back: () => personDetail(pid, b),
+    body: `${formTag('study', pid)}
+      <label class="check"><input type="checkbox" name="active" ${active ? 'checked' : ''}> Le doy un curso bíblico</label>
+      ${fld('Publicación', `<input id="pub" name="pub" maxlength="80" value="${esc(s.pub)}" placeholder="Ej. ¡Disfrute de la vida para siempre!">`, 'pub')}
+      ${fld('Lección actual', `<input id="lesson" name="lesson" maxlength="60" value="${esc(s.lesson)}" placeholder="Ej. 12">`, 'lesson')}
+      ${fld('¿Cada cuánto estudian?', `<select id="every" name="every">${[[7, 'Cada semana'], [14, 'Cada 2 semanas'], [30, 'Cada mes']].map(([n, t]) => `<option value="${n}" ${n === Number(s.every) ? 'selected' : ''}>${t}</option>`).join('')}</select>`, 'every')}
+      <p class="hint">Si pasa ese tiempo sin anotar un estudio, la app te lo recuerda. Los cursos que anotas al registrar tu tiempo cuentan solos.</p>
+    </form>`,
+    actions: '<button type="submit" form="f" class="btn primary">Guardar</button>',
+  });
+}
+function saveStudy(pid, r, form) {
+  const p = store.get('people', pid);
+  if (!p) return close();
+  const active = !!new FormData(form).get('active');
+  store.upsert('people', { ...p, study: { active, pub: r.pub || '', lesson: r.lesson || '', every: Number(r.every) || 7 } });
+  toast(active ? 'Curso bíblico guardado' : 'Curso marcado como terminado');
+  closeOrBack();
 }
 
 // Estas tres conservan la hoja anterior (p. ej. el grupo desde el que se abrió la ficha)
@@ -987,6 +1090,11 @@ function saveEntry(id, r) {
   let studyNames = [];
   try { studyNames = JSON.parse(r.studies || '[]'); } catch { studyNames = []; }
   store.upsert('entries', { ...prev, id: id || uid(), category: r.category, date: r.date, minutes: parseInt(r.minutes, 10) || 0, studyNames, notes: r.notes });
+  // Los cursos anotados cuentan como visita de estudio en la ficha de cada estudiante
+  studyNames.forEach(n => {
+    const p = data.people.find(x => norm(x.name) === norm(n));
+    if (p && !(p.visits || []).some(v => v.kind === 'estudio' && v.date === r.date)) addVisit(p, { date: r.date, kind: 'estudio', lesson: p.study?.lesson || '', note: '' });
+  });
   closeOrBack();
 }
 
@@ -1948,7 +2056,7 @@ function nativeNotifHtml() {
     <div class="stack pad">
       <p class="hint pick-h"><b>Resumen de la mañana</b></p>
       <label class="mini-f"><span>Hora del resumen</span><select id="notif-hour">${hours.map(h => `<option value="${h}" ${h === Number(p.hour) ? 'selected' : ''}>${hh(h)}</option>`).join('')}</select></label>
-      ${opt('tasks', 'Tareas para hoy y atrasadas')}${opt('events', 'Compromisos de hoy')}${opt('junta', 'Reuniones de hoy')}
+      ${opt('tasks', 'Tareas para hoy y atrasadas')}${opt('events', 'Compromisos de hoy')}${opt('junta', 'Reuniones de hoy')}${opt('assign', 'Mis asignaciones por preparar')}${opt('follow', 'Lunes: cursos bíblicos y pastoreo pendientes')}
       <p class="hint pick-h"><b>📝 Registro de la noche (importante)</b></p>
       <label class="mini-f"><span>Hora del recordatorio</span><select id="notif-logat">${[1140, 1170, 1200, 1230, 1260, 1290, 1320].map(m => `<option value="${m}" ${m === Number(p.logAt) ? 'selected' : ''}>${Math.floor(m / 60) - 12}:${String(m % 60).padStart(2, '0')} p. m.</option>`).join('')}</select></label>
       <p class="hint pick-h"><b>Durante el día</b></p>
@@ -1982,6 +2090,8 @@ function notifSettingsHtml() {
         ${opt('tasks', 'Tareas para hoy y atrasadas')}
         ${opt('events', 'Compromisos de hoy')}
         ${opt('junta', 'Reunión de hoy o mañana (y si falta enviar la agenda)')}
+        ${opt('assign', 'Mis asignaciones: desde los días de preparación')}
+        ${opt('follow', 'Lunes: cursos bíblicos y pastoreo pendientes')}
         ${opt('supervise', 'Los lunes: tareas que supervisas')}
         ${opt('weekly', 'Los domingos: resumen de la semana y lo que viene')}
         <p class="hint pick-h"><b>📝 Registro de la noche (importante)</b></p>
@@ -2255,5 +2365,7 @@ export function submit(form) {
     case 'profile': return saveProfile(r, form);
     case 'weekplan': return saveWeekPlan(r);
     case 'pin': return savePin(id, r);
+    case 'visit': return saveVisit(id, r);
+    case 'study': return saveStudy(id, r, form);
   }
 }

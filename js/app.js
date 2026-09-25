@@ -174,6 +174,11 @@ document.addEventListener('click', e => {
     case 'person-in-sheet': return S.personDetail(id, () => S.groupDetail(el.dataset.bid));
     case 'keep': return S.keepSheet();
     case 'auto-backups': return S.autoBackupsSheet();
+    case 'visit-new': return S.visitSheet(id, v);
+    case 'visit-del': return S.visitDelete(id, v);
+    case 'study-edit': return S.studySheet(id);
+    case 'new-assign': return S.eventSheet(null, { category: 'asignacion', date: today() });
+    case 'seguimiento': ui.personas.seg = 'seguimiento'; return go('personas');
     case 'ab-restore': return S.autoBackupRestore(el.dataset.v, el.dataset.only);
     case 'keep-import': return S.keepImport();
     case 'theme': Theme.toggle(); return render();
@@ -318,6 +323,8 @@ document.addEventListener('change', e => {
   if (t.matches?.('input[data-a="ag-pick"]')) return S.agendaTogglePick(t.dataset.id);
   if (t.matches?.('select[data-admin-uid]')) return S.adminSetType(t.dataset.adminUid, t.value, t);
   if (t.matches?.('input[data-a="ev-pick"]')) { const cur = new Set(ui.agenda.picked || []); t.checked ? cur.add(t.value) : cur.delete(t.value); ui.agenda.picked = [...cur]; return render(); }
+  if (t.id === 'kind' && t.form?.dataset.form === 'visit') { const box = document.getElementById('visit-lesson'); if (box) box.hidden = t.value !== 'estudio'; return; }
+  if (t.id === 'pastoreo-months') { store.patchProfile({ pastoreoMonths: Number(t.value) || 6 }); return render(); }
   if (t.id === 'repeat' && t.form?.dataset.form === 'event') { const box = document.getElementById('repeat-days'); if (box) box.hidden = t.value !== 'days'; return; }
   if (t.matches?.('select[data-otro]')) {   // «✏️ Nuevo tipo…» muestra el campo de texto
     const box = document.getElementById(t.dataset.otro);
@@ -328,6 +335,8 @@ document.addEventListener('change', e => {
       const group = document.getElementById('companion-group');
       if (single) single.hidden = isAncianos;
       if (group) group.hidden = !isAncianos;
+      const asg = document.getElementById('asg-box');
+      if (asg) asg.hidden = t.value !== 'asignacion';
     }
     return;
   }
@@ -501,6 +510,8 @@ function runQuick(id) {
     week: () => S.weekPlanSheet(),
     supervise: () => { ui.tareas = { ...ui.tareas, f: 'activas', m: '__sup' }; go('tareas'); },
     search: () => S.searchSheet(),
+    assign: () => S.eventSheet(null, { category: 'asignacion', date: today() }),
+    follow: () => { ui.personas.seg = 'seguimiento'; go('personas'); },
   };
   const q = M.QUICK_ACTIONS.find(x => x.id === id);
   if (!q || (q.mod && !M.isModuleVisible(q.mod))) return;
