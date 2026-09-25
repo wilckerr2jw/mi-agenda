@@ -36,13 +36,27 @@ function tlItem({ kind, item }, iso) {
   // para que, al abrirlo, se pueda cancelar solo esa semana sin tocar las demás.
   const occ = !isMeeting && M.isRepeating(item) && iso !== item.date ? iso : '';
   const companions = isMeeting ? '' : M.eventCompanionsText(item);
+  // Rutinas (eventos que se repiten): casilla para marcar «hecho» hoy o días anteriores, con racha
+  const routine = !isMeeting && M.isRepeating(item) && iso && iso <= today();
+  const me = store.doneId();
+  const done = routine && M.isDoneBy(item, iso, me);
+  const racha = routine ? M.streak(item, me) : 0;
+  const othersDone = routine && item.sharedId ? (item.doneLog?.[iso] || []).filter(u => u !== me).map(u => item.memberNames?.[u] || '').filter(Boolean) : [];
+  const btn = tlButton({ kind, item }, iso, { color, label, occ, companions, racha, othersDone });
+  return routine
+    ? `<div class="tl-row">${btn}<button type="button" class="tl-check ${done ? 'on' : ''}" data-a="ev-done" data-id="${item.id}" data-date="${iso}" aria-pressed="${done}" aria-label="${done ? 'Desmarcar' : 'Marcar como hecho'}: ${esc(item.title)}">${ic('check')}</button></div>`
+    : btn;
+}
+function tlButton({ kind, item }, iso, { color, label, occ, companions, racha, othersDone }) {
+  const isMeeting = kind === 'meeting';
   return `<button class="tl-item" style="--c:${color}" data-a="${isMeeting ? 'meeting' : 'event'}" data-id="${item.id}" ${occ ? `data-occ="${occ}"` : ''}>
     ${timeCell(item.time)}<span class="bar"></span>
     <span class="tl-body"><strong>${esc(item.title)}</strong><span class="meta">${esc(label)}</span>
     ${item.place ? `<span class="meta">${ic('pin', 'sm')}${esc(item.place)}</span>` : ''}
     ${companions ? `<span class="meta">${ic('users', 'sm')}Con ${esc(companions)}</span>` : ''}
     ${item.theme ? `<span class="meta">💬 ${esc(item.theme)}</span>` : ''}
-    ${item.sharedId ? `<span class="meta shared-tag">👥 ${store.isSharedOwner(item) ? 'Compartido' : `De ${esc(item.ownerName || 'otra cuenta')}`}</span>` : ''}</span>
+    ${item.sharedId ? `<span class="meta shared-tag">👥 ${store.isSharedOwner(item) ? 'Compartido' : `De ${esc(item.ownerName || 'otra cuenta')}`}</span>` : ''}
+    ${racha >= 2 || othersDone.length ? `<span class="meta streak">${racha >= 2 ? `🔥 ${racha} seguidos` : ''}${racha >= 2 && othersDone.length ? ' · ' : ''}${othersDone.length ? `✓ ${esc(othersDone.join(', '))}` : ''}</span>` : ''}</span>
   </button>`;
 }
 
@@ -152,7 +166,7 @@ export function hoy() {
 
 // Selector de vista de la Agenda: calendario, lista de los próximos días o todos los eventos
 const agendaSeg = mode => `<div class="seg ag-views" role="tablist" aria-label="Vista">
-  ${[['mes', 'Mes'], ['proximos', 'Próximos'], ['todos', 'Todos']].map(([k, n]) => `<button data-a="agenda-mode" data-v="${k}" aria-pressed="${mode === k}">${n}</button>`).join('')}</div>`;
+  ${[['mes', 'Mes'], ['semana', 'Semana'], ['proximos', 'Próximos'], ['todos', 'Todos']].map(([k, n]) => `<button data-a="agenda-mode" data-v="${k}" aria-pressed="${mode === k}">${n}</button>`).join('')}</div>`;
 
 const LIST_DAYS = 30;
 function agendaUpcoming() {
@@ -193,16 +207,36 @@ function agendaAll(st) {
   if (!evs.length) return empty('Aún no tienes eventos.', '<button class="btn" data-a="new-event">Agregar evento</button>', 'calendar');
   const past = evs.filter(e => !M.isRepeating(e) && e.date < t).sort((a, b) => b.date.localeCompare(a.date));
   return `<div class="bulk-top">${picking
-      ? `<span class="hint">Toca los eventos que quieras eliminar.</span><button class="btn small ghost" data-a="ev-pick-mode" data-v="off">Cancelar</button>`
+      ? `<span class="hint">Marca los eventos que quieras ${isCloud ? 'compartir o ' : ''}eliminar.</span><button class="btn small ghost" data-a="ev-pick-mode" data-v="off">Cancelar</button>`
       : `<button class="btn small" data-a="ev-pick-mode" data-v="on">${ic('check', 'sm')} Seleccionar varios</button>`}</div>
     ${repeating.length ? `<section>${secHead('Se repiten', repeating)}<div class="tl all">${repeating.map(row).join('')}</div></section>` : ''}
     ${once.length ? `<section>${secHead('Próximos, una sola vez', once)}<div class="tl all">${once.map(row).join('')}</div></section>` : ''}
     ${past.length ? `<section>${secHead('Ya pasaron', past)}<div class="tl all">${past.map(row).join('')}</div></section>` : ''}
-    ${picking ? `<div class="bulk-bar"><span><b>${picked.size}</b> ${picked.size === 1 ? 'seleccionado' : 'seleccionados'}</span><button class="btn danger-fill" data-a="ev-bulk-delete" ${picked.size ? '' : 'disabled'}>Eliminar</button></div>` : ''}`;
+    ${picking ? `<div class="bulk-bar"><span><b>${picked.size}</b> ${picked.size === 1 ? 'seleccionado' : 'seleccionados'}</span><span class="quick">${isCloud ? `<button class="btn" data-a="ev-bulk-share" ${picked.size ? '' : 'disabled'}>👥 Compartir</button>` : ''}<button class="btn danger-fill" data-a="ev-bulk-delete" ${picked.size ? '' : 'disabled'}>Eliminar</button></span></div>` : ''}`;
+}
+
+// Semana en cuadro, como el calendario impreso (se puede enviar como imagen)
+function agendaWeek(st) {
+  const monday = st.week || M.mondayOf(today());
+  const g = M.weekGrid(monday);
+  const t = today();
+  const head = g.days.map(iso => `<th class="${iso === t ? 'today' : ''}"><span>${cap(DIAS[parseISO(iso).getDay()]).slice(0, 3)}</span><b>${Number(iso.slice(8))}</b></th>`).join('');
+  const body = g.rows.map(r => `<tr><th class="wk-h">${r.time ? fmtTime(r.time) : 'Sin hora'}</th>${r.cells.map(list => `<td>${list.map(x => `<button class="wk-item" style="--c:${x.color}" data-a="${x.kind}" data-id="${x.item.id}" ${x.kind === 'event' && M.isRepeating(x.item) && x.iso !== x.item.date ? `data-occ="${x.iso}"` : ''}>${esc(x.item.title)}${x.item.endTime ? `<small>hasta ${fmtTime(x.item.endTime)}</small>` : ''}</button>`).join('')}</td>`).join('')}</tr>`).join('');
+  const last = g.days[6];
+  return `<div class="wk-nav"><button class="icon-btn" data-a="wk-move" data-v="-7" aria-label="Semana anterior">${ic('left')}</button>
+      <strong>${fmtShort(monday)} – ${fmtShort(last)}</strong>
+      <button class="icon-btn" data-a="wk-move" data-v="7" aria-label="Semana siguiente">${ic('right')}</button></div>
+    <div class="quick wk-actions"><button class="btn small" data-a="wk-move" data-v="0">Esta semana</button><button class="btn small primary" data-a="wk-share">Enviar como imagen</button></div>
+    ${g.rows.length ? `<div class="wk-scroll"><table class="wk-table"><thead><tr><th class="wk-h">Hora</th>${head}</tr></thead><tbody>${body}</tbody></table></div>`
+      : empty('No hay eventos esta semana.', '<button class="btn" data-a="new-event">Agregar evento</button>', 'calendar')}`;
 }
 
 export function agenda(ui) {
   const st = ui.agenda;
+  if (st.mode === 'semana') {
+    return `<header class="top cal-top"><h1>Agenda</h1><div class="cal-nav"><button class="btn small" data-a="new-event">${ic('plus', 'sm')} Evento</button></div></header>
+      ${agendaSeg(st.mode)}${agendaWeek(st)}`;
+  }
   if (st.mode === 'proximos' || st.mode === 'todos') {
     return `<header class="top cal-top"><h1>Agenda</h1><div class="cal-nav"><button class="btn small" data-a="new-event">${ic('plus', 'sm')} Evento</button></div></header>
       ${agendaSeg(st.mode)}

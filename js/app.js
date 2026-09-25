@@ -8,7 +8,7 @@ import * as Theme from './theme.js';
 import { startTour } from './tour.js';
 import * as Lock from './lock.js';
 import * as N from './notify.js';
-import { $, $$, esc, today, toast, photoToDataUrl } from './util.js';
+import { $, $$, esc, today, toast, photoToDataUrl, addDays } from './util.js';
 
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
 const ui = {
@@ -107,6 +107,13 @@ document.addEventListener('click', e => {
     case 'cal-sel': ui.agenda.sel = el.dataset.date; return render();
     case 'ev-pick-mode': ui.agenda.picking = v === 'on'; ui.agenda.picked = []; return render();
     case 'ev-pick-all': { const ids = v.split(',').filter(Boolean); const cur = new Set(ui.agenda.picked || []); const all = ids.every(x => cur.has(x)); ids.forEach(x => (all ? cur.delete(x) : cur.add(x))); ui.agenda.picked = [...cur]; return render(); }
+    case 'ev-bulk-share': return S.bulkShareSheet(ui.agenda.picked || [], () => { ui.agenda.picking = false; ui.agenda.picked = []; render(); });
+    case 'bulk-share-go': return S.bulkShareGo();
+    case 'ev-done': { const on = store.toggleDone(store.get('events', id), el.dataset.date); if (on) toast('¡Hecho! ✓'); return; }
+    case 'occ-edit': return S.occEdit(id, el.dataset.date);
+    case 'ev-dup': return S.eventSheet(null, { copyOf: id });
+    case 'wk-move': { const n = Number(v); ui.agenda.week = n ? addDays(ui.agenda.week || M.mondayOf(today()), n) : M.mondayOf(today()); return render(); }
+    case 'wk-share': return import('./weekimg.js').then(W => W.shareWeek(ui.agenda.week || M.mondayOf(today())));
     case 'ev-bulk-delete': { const n = S.removeManyWithUndo('events', ui.agenda.picked || []); ui.agenda.picking = false; ui.agenda.picked = []; render(); return n; }
     case 'agenda-mode': ui.agenda.picking = false; ui.agenda.mode = v; try { localStorage.setItem('miagenda.agendaVista', v); } catch { /* sin almacenamiento */ } return render();
     case 'cal-prev': return shiftMonth(-1);

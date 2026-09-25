@@ -763,3 +763,25 @@ body.privacy #app, body.privacy #sheet-root { filter: blur(14px); }
 .bulk-bar { position: sticky; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: var(--surface, #fff); border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,.15); }
 .btn.danger-fill { background: #B3261E; color: #fff; border-color: #B3261E; }
 .btn.danger-fill[disabled] { opacity: .45; }
+
+/* ───── Rutinas: marcar como hecho (v4.3) ───── */
+.tl-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px; }
+.tl-check { width: 42px; height: 42px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; color: transparent; background: transparent; margin-right: 4px; transition: background .15s, color .15s, border-color .15s; }
+.tl-check .ic { width: 22px; height: 22px; }
+.tl-check:hover { color: var(--ink-2); }
+.tl-check.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.meta.streak { color: var(--primary); font-weight: 600; }
+
+/* ───── Semana en cuadro ───── */
+.wk-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
+.wk-actions { margin: 0 0 10px; }
+.wk-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); }
+.wk-table { border-collapse: collapse; min-width: 680px; width: 100%; table-layout: fixed; font-size: 13px; }
+.wk-table th, .wk-table td { border-bottom: 1px solid var(--line); padding: 4px; vertical-align: top; }
+.wk-table thead th { position: sticky; top: 0; background: var(--primary); color: #fff; font-weight: 600; padding: 6px 4px; }
+.wk-table thead th span { display: block; font-size: 11px; opacity: .85; }
+.wk-table thead th.today { background: var(--ink); }
+.wk-table .wk-h { width: 76px; text-align: right; color: var(--ink-2); font-weight: 600; white-space: nowrap; position: sticky; left: 0; background: var(--surface); z-index: 1; }
+.wk-table thead .wk-h { background: var(--primary); color: #fff; z-index: 2; }
+.wk-item { display: block; width: 100%; text-align: left; margin: 0 0 4px; padding: 5px 6px 5px 8px; border-radius: 8px; border-left: 4px solid var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); font-weight: 600; line-height: 1.25; }
+.wk-item small { display: block; font-weight: 500; color: var(--ink-2); font-size: 11px; }

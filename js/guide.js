@@ -42,10 +42,16 @@ const TOPICS = [
     b: c => `Puedes registrar todo sin señal${c.cloud ? '; se sincroniza solo cuando vuelve la conexión' : ''}.` },
 
   // ───── Agenda y tareas
+  { g: 'Agenda y tareas', t: 'Marcar como hecho y rachas', when: c => c.on('agenda'),
+    b: () => `En los eventos que se repiten (texto diario, lectura…) aparece un círculo a la derecha: tócalo para marcarlo ${k('hecho')} ese día. Si lo haces varios días seguidos verás 🔥 y cuántos van. En los compartidos también ves ✓ quién más lo hizo.` },
+  { g: 'Agenda y tareas', t: 'Semana en cuadro', when: c => c.on('agenda'),
+    b: () => `Agenda → ${k('Semana')}: toda la semana por horas, como un calendario impreso. Muévete con las flechas y toca ${k('Enviar como imagen')} para mandarla por WhatsApp.` },
+  { g: 'Agenda y tareas', t: 'Cambiar solo un día o duplicar', when: c => c.on('agenda'),
+    b: () => `Toca un evento que se repite en una fecha puntual y elige ${k('Cambiar solo el …')}: ese día queda aparte (otra hora, otro lugar) y los demás siguen igual. Con ${k('Duplicar evento')} creas uno parecido sin escribir todo otra vez.` },
   { g: 'Agenda y tareas', t: 'Compartir un evento', when: c => c.cloud && c.on('agenda'),
     b: () => `En el evento, marca a quién en ${k('Compartir con')} y guarda: le aparece en su Agenda (👥) y le llega un aviso. Los dos pueden cambiarlo; solo quien lo creó lo borra para todos. Quien lo recibe puede tocar ${k('Quitar de mi agenda')}. Usa ${k('Tema sugerido')} para, por ejemplo, la noche de adoración en familia.` },
   { g: 'Agenda y tareas', t: 'Eventos que se repiten', when: c => c.on('agenda'),
-    b: () => `Al crear un evento elige ${k('Cada día')}, ${k('Algunos días de la semana')} (marcas cuáles), ${k('Cada semana')}, ${k('Cada 2 semanas')} o ${k('Cada mes')}. Arriba de la Agenda cambia entre ${k('Mes')}, ${k('Próximos')} (los próximos 30 días en lista) y ${k('Todos')} (cada evento una vez, para revisarlo, compartirlo o borrarlo). En ${k('Todos')}, ${k('Seleccionar varios')} te deja marcar muchos y ${k('Eliminar')} de una vez (con ${k('Deshacer')}). Para saltarte un día puntual, toca el evento en esa fecha y elige ${k('Cancelar solo el …')}.` },
+    b: () => `Al crear un evento elige ${k('Cada día')}, ${k('Algunos días de la semana')} (marcas cuáles), ${k('Cada semana')}, ${k('Cada 2 semanas')} o ${k('Cada mes')}. Arriba de la Agenda cambia entre ${k('Mes')}, ${k('Próximos')} (los próximos 30 días en lista) y ${k('Todos')} (cada evento una vez, para revisarlo, compartirlo o borrarlo). En ${k('Todos')}, ${k('Seleccionar varios')} te deja marcar muchos y ${k('Compartir')} o ${k('Eliminar')} de una vez (con ${k('Deshacer')}). Para saltarte un día puntual, toca el evento en esa fecha y elige ${k('Cancelar solo el …')}.` },
   { g: 'Agenda y tareas', t: 'Reuniones del cuerpo de ancianos', when: c => c.on('agenda') && c.elder,
     b: () => `Con el tipo ${k('Cuerpo de ancianos')} puedes marcar varios participantes o grupos a la vez.` },
   { g: 'Agenda y tareas', t: 'Tareas con seguimiento', when: c => c.on('tareas'),

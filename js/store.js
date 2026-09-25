@@ -199,6 +199,26 @@ function sharedWrite(item) {
   setHidden(item.sharedId, false);
 }
 
+// Marca o desmarca «hecho» un día de un evento que se repite. En los compartidos solo toca tu propia marca.
+export const doneId = () => account.user?.uid || 'me';
+export function toggleDone(ev, iso) {
+  if (!ev) return;
+  const who = doneId();
+  const cur = new Set(ev.doneLog?.[iso] || []);
+  const on = !cur.has(who);
+  on ? cur.add(who) : cur.delete(who);
+  const doneLog = { ...(ev.doneLog || {}), [iso]: [...cur] };
+  if (!cur.size) delete doneLog[iso];
+  if (ev.sharedId && fb && account.user) {
+    const i = data.events.findIndex(x => x.id === ev.id);
+    if (i >= 0) data.events[i] = { ...ev, doneLog };
+    notify();
+    const ref = fb.fs.doc(fb.db, 'shared', ev.sharedId);
+    fb.fs.updateDoc(ref, new fb.fs.FieldPath('doneLog', iso), on ? fb.fs.arrayUnion(who) : fb.fs.arrayRemove(who)).catch(onError);
+  } else upsert('events', { ...ev, doneLog });
+  return on;
+}
+
 // Quien lo creó lo borra para todos; los demás solo lo quitan de su agenda
 function sharedRemove(id) {
   const e = data.events.find(x => x.id === id);

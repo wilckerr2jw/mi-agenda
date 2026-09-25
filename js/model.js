@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '4.2.1';
+export const APP_VERSION = '4.3';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -384,6 +384,37 @@ export function agendaFor(iso) {
     meetings: data.meetings.filter(m => m.date === iso).sort(byTime),
     tasks: data.tasks.filter(t => t.due === iso && t.status !== 'hecha').sort((a, b) => (a.dueTime || '').localeCompare(b.dueTime || '')),
   };
+}
+
+// ───── Rutinas: marcar como hecho un evento que se repite ─────
+// event.doneLog = { 'AAAA-MM-DD': [quién] }  (quién = uid en la nube, «me» en modo local)
+export const isDoneBy = (ev, iso, who) => (ev.doneLog?.[iso] || []).includes(who);
+// Días seguidos que lo hiciste (si hoy aún no, cuenta desde ayer). Solo cuenta los días en que el evento ocurre.
+export function streak(ev, who, from = today()) {
+  let d = isDoneBy(ev, from, who) ? from : addDays(from, -1), n = 0;
+  for (let i = 0; i < 400 && d >= (ev.date || d); i++, d = addDays(d, -1)) {
+    if (!occursOn(ev, d)) continue;
+    if (!isDoneBy(ev, d, who)) break;
+    n++;
+  }
+  return n;
+}
+
+// ───── Semana en cuadro (como un calendario impreso): filas por hora, columnas por día ─────
+export function mondayOf(iso) { const d = parseISO(iso); const w = (d.getDay() + 6) % 7; return addDays(iso, -w); }
+export function weekGrid(monday) {
+  const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+  const rows = new Map();
+  days.forEach((iso, col) => {
+    const a = agendaFor(iso);
+    const items = [...a.events.map(e => ({ kind: 'event', item: e })), ...a.meetings.map(m => ({ kind: 'meeting', item: m }))];
+    items.forEach(({ kind, item }) => {
+      const key = item.time || '';
+      if (!rows.has(key)) rows.set(key, days.map(() => []));
+      rows.get(key)[col].push({ kind, item, iso, color: kind === 'meeting' ? 'var(--c-mtg)' : catOf(item.category).c });
+    });
+  });
+  return { days, rows: [...rows.entries()].sort(([a], [b]) => (a || '00').localeCompare(b || '00')).map(([time, cells]) => ({ time, cells })) };
 }
 
 // Eventos + reuniones mezclados y ordenados por hora

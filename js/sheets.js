@@ -109,9 +109,14 @@ function rememberType(col, value, builtIns) {
 
 // ───────────── Evento ─────────────
 
+// Campos que se copian al duplicar un evento o al cambiar solo un día
+const EVENT_COPY = ['title', 'category', 'date', 'time', 'endTime', 'place', 'notes', 'theme', 'repeat', 'days', 'companionId', 'companionGroupIds', 'companionPersonIds'];
+const copyOf = e => Object.fromEntries(EVENT_COPY.filter(k => e[k] !== undefined).map(k => [k, Array.isArray(e[k]) ? [...e[k]] : e[k]]));
+
 export function eventSheet(id, preset = {}, back) {
   const e = id ? store.get('events', id) : null;
-  const v = e || { title: '', category: 'reunion', date: preset.date || today(), time: '', endTime: '', place: '', notes: '', repeat: 'none', companionId: '', companionGroupIds: [], companionPersonIds: [] };
+  const src = !e && preset.copyOf ? store.get('events', preset.copyOf) : null;
+  const v = e || (src ? copyOf(src) : null) || { title: '', category: 'reunion', date: preset.date || today(), time: '', endTime: '', place: '', notes: '', repeat: 'none', companionId: '', companionGroupIds: [], companionPersonIds: [] };
   // Si se abrió tocando una ocurrencia puntual de un evento que se repite, se puede cancelar solo esa semana.
   const occDate = preset.occDate || '';
   const skipped = e && occDate ? (e.skipDates || []).includes(occDate) : false;
@@ -120,7 +125,7 @@ export function eventSheet(id, preset = {}, back) {
   const sh = !!v.sharedId, owner = !sh || store.isSharedOwner(v);
   const others = sh ? (v.members || []).filter(u => u !== account.user?.uid).map(u => v.memberNames?.[u] || 'otra cuenta') : [];
   open({
-    title: e ? 'Editar evento' : 'Nuevo evento', back, focus: e ? null : '#title',
+    title: e ? 'Editar evento' : src ? 'Duplicar evento' : 'Nuevo evento', back, focus: e ? null : '#title',
     body: `${sh ? `<p class="shared-note">👥 ${owner ? `Lo compartes con <b>${esc(others.join(', '))}</b>` : `Te lo compartió <b>${esc(v.ownerName || 'otra cuenta')}</b>`}. Todos pueden cambiarlo y los cambios les llegan a los demás.${v.updatedByName && v.updatedBy !== account.user?.uid ? ` <span class="hint">Último cambio: ${esc(v.updatedByName)}.</span>` : ''}</p>` : ''}
       ${formTag('event', e?.id)}
       ${fld('Título', `<input id="title" name="title" required maxlength="120" value="${esc(v.title)}" placeholder="Ej. Reunión de entre semana">`, 'title')}
@@ -150,11 +155,70 @@ export function eventSheet(id, preset = {}, back) {
       ${fld('Notas', `<textarea id="notes" name="notes" rows="3">${esc(v.notes || '')}</textarea>`, 'notes')}
       ${isCloud && owner ? `<div class="f" id="share-box"><span class="lbl">Compartir con <span class="hint">(otras cuentas de la app)</span></span><p class="hint">Cargando cuentas…</p></div>` : ''}
     </form>
-    ${showSkip ? `<button type="button" class="btn ghost pad-top" data-a="${skipped ? 'unskip-occ' : 'skip-occ'}" data-id="${e.id}" data-date="${occDate}">${skipped ? `Restaurar el ${fmtShort(occDate)}` : `Cancelar solo el ${fmtShort(occDate)}`}</button>` : ''}`,
+    ${src ? '<p class="hint pad-top">Es una copia: cambia lo que haga falta y guarda. El original no se toca.</p>' : ''}
+    ${showSkip && !skipped ? `<button type="button" class="btn pad-top" data-a="occ-edit" data-id="${e.id}" data-date="${occDate}">✏️ Cambiar solo el ${fmtShort(occDate)}</button>` : ''}
+    ${showSkip ? `<button type="button" class="btn ghost pad-top" data-a="${skipped ? 'unskip-occ' : 'skip-occ'}" data-id="${e.id}" data-date="${occDate}">${skipped ? `Restaurar el ${fmtShort(occDate)}` : `Cancelar solo el ${fmtShort(occDate)}`}</button>` : ''}
+    ${e ? `<button type="button" class="btn ghost pad-top" data-a="ev-dup" data-id="${e.id}">⧉ Duplicar evento</button>` : ''}`,
     actions: owner ? foot('events', e?.id)
       : `<button type="button" class="btn ghost danger" data-a="delete" data-col="events" data-id="${e.id}">Quitar de mi agenda</button><button type="submit" form="f" class="btn primary">Guardar</button>`,
   });
   if (isCloud && owner) loadShareBox(v);
+}
+
+// Cambiar solo un día de un evento que se repite: ese día se salta en la serie y se crea un evento suelto
+// para esa fecha (si la serie está compartida, la copia también se comparte con las mismas personas).
+export function occEdit(id, date) {
+  const e = store.get('events', id);
+  if (!e) return;
+  const copy = { ...copyOf(e), id: uid(), date, repeat: 'none', days: [], skipDates: [], exceptionOf: e.sharedId || e.id };
+  store.upsert('events', { ...e, skipDates: [...new Set([...(e.skipDates || []), date])].sort() });
+  let newId = copy.id;
+  if (e.sharedId && isCloud) {
+    const others = (e.members || []).filter(u => u !== account.user?.uid);
+    const made = store.shareEvent(copy, others, e.memberNames || {});
+    if (made) newId = made.id;
+  } else store.upsert('events', copy);
+  toast(`Ahora cambia lo que quieras del ${fmtShort(date)}; las demás fechas siguen igual`);
+  setTimeout(() => eventSheet(newId), 50);
+}
+
+// ───── Compartir varios eventos a la vez ─────
+let bulkShareIds = [], bulkShareDone = null;
+export async function bulkShareSheet(ids, done) {
+  bulkShareIds = ids.filter(id => { const e = store.get('events', id); return e && (!e.sharedId || store.isSharedOwner(e)); });
+  bulkShareDone = done;
+  const skipped = ids.length - bulkShareIds.length;
+  if (!bulkShareIds.length) return toast('Esos eventos te los compartieron; solo quien los creó puede compartirlos con otros');
+  open({
+    title: `Compartir ${bulkShareIds.length} ${bulkShareIds.length === 1 ? 'evento' : 'eventos'}`,
+    body: `<p class="hint">Marca con quién. Si alguno ya estaba compartido, se suman estas personas.${skipped ? ` Se omiten ${skipped} que te compartieron otros.` : ''}</p><div id="bulk-share-list"><p class="hint">Cargando cuentas…</p></div>`,
+    actions: `<button type="button" class="btn ghost" data-a="sheet-close">Cancelar</button><button type="button" class="btn primary" data-a="bulk-share-go">Compartir</button>`,
+  });
+  let list = [];
+  try { list = await store.listMembers(); } catch (err) { console.warn(err); }
+  const box = document.getElementById('bulk-share-list');
+  if (!box) return;
+  box.innerHTML = list.length ? `<div class="stack">${list.map(m => `<label class="check"><input type="checkbox" name="bulkShare" value="${esc(m.uid)}" data-name="${esc(m.name)}"> ${esc(m.name)}</label>`).join('')}</div>`
+    : '<p class="hint">Aún no hay otras cuentas aprobadas (o no han abierto la app desde la versión 4.1).</p>';
+}
+export function bulkShareGo() {
+  const boxes = [...document.querySelectorAll('input[name="bulkShare"]')];
+  const chosen = boxes.filter(b => b.checked).map(b => b.value);
+  if (!chosen.length) return toast('Marca al menos una persona');
+  const names = Object.fromEntries(boxes.map(b => [b.value, b.dataset.name || '']));
+  let n = 0;
+  bulkShareIds.forEach(id => {
+    const e = store.get('events', id);
+    if (!e) return;
+    const before = (e.members || []).filter(u => u !== account.user?.uid);
+    const all = [...new Set([...before, ...chosen])];
+    if (e.sharedId && all.length === before.length) return;
+    store.shareEvent(e, all, { ...(e.memberNames || {}), ...names });
+    n++;
+  });
+  close();
+  toast(n ? `${n} ${n === 1 ? 'evento compartido' : 'eventos compartidos'} con ${chosen.map(u => names[u]).join(', ')}` : 'Ya estaban compartidos con esas personas');
+  bulkShareDone?.();
 }
 
 // Lista de cuentas para compartir (solo nombres). Las ya elegidas salen marcadas.
