@@ -1,0 +1,33 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "firestore.rules",
+      "LEEME.md",
+      "**/.*",
+      "node_modules/**",
+      "functions/**",
+      ".github/**",
+      "ci/**",
+      "calendario-*.json",
+      "avisos/**",
+      "mi-agenda-app-855f1-*.json",
+      "*.key.json"
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(js|css|html|webmanifest)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}

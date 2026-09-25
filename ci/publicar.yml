@@ -1,0 +1,33 @@
+# Publica la app en Firebase cada vez que llega un cambio a la rama main.
+# Necesita el secreto FIREBASE_SERVICE_ACCOUNT (el JSON de la cuenta de servicio) en
+# GitHub → Settings → Secrets and variables → Actions.
+
+name: Publicar
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: publicar
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Iniciar sesión en Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Publicar en Firebase
+        run: npx --yes firebase-tools@15 deploy --only hosting,firestore --project mi-agenda-app-855f1 --non-interactive

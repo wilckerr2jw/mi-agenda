@@ -1,0 +1,11 @@
+# Nunca se sube: token de publicación, cachés y dependencias
+.publicar/
+.firebase/
+node_modules/
+functions/node_modules/
+*.log
+calendario-*.json
+# Claves de cuentas de servicio: NUNCA se suben
+mi-agenda-app-855f1-*.json
+*.key.json
+functions/

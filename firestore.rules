@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
+    // Administrador: tiene un documento admins/{su uid} (se crea a mano en la consola de Firebase)
+    function isAdmin() { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    // Cuenta aprobada: el administrador le asignó un tipo de perfil
+    function approved(uid) { return exists(/databases/$(database)/documents/access/$(uid)); }
+
+    // Datos de cada persona: solo ella los ve, y solo si su cuenta está aprobada (o es el administrador).
+    // El administrador NO puede leer los datos de los demás.
+    match /users/{uid}/{document=**} {
+      allow read, write: if isSelf(uid) && (approved(uid) || isAdmin());
+    }
+
+    // Marca de administrador: cada uno puede ver si es administrador; nadie la escribe desde la app
+    match /admins/{uid} {
+      allow read: if isSelf(uid);
+      allow write: if false;
+    }
+
+    // Tipo de perfil asignado: lo ve el propio usuario y el administrador; solo el administrador lo cambia
+    match /access/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow create, update: if isAdmin()
+        && request.resource.data.type in ['publicador', 'precursor', 'anciano'];
+      allow delete: if isAdmin();
+    }
+
+    // Cuentas a las que se puede compartir: solo el nombre. Lo escribe cada uno; lo leen los aprobados.
+    match /members/{uid} {
+      allow read: if signedIn() && (approved(request.auth.uid) || isAdmin());
+      allow create, update: if isSelf(uid) && (approved(uid) || isAdmin())
+        && request.resource.data.keys().hasOnly(['name', 'updatedAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 80;
+      allow delete: if isSelf(uid) || isAdmin();
+    }
+
+    // Eventos compartidos: los ven y editan quienes están en «members»;
+    // solo quien lo creó (owner) cambia con quién se comparte o lo borra.
+    match /shared/{id} {
+      function member() { return signedIn() && request.auth.uid in resource.data.members; }
+      function ok(d) {
+        return d.members is list && d.members.size() >= 2 && d.members.size() <= 30
+          && d.owner in d.members && d.title is string && d.title.size() <= 120;
+      }
+      allow read: if member();
+      allow create: if signedIn() && (approved(request.auth.uid) || isAdmin())
+        && request.resource.data.owner == request.auth.uid && ok(request.resource.data);
+      allow update: if member() && ok(request.resource.data)
+        && request.resource.data.owner == resource.data.owner
+        && (request.auth.uid == resource.data.owner || request.resource.data.members == resource.data.members);
+      allow delete: if signedIn() && request.auth.uid == resource.data.owner;
+    }
+
+    // Directorio: cada usuario se anota con su correo (y nombre) para que el administrador lo encuentre
+    match /directory/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow create, update: if isSelf(uid)
+        && request.resource.data.keys().hasOnly(['email', 'name', 'lastSeen'])
+        && request.resource.data.email == request.auth.token.email
+        && (!('name' in request.resource.data) || request.resource.data.name.size() <= 80);
+      allow delete: if isAdmin();
+    }
+  }
+}

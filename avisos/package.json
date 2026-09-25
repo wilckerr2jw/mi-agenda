@@ -1,0 +1,8 @@
+{
+  "name": "mi-agenda-avisos",
+  "private": true,
+  "description": "Avisos de Mi Agenda Teocrática (se ejecuta cada hora desde GitHub Actions)",
+  "main": "run.js",
+  "engines": { "node": ">=22" },
+  "dependencies": { "firebase-admin": "^14.5.0" }
+}

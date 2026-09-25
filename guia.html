@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Guía de Mi Agenda Teocrática</title>
+<meta name="description" content="Guía práctica para usar Mi Agenda Teocrática: instalarla, registrar tu tiempo, planear tu semana y más.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#EEF1EC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E1618" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="icons/icon-192.png">
+<!--
+  GUÍA DE USO — se publica junto con la app en /guia.html y se abre desde Ajustes.
+  Mantenerla al día: cada vez que cambie algo que el usuario ve, actualizar la sección
+  correspondiente, la versión y la fecha de abajo (GUIA_VERSION / GUIA_FECHA).
+-->
+<style>
+:root {
+  --bg: #EEF1EC; --surface: #FBFCFA; --surface-2: #E2E8E1; --ink: #17282A; --ink-2: #4B5E5F;
+  --line: #D0D8CF; --primary: #1D5F5A; --on-primary: #fff; --primary-soft: #D5E8E4; --warn: #9A5B0C;
+  --ok: #2F8F6B; --mark: #D93A3A;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Noto Serif", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0E1618; --surface: #162224; --surface-2: #1F2F31; --ink: #E4ECEA; --ink-2: #9FB2B0;
+    --line: #2A3D3F; --primary: #63B8AF; --on-primary: #0E1618; --primary-soft: #1C3836; --warn: #E0A050; --ok: #5FCB9E; }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-text-size-adjust: 100%; }
+a { color: var(--primary); }
+.wrap { max-width: 720px; margin: 0 auto; padding: 0 16px 80px; }
+
+/* Portada */
+.hero { padding: calc(env(safe-area-inset-top) + 36px) 0 24px; }
+.hero .kicker { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--primary); }
+.hero h1 { font: 600 38px/1.08 var(--serif); letter-spacing: -.02em; margin: 8px 0 12px; }
+.hero p { color: var(--ink-2); font-size: 17px; max-width: 34em; }
+.hero .ver { margin-top: 14px; font-size: 13px; color: var(--ink-2); }
+.cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 999px; font-weight: 650; text-decoration: none; background: var(--surface-2); color: var(--ink); }
+.btn.primary { background: var(--primary); color: var(--on-primary); }
+
+/* Índice fijo */
+.toc { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); margin: 0 -16px; padding: 10px 16px; }
+.toc nav { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.toc nav::-webkit-scrollbar { display: none; }
+.toc a { flex: none; padding: 7px 13px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.toc a:hover { color: var(--ink); }
+
+/* Secciones */
+section { padding-top: 34px; }
+h2 { font: 600 27px/1.15 var(--serif); letter-spacing: -.01em; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+h2 .n { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: var(--on-primary); font: 700 15px/1 var(--sans); }
+h3 { font-size: 17px; font-weight: 700; margin: 22px 0 8px; }
+.lead { color: var(--ink-2); margin-bottom: 14px; }
+p + p { margin-top: 10px; }
+ol.steps { list-style: none; counter-reset: s; display: grid; gap: 8px; margin: 10px 0; }
+ol.steps > li { counter-increment: s; position: relative; padding: 12px 14px 12px 50px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+ol.steps > li::before { content: counter(s); position: absolute; left: 14px; top: 12px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); font-size: 13px; font-weight: 800; }
+ul.dots { padding-left: 20px; display: grid; gap: 6px; margin: 8px 0; }
+b.ui { font-weight: 700; background: var(--surface-2); padding: 1px 7px; border-radius: 6px; white-space: nowrap; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; margin: 12px 0; }
+.tip { display: flex; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--primary-soft); margin: 12px 0; font-size: 15px; }
+.tip.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.tip .i { flex: none; font-size: 18px; line-height: 1.3; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 12px 0; }
+.grid2 .card { margin: 0; }
+.card h4 { font-size: 15.5px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.card p, .card li { font-size: 15px; color: var(--ink-2); }
+table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 15px; background: var(--surface); border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { background: var(--surface-2); font-size: 13.5px; }
+tr:last-child td { border-bottom: 0; }
+
+/* Mini maquetas (imitan lo que se ve en la app) */
+.mock { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px; margin: 14px 0; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.mock .cap { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 10px; }
+.gtop { display: flex; justify-content: space-between; align-items: baseline; font-weight: 650; margin-bottom: 8px; }
+.gtop b { font: 600 22px/1 var(--serif); }
+.gbar { position: relative; height: 10px; border-radius: 6px; background: var(--surface-2); }
+.gbar .f { display: flex; height: 100%; border-radius: 6px; overflow: hidden; }
+.gbar .f i { display: block; height: 100%; background: var(--primary); }
+.gbar .f i.c { background: color-mix(in srgb, var(--primary) 38%, transparent); }
+.gbar .m { position: absolute; top: -5px; width: 3px; height: 20px; margin-left: -1.5px; background: var(--mark); border-radius: 2px; }
+.gbar .m::before { content: ''; position: absolute; top: -6px; left: -3.5px; width: 10px; height: 10px; border-radius: 50%; background: var(--mark); }
+.small { font-size: 13.5px; color: var(--ink-2); margin-top: 10px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.pace { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; font-size: 14px; font-weight: 650; }
+.pace .e { font-size: 18px; }
+.pace small { display: block; font-weight: 500; font-size: 12.5px; opacity: .85; }
+.pace.slow { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.pace.even { background: var(--primary-soft); color: var(--primary); }
+.pace.fast { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
+.tabs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; text-align: center; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.tabs span { display: grid; gap: 4px; justify-items: center; padding: 6px 0; }
+.tabs .ic { width: 38px; height: 26px; border-radius: 999px; display: grid; place-items: center; font-size: 15px; }
+.tabs .on { color: var(--ink); }
+.tabs .on .ic { background: var(--primary-soft); }
+.wk { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; font-size: 12px; }
+.wk div { display: grid; justify-items: center; gap: 3px; }
+.wk .b { width: 100%; max-width: 28px; height: 48px; border-radius: 8px; background: var(--surface-2); display: flex; align-items: flex-end; overflow: hidden; }
+.wk .b i { display: block; width: 100%; background: var(--primary); }
+.wk .t .b { box-shadow: inset 0 0 0 2px var(--primary); }
+.wk .s .b i { background: var(--warn); }
+.wk small { color: var(--ink-2); font-size: 11px; }
+.obj { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); margin-top: 6px; font-size: 15px; }
+.obj .c { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--ink-2); flex: none; display: grid; place-items: center; font-size: 11px; color: var(--on-primary); }
+.obj.d .c { background: var(--primary); border-color: var(--primary); }
+.obj.d span { text-decoration: line-through; color: var(--ink-2); }
+.catlist { display: grid; gap: 6px; }
+.cat { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; color: #fff; font-weight: 650; font-size: 15px; }
+.cat small { display: block; font-weight: 500; font-size: 12px; opacity: .9; }
+
+/* Preguntas frecuentes */
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; margin: 8px 0; }
+summary { cursor: pointer; padding: 13px 16px; font-weight: 650; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: '+'; font-size: 20px; line-height: 1; color: var(--primary); flex: none; }
+details[open] summary::after { content: '−'; }
+details > div { padding: 0 16px 14px; color: var(--ink-2); font-size: 15px; }
+details > div p + p { margin-top: 8px; }
+
+footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--ink-2); }
+@media (max-width: 420px) { .hero h1 { font-size: 32px; } h2 { font-size: 24px; } }
+@media print { .toc, .cta { display: none; } body { background: #fff; } section { break-inside: avoid-page; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">Guía de uso</div>
+  <h1>Mi Agenda Teocrática</h1>
+  <p>Tu agenda, tus tareas, las personas que atiendes y tu informe de servicio en un solo lugar, en el teléfono y sin necesidad de internet. Esta guía te explica en pocos minutos cómo sacarle provecho.</p>
+  <div class="cta">
+    <a class="btn primary" href="./">Abrir la app</a>
+    <a class="btn" href="#empezar">Empezar por aquí</a>
+  </div>
+  <p class="ver">Versión de la app <b id="guia-version">4.1</b> · Guía actualizada el <span id="guia-fecha">24 de septiembre de 2026</span></p>
+</header>
+
+<div class="toc"><nav aria-label="Secciones de la guía">
+  <a href="#empezar">Empezar</a>
+  <a href="#pantalla">La pantalla</a>
+  <a href="#hoy">Hoy</a>
+  <a href="#agenda">Agenda</a>
+  <a href="#tareas">Tareas</a>
+  <a href="#personas">Personas</a>
+  <a href="#notas">Notas</a>
+  <a href="#informe">Mi Informe</a>
+  <a href="#semana">Mi semana</a>
+  <a href="#ajustes">Ajustes</a>
+  <a href="#admin">Administrador</a>
+  <a href="#preguntas">Preguntas</a>
+</nav></div>
+
+<!-- ───────────── 1. EMPEZAR ───────────── -->
+<section id="empezar">
+  <h2><span class="n">1</span>Empezar en 3 minutos</h2>
+  <p class="lead">Solo necesitas el enlace de la app y un correo.</p>
+
+  <h3>Instálala en el teléfono</h3>
+  <div class="grid2">
+    <div class="card"><h4>🤖 Android (Chrome)</h4><p>Abre el enlace → menú <b class="ui">⋮</b> → <b class="ui">Instalar app</b> (o «Añadir a pantalla de inicio»).</p></div>
+    <div class="card"><h4>🍎 iPhone (Safari)</h4><p>Abre el enlace → botón <b class="ui">Compartir</b> → <b class="ui">Añadir a pantalla de inicio</b>.</p></div>
+  </div>
+  <div class="tip"><span class="i">💡</span><span>La primera vez ábrela <b>con internet</b>. Después funciona aunque no tengas señal, y lo que registres se sincroniza solo cuando vuelva la conexión.</span></div>
+
+  <h3>Crea tu cuenta</h3>
+  <ol class="steps">
+    <li>Escribe tu correo y una contraseña (mínimo 6 caracteres) y toca <b class="ui">Crear cuenta</b>.</li>
+    <li>Verás la pantalla <b>«Cuenta en revisión»</b>. Escribe tu nombre y toca <b class="ui">Enviar mi nombre</b> para que el administrador te reconozca.</li>
+    <li>Cuando el administrador te asigne tu tipo de perfil, la app se abre sola. No tienes que hacer nada más.</li>
+  </ol>
+  <p>La próxima vez solo tocas <b class="ui">Entrar</b>. Si olvidas la contraseña, escribe tu correo y toca <b class="ui">Olvidé mi contraseña</b>: te llega un correo para cambiarla.</p>
+
+  <h3>Primer paso recomendado: tu perfil</h3>
+  <p>Ve a <b class="ui">Informe</b> → <b class="ui">Editar mi perfil</b>. Pon tu foto, marca en <b>«Sirvo como…»</b> todo lo que aplique (por ejemplo, <i>Precursor regular</i> y <i>Anciano</i>) y, si tienes meta de horas, activa <b>Meta personal</b> con tu meta mensual y anual.</p>
+</section>
+
+<!-- ───────────── 2. LA PANTALLA ───────────── -->
+<section id="pantalla">
+  <h2><span class="n">2</span>Cómo se mueve uno en la app</h2>
+  <div class="mock">
+    <div class="cap">Barra de abajo</div>
+    <div class="tabs">
+      <span class="on"><span class="ic">☀️</span>Hoy</span>
+      <span><span class="ic">📅</span>Agenda</span>
+      <span><span class="ic">✔️</span>Tareas</span>
+      <span><span class="ic">👥</span>Personas</span>
+      <span><span class="ic">📓</span>Notas</span>
+      <span><span class="ic">📊</span>Informe</span>
+    </div>
+  </div>
+  <ul class="dots">
+    <li><b>Botón verde + (abajo a la derecha):</b> agrega algo en la sección donde estás. En Hoy te pregunta qué quieres agregar; en Informe te lleva directo a registrar tiempo.</li>
+    <li><b>Arriba a la derecha:</b> 🔍 buscar en toda la app · 🌙/☀️ modo oscuro o claro · <b class="ui">⋯</b> Ajustes.</li>
+    <li><b>Accesos rápidos:</b> en Hoy, una fila de botones para lo que más usas. Elige cuáles en Ajustes → <b>Accesos rápidos</b>. En Android, al mantener presionado el ícono de la app también aparecen Registrar tiempo, Nueva tarea, Nueva reunión y Nota rápida.</li>
+    <li><b>Recorrido guiado:</b> la primera vez te ofrece un paseo de un minuto por la pantalla. Puedes repetirlo en Ajustes → <b class="ui">Recorrido por la app</b>.</li>
+    <li><b>Para cerrar una ventana</b> toca la <b class="ui">✕</b>, fuera de ella o el botón «atrás» del teléfono.</li>
+    <li><b>¿Borraste algo por error?</b> Aparece un aviso abajo con <b class="ui">Deshacer</b> durante unos segundos.</li>
+  </ul>
+</section>
+
+<!-- ───────────── 3. HOY ───────────── -->
+<section id="hoy">
+  <h2><span class="n">3</span>Hoy</h2>
+  <p class="lead">Lo primero que ves al abrir: tu día de un vistazo.</p>
+  <ul class="dots">
+    <li><b>Saludo y tarjetas:</b> arriba ves tu nombre y unas tarjetas con lo de hoy: compromisos, tareas, tu meta del mes (con 🐢 🦉 🐇) y la próxima reunión. Toca una para ir directo.</li>
+    <li><b>▶ Iniciar la junta de hoy:</b> aparece cuando hoy hay una reunión con agenda; abre el <b>Modo junta</b> (ver sección 7).</li>
+    <li><b>Agenda de hoy:</b> tus eventos y reuniones ordenados por hora, con el color de su tipo.</li>
+    <li><b>Tareas por atender:</b> las que vencen hoy y las atrasadas. Toca el círculo para marcarlas como hechas.</li>
+    <li><b>Próximas reuniones importantes.</b></li>
+  </ul>
+</section>
+
+<!-- ───────────── 4. AGENDA ───────────── -->
+<section id="agenda">
+  <h2><span class="n">4</span>Agenda</h2>
+  <p class="lead">Un calendario mensual. Los puntitos de colores te dicen qué hay cada día.</p>
+  <ol class="steps">
+    <li>Toca un día para ver lo que tiene, y <b class="ui">Agregar</b> para crear un evento en esa fecha.</li>
+    <li>Elige el <b>tipo</b> (Reunión de congregación, Predicación, Estudio, Personal…) o escribe uno propio con «Otro».</li>
+    <li>En <b>Repetición</b> elige <i>Cada semana</i>, <i>Cada 2 semanas</i> o <i>Cada mes</i> para las reuniones fijas: las pones una vez y aparecen solas.</li>
+  </ol>
+  <div class="tip"><span class="i">💡</span><span>¿Esta semana no hay reunión (asamblea, visita del superintendente)? Toca ese evento en esa fecha y elige <b class="ui">Cancelar solo el …</b>. Las demás semanas no cambian.</span></div>
+
+  <h3>Tema sugerido</h3>
+  <p>Cada evento tiene un campo <b>Tema sugerido</b> (opcional), por ejemplo para la noche de adoración en familia. Se ve debajo del evento con 💬.</p>
+
+  <h3>Compartir un evento con otra cuenta</h3>
+  <ol class="steps">
+    <li>Abre o crea el evento y, al final, en <b>Compartir con</b>, marca a quién (salen las cuentas aprobadas de la app, solo con su nombre).</li>
+    <li>Toca <b class="ui">Guardar</b>. A la otra persona le aparece en su Agenda con <b>👥 De (tu nombre)</b> y, si tiene los avisos activos, le llega un aviso.</li>
+    <li>Los dos pueden cambiar la fecha, la hora, el tema o las notas: el cambio le llega al otro y recibe un aviso. Solo quien lo creó cambia con quién se comparte o lo borra para todos.</li>
+    <li>Quien lo recibió puede tocar <b class="ui">Quitar de mi agenda</b>; en Ajustes aparece <b class="ui">Volver a mostrarlos</b> por si se arrepiente.</li>
+  </ol>
+  <div class="tip"><span class="i">💡</span><span>Para que tu nombre salga bien en la lista de los demás, escríbelo en <b class="ui">Editar mi perfil</b> → <b>Tu nombre</b>. Una cuenta aparece en la lista después de abrir la app con esta versión.</span></div>
+</section>
+
+<!-- ───────────── 5. TAREAS ───────────── -->
+<section id="tareas">
+  <h2><span class="n">5</span>Tareas con seguimiento</h2>
+  <p class="lead">Para lo que no puedes olvidar: visitas, capacitaciones, llamadas, planes de estudio.</p>
+  <ul class="dots">
+    <li>Cada tarea puede tener <b>persona a atender</b>, <b>quién te acompaña</b> y <b>fecha límite</b>.</li>
+    <li>Dentro de la tarea escribe cada avance en <b>Seguimiento</b> («Le dejé la revista», «Quedamos el jueves»). La tarea pasa sola a <i>En seguimiento</i> y se anota la fecha.</li>
+    <li>Arriba filtras por <i>Activas</i>, <i>En seguimiento</i> o <i>Hechas</i>, y también por persona.</li>
+    <li><b>Tipos propios:</b> en «Tipo» elige <b class="ui">✏️ Nuevo tipo…</b> y escribe el tuyo (por ejemplo, <i>Pastoreo</i>). Queda guardado en la lista para la próxima vez. En Ajustes → <b>Tus tipos propios</b> puedes quitar los que no uses.</li>
+    <li><b>Responsables:</b> son casillas. Marca <b>Yo</b> si te toca a ti y a las personas que la harán. A quien no esté en tus Personas escríbelo en el campo de abajo y toca <b class="ui">+ Agregar a Personas</b> para guardarlo y dejarlo marcado. Si marcas a otros y no a ti, la tarea queda como <b>👁 Supervisas</b>.</li>
+  </ul>
+</section>
+
+<!-- ───────────── 6. PERSONAS ───────────── -->
+<section id="personas">
+  <h2><span class="n">6</span>Personas y grupos</h2>
+  <ul class="dots">
+    <li>Guarda a quienes visitas, capacitas o acompañas, con foto, teléfono, dirección y relación (Estudiante bíblico, Publicador…).</li>
+    <li>En su ficha tienes botones para <b class="ui">Llamar</b> y <b class="ui">WhatsApp</b>, sus tareas abiertas y las notas vinculadas.</li>
+    <li><b>Privilegios y responsabilidades:</b> en <b class="ui">Editar</b>, toca esa sección y marca los que tenga (Coordinador, Secretario, Superintendente de servicio, Siervo de cuentas, Superintendente de grupo, Precursor regular…). Si falta alguno, escríbelo y toca <b class="ui">Agregar</b>: queda en la lista para las demás personas. En <b>Personas</b> puedes filtrar por privilegio para ver, por ejemplo, a todos los superintendentes de grupo.</li>
+    <li><b>Grupos:</b> junta personas por responsabilidad (tu cuerpo de ancianos, tu grupo de predicación). Si alguien sale de un grupo, la app recuerda desde cuándo.</li>
+  </ul>
+  <div class="tip warn"><span class="i">🔒</span><span>Usa notas breves y no guardes datos muy delicados de las personas.</span></div>
+</section>
+
+<!-- ───────────── 7. NOTAS ───────────── -->
+<section id="notas">
+  <h2><span class="n">7</span>Notas y reuniones importantes</h2>
+  <ul class="dots">
+    <li><b>Notas:</b> ideas y apuntes, con fecha, etiqueta y la opción de fijarlas arriba. Puedes vincularlas a una persona o a una reunión.</li>
+    <li><b>Reuniones:</b> anota los participantes, los temas a tratar y los acuerdos.</li>
+    <li><b>¿Vienes de Google Keep?</b> En Ajustes → <b class="ui">Importar notas de Google Keep</b> te explica cómo traerlas.</li>
+  </ul>
+
+  <h3>Preparar y enviar la agenda de una reunión</h3>
+  <ol class="steps">
+    <li>Crea la reunión (título, fecha, hora y lugar) y, en <b>Agenda</b>, toca <b class="ui">+ Agregar punto</b>.</li>
+    <li>Escribe el punto, <b>quién lo presenta</b>, los <b>minutos</b> y qué se espera: <b class="ui">Para decidir</b>, <b class="ui">Informativo</b>, <b class="ui">Seguimiento</b> o <b class="ui">Asignación</b>. Marca <b>Confidencial</b> si es un tema delicado y usa un título general («Situación de dos precursoras»): al enviar solo salen el título, quién lo presenta y la referencia; <b>los subpuntos no se envían</b>. El detalle es solo para ti: nunca se envía.</li>
+    <li>Agrega la <b>Referencia</b> (carta, publicación o párrafo) y, si el punto tiene partes, los <b>subpuntos</b> (uno por línea): en el mensaje salen como a), b), c). Si un punto es solo para tratar con algunos hermanos, marca <b>No incluir en la agenda que se envía</b>: queda en la app pero no en el mensaje.</li>
+    <li>¿Te enviaron varios puntos? Usa <b class="ui">⇣ Pegar varios puntos</b>: un punto por línea, los subpuntos debajo con guion, y al final entre corchetes el tipo y los minutos, por ejemplo <i>Organigrama de la congregación [decidir 30]</i> o <i>Caso para el comité de servicio [privado 10]</i>.</li>
+    <li>Con <b class="ui">↻ Temas anteriores</b> eliges las tareas abiertas de reuniones anteriores y las traes <b>resumidas en un solo punto</b> (por ejemplo «Seguimiento: visitas a los precursores», para informar sin entrar en detalles) o <b>una por una</b>. El detalle de cuáles eran queda solo para ti.</li>
+    <li>Con <b class="ui">⇄ Unir puntos</b> marcas dos o más puntos (también los que te lleguen después) y los juntas en uno: el primero da el título, los demás quedan como subpuntos y se suman sus minutos y encargados.</li>
+    <li>Con <b class="ui">👥 Asignar</b> completas de una vez quién hace la <b>oración inicial</b> y la <b>final</b>, y quién presenta cada punto con su referencia. Toca cada campo y <b>marca grupos o personas</b> de tu lista (uno o varios); si alguien no está, escríbelo en «Otro». En el mensaje saldrán como «Pedro y Juan».</li>
+    <li>Al terminar, <b class="ui">Preparar la próxima reunión a partir de esta</b> crea la siguiente (una semana después; cambia la fecha si hace falta) con el mismo título, hora, lugar y participantes. Lo pendiente aparecerá en <b class="ui">↻ Temas anteriores</b>.</li>
+    <li>La app agrupa los puntos por bloque (seguimiento → decidir → informativos → asignaciones), suma el tiempo (con 2 minutos por cada oración) y calcula a qué hora terminaría. Elige la <b>Duración máxima</b> y te avisa cuánto te queda libre o por cuánto te pasas. Ordénalos con <b class="ui">↑</b> <b class="ui">↓</b>.</li>
+    <li>En <b>Recibir puntos hasta</b> eliges la fecha tope para que te envíen otros puntos (si no eliges, es el día antes de la reunión; con <b class="ui">Quitar</b> no aparece).</li>
+    <li>Las <b>referencias</b> se ordenan solas al guardarlas: escribe por ejemplo <i>Sfg CAP 1 parr 4;12;14</i> y queda <i>Sfg cap. 1, párrs. 4, 12, 14</i>.</li>
+    <li>Toca <b class="ui">Enviar agenda</b>: arma el mensaje con oración inicial y final, numerado y con formato para WhatsApp.</li>
+    <li>En la reunión o después, <b class="ui">Pasar a acuerdos</b> copia los puntos a «Acuerdos y notas» para que anotes lo acordado en cada uno y lo conviertas en tareas.</li>
+  </ol>
+
+  <h3>La hora de cada punto</h3>
+  <p>Con la <b>hora</b> de la reunión puesta, cada punto muestra a qué hora empieza (las oraciones cuentan 2 min) y arriba aparece una <b>barra de colores</b> con el tiempo de cada tipo de punto y lo que queda <b>libre</b> hasta la duración máxima. Si marcas <b class="ui">Mostrar la hora de cada punto al enviar</b>, el mensaje de WhatsApp lleva la hora delante de cada punto. Los puntos que no van en la agenda enviada no cuentan.</p>
+
+  <h3>Modo junta: durante la reunión</h3>
+  <ol class="steps">
+    <li>En la reunión toca <b class="ui">▶ Modo junta</b> (o, el mismo día, <b class="ui">▶ Iniciar la junta de hoy</b> en Hoy).</li>
+    <li>Se ve en grande el punto actual con quién lo presenta, su referencia y subpuntos, y un <b>cronómetro</b>: se pone ámbar si te pasas del tiempo y rojo si te pasas más de 2 minutos. Arriba va el tiempo total.</li>
+    <li>Escribe lo acordado y toca <b class="ui">Guardar acuerdo</b>: queda en «Acuerdos y notas» con el nombre del punto, listo para convertirlo en tarea.</li>
+    <li>Pasa con <b class="ui">Siguiente ▶</b> (debajo dice cuál viene). Al final, <b class="ui">Terminar junta</b> muestra cuánto duró cada punto frente a lo previsto, para planear mejor la próxima.</li>
+  </ol>
+  <div class="tip"><span class="i">💡</span><span>Mientras el modo junta está abierto, la pantalla no se apaga. Si sales sin terminar, los tiempos quedan guardados.</span></div>
+
+  <h3>Plantillas, supervisión y participación</h3>
+  <ul class="dots">
+    <li><b>📑 Plantillas:</b> en la agenda, guarda la que repites (por ejemplo, <i>Junta mensual</i>) con sus puntos, tipos, minutos, referencias y subpuntos. En la próxima reunión tócala en <b class="ui">Cargar</b> y después usa <b class="ui">👥 Asignar</b>.</li>
+    <li><b>📋 Informe de supervisión:</b> en Reuniones (o dentro de una reunión) ves sus tareas agrupadas en <b>Atrasadas</b>, <b>En curso</b>, <b>Pendientes</b> y <b>Hechas</b>, el porcentaje de avance y la última novedad de cada una. Toca una para anotar un seguimiento. <b class="ui">Enviar</b> manda el resumen (solo títulos y responsables) por WhatsApp.</li>
+    <li><b>📊 Participación:</b> en Reuniones, cuenta quién presentó puntos y quién hizo las oraciones en los últimos 3, 6 o 12 meses, y muestra quién tiene privilegios y aún no ha participado, para repartir mejor las asignaciones.</li>
+  </ul>
+
+  <h3>De los acuerdos a las tareas</h3>
+  <ol class="steps">
+    <li>En <b>«Acuerdos y notas»</b> escribe <b>cada acuerdo en su propia línea</b>. Funciona mejor así: <i>Ana: los hermanos Pedro Díaz y Juan Pérez hablarán con ella el viernes</i>.</li>
+    <li>Debajo aparece <b>«Encontré N acuerdos»</b>, cada uno con un título corto y lo que la app reconoció:
+      <ul class="dots">
+        <li><b>A quién atender:</b> el nombre antes de «:» o al inicio de la línea. Si no está en tus Personas, toca <b class="ui">Agregar a Personas</b>.</li>
+        <li><b>Responsables:</b> los nombres que van con «los hermanos…», «hablarán», «harán visita», «quedó en»…</li>
+        <li><b>Fecha:</b> «el viernes», «mañana», «15/10», «20 de octubre», «en 2 semanas».</li>
+        <li><b>👉 Te toca a ti</b> si tú estás entre los responsables, o <b>👁 Supervisas</b> si lo harán otros.</li>
+      </ul></li>
+    <li>Toca <b class="ui">Crear tarea</b>: se abre ya llena, con el acuerdo completo en las notas. Revísala y toca <b class="ui">Guardar</b>. Ese acuerdo queda marcado con <b class="ui">✓ Ver tarea</b>.</li>
+  </ol>
+  <div class="tip"><span class="i">💡</span><span>En <b>Tareas</b>, las que salen de una reunión muestran su nombre, y con el filtro <b class="ui">Solo de reuniones</b> ves únicamente esas. También puedes vincular cualquier tarea a una reunión con el campo <b>«Viene de la reunión…»</b>.</span></div>
+  <h3>Para que sepa cuáles te tocan a ti</h3>
+  <p>En <b class="ui">Editar mi perfil</b> escribe <b>Tu nombre</b> y en <b>Cómo te escriben</b> las otras formas en que aparece en las notas (por ejemplo, <i>Tony, Antonio J.</i>). Con tus Personas pasa igual: en su ficha, <b>También escrito como</b> guarda sus apodos.</p>
+
+  <h3>Supervisar lo que hacen otros</h3>
+  <p>Las tareas que hacen otros hermanos quedan en tu lista marcadas con <b>👁 Supervisas</b> y sus responsables. En <b>Hoy</b>, la sección <b>«Por supervisar»</b> te muestra las que llevan <b>7 días sin novedades</b> o ya vencieron: pregunta cómo van y anota el avance en su <b>Seguimiento</b>. En Tareas puedes filtrar <b class="ui">Me tocan a mí</b> o <b class="ui">Las que superviso</b>.</p>
+  <div class="tip warn"><span class="i">ℹ️</span><span>La app no entiende el texto como una persona: sigue reglas sencillas. Si dos personas se llaman igual (dos «Carlos»), no adivina; escribe el nombre completo. Revisa siempre la tarea antes de guardarla.</span></div>
+</section>
+
+<!-- ───────────── 8. INFORME ───────────── -->
+<section id="informe">
+  <h2><span class="n">8</span>Mi Informe</h2>
+  <p class="lead">Registra tu tiempo por categoría y mira cómo vas con tu meta. El año de servicio va de septiembre a agosto.</p>
+
+  <h3>Registrar tiempo</h3>
+  <ol class="steps">
+    <li>En Informe toca el botón <b class="ui">+</b> (o un mes → <b class="ui">Agregar</b>).</li>
+    <li>Elige la categoría: Servicio del Campo, Predicación pública, Informal, Telefónica, LDC, Betel… o una tuya.</li>
+    <li>Ajusta el tiempo con <b class="ui">+1h</b> <b class="ui">+5m</b> <b class="ui">−1h</b> <b class="ui">−5m</b>, revisa la fecha, agrega tus <b>cursos bíblicos</b> por nombre y toca <b class="ui">Guardar</b>.</li>
+  </ol>
+
+  <h3>Tiempo de servicio y tiempo de crédito</h3>
+  <p>LDC, Betel (y las categorías tuyas que marques así) son <b>tiempo de crédito</b>: <b>no cuentan para tu meta</b>, pero la app te muestra aparte cómo irías contándolas. En la ficha del mes puedes cambiar entre <b class="ui">Sin crédito</b> y <b class="ui">Con crédito</b>.</p>
+
+  <h3>Tus propias categorías (por ejemplo, CEH)</h3>
+  <ol class="steps">
+    <li><b class="ui">Editar mi perfil</b> → baja hasta <b>Categorías propias de Mi Informe</b>.</li>
+    <li>Escribe el nombre: la app te sugiere un icono (CEH → médico, LDC → construcción, Escuela → birrete). Puedes elegir otro.</li>
+    <li>Marca <b>«Es tiempo de crédito»</b> si corresponde, toca <b class="ui">Agregar categoría</b> y luego <b class="ui">Guardar</b>.</li>
+  </ol>
+  <div class="tip warn"><span class="i">⚠️</span><span>No la escribas en el campo «Otro» de <b>«Sirvo como…»</b>: ese campo es para tu servicio (por ejemplo, <i>Misionero</i>), no para categorías de horas.</span></div>
+  <div class="mock">
+    <div class="cap">Así se ven al registrar tiempo</div>
+    <div class="catlist">
+      <div class="cat" style="background:#6B7280">📅<span>Servicio del Campo<small>Tiempo de servicio</small></span></div>
+      <div class="cat" style="background:#23859A">🔨<span>LDC<small>Tiempo de crédito</small></span></div>
+      <div class="cat" style="background:#C0568A">🩺<span>CEH<small>Tiempo de crédito</small></span></div>
+    </div>
+  </div>
+
+  <h3>¿Cómo voy con mi meta? 🐢 🦉 🐇</h3>
+  <p>Con la meta activada, la app compara lo que llevas con lo que <b>deberías llevar hoy</b> según los días que han pasado del mes.</p>
+  <div class="mock">
+    <div class="cap">Ejemplo: meta de 50 h, hoy es 22 de un mes de 30 días</div>
+    <div class="gtop"><span>Meta de este mes</span><span><b>22:00</b> / 50 h</span></div>
+    <div class="gbar"><span class="f"><i style="width:44%"></i><i class="c" style="width:16%"></i></span><span class="m" style="left:73.3%"></span></div>
+    <p class="small">Te faltan <b>28:00 h</b> para tu meta · unas <b>3:07 h por día</b> en los 9 días que quedan</p>
+    <div class="chips">
+      <span class="pace slow"><span class="e">🐢</span><span>Vas lento con tus horas<small>Te faltan 14:40 h para ir al día</small></span></span>
+    </div>
+  </div>
+  <table>
+    <tr><th>Lo que ves</th><th>Qué significa</th></tr>
+    <tr><td><b>Barra verde</b></td><td>Horas que cuentan para tu meta.</td></tr>
+    <tr><td><b>Parte clara de la barra</b></td><td>Tus horas de crédito (se ven, pero no cuentan).</td></tr>
+    <tr><td><b>Marca roja</b> 📍</td><td>Donde deberías ir hoy para llegar justo a tu meta.</td></tr>
+    <tr><td>🐢 <b>Vas lento</b></td><td>Estás por debajo de la marca roja.</td></tr>
+    <tr><td>🦉 <b>Vas al ras</b></td><td>Ni muy rápido ni muy lento: estás a pocas horas de la marca (≈8 % de tu meta; con 50 h son 4 h).</td></tr>
+    <tr><td>🐇 <b>Vas adelantado</b></td><td>Vas por encima de la marca roja.</td></tr>
+  </table>
+  <p>El mismo emoji aparece sobre tu foto en Informe, para verlo de un vistazo.</p>
+
+  <h3>Enviar tu informe</h3>
+  <p>Abre el mes y toca <b class="ui">Enviar</b>: la app arma un resumen (tiempo total, cursos bíblicos y desglose por categoría) y te deja mandarlo por WhatsApp, correo o SMS.</p>
+</section>
+
+<!-- ───────────── 9. MI SEMANA ───────────── -->
+<section id="semana">
+  <h2><span class="n">9</span>Mi semana</h2>
+  <p class="lead">Planea tu semana y la app te dice si con ese ritmo llegas a tu meta.</p>
+  <ol class="steps">
+    <li>En Informe, en la tarjeta <b>Mi semana</b>, toca <b class="ui">Planear</b>.</li>
+    <li>Con <b class="ui">−</b> y <b class="ui">+</b> pon cuánto piensas dedicar cada día (de media hora en media hora).</li>
+    <li>Mira el resumen: horas por semana, cuánto harías en el mes y si alcanzas tu meta. Toca <b class="ui">Guardar plan</b>. El plan se repite cada semana hasta que lo cambies.</li>
+  </ol>
+  <div class="mock">
+    <div class="cap">Mi semana · 21 al 27 sep</div>
+    <div class="wk">
+      <div><span class="b"><i style="height:100%"></i></span><b>Lu</b><small>2:00</small></div>
+      <div class="t"><span class="b"><i style="height:100%"></i></span><b>Ma</b><small>2:00</small></div>
+      <div><span class="b"></span><b>Mi</b><small>—</small></div>
+      <div><span class="b"></span><b>Ju</b><small>2:00</small></div>
+      <div><span class="b"></span><b>Vi</b><small>—</small></div>
+      <div><span class="b"></span><b>Sá</b><small>4:00</small></div>
+      <div><span class="b"></span><b>Do</b><small>3:00</small></div>
+    </div>
+    <p class="small">Llevas <b>6:00 h</b> de <b>13:00 h</b> planeadas · faltan 7:00 h<br>Con este plan harías unas <b>54:00 h</b> en septiembre · ✓ alcanza tu meta de 50 h.</p>
+  </div>
+  <p>Cada barrita se llena con lo que registras ese día. El día de hoy aparece resaltado y los días pasados que quedaron cortos se ven en naranja.</p>
+
+  <h3>Mis objetivos como precursor esta semana</h3>
+  <p>Si eres precursor, debajo del plan aparece una lista para tus objetivos de la semana. Escríbelos, márcalos cuando los cumplas y ve cuántos llevas. Cada lunes empiezas una semana nueva; las anteriores quedan guardadas.</p>
+  <div class="mock">
+    <div class="obj d"><span class="c">✓</span><span>Salir 3 mañanas al servicio</span></div>
+    <div class="obj"><span class="c"></span><span>Hacer 2 revisitas</span></div>
+    <div class="obj"><span class="c"></span><span>Predicación telefónica el jueves</span></div>
+  </div>
+</section>
+
+<!-- ───────────── 10. AJUSTES ───────────── -->
+<section id="ajustes">
+  <h2><span class="n">10</span>Ajustes</h2>
+  <p class="lead">Toca <b class="ui">⋯</b> arriba a la derecha.</p>
+  <ul class="dots">
+    <li><b>Apariencia:</b> Automático (según el teléfono), Claro u Oscuro; el <b>color de la app</b> (verde, azul, vino, morado o terracota) y el <b>tamaño de letra</b> (Normal, Grande o Muy grande).</li>
+    <li><b>Accesos rápidos:</b> elige qué botones aparecen en Hoy.</li>
+    <li><b>Recorrido por la app:</b> repite el paseo guiado.</li>
+    <li><b>Secciones visibles:</b> oculta las que no uses para que la barra de abajo quede más simple. «Hoy» siempre está.</li>
+    <li><b>Bloqueo con PIN:</b> la app pedirá un PIN de 4 a 6 números al abrirla y al volver a ella (tú eliges después de cuánto tiempo). Mientras la app está en segundo plano, su contenido se ve borroso. Es una protección para este teléfono: si lo olvidas, cierra sesión y vuelve a entrar. Con el PIN activo puedes marcar <b>Desbloquear también con la huella</b> (o la cara) si el teléfono lo permite.</li>
+    <li><b>Avisos:</b> activa <b class="ui">Recibir avisos en este teléfono</b> y elige la hora. Llega <b>un solo aviso al día</b> con tus tareas de hoy y atrasadas, compromisos, la reunión de hoy o mañana (y si falta enviar la agenda) , los lunes, las tareas que supervisas, cuando alguien te comparte o cambia un evento y cuando hay una versión nueva de la app. Por privacidad solo dice cuántas cosas hay; marca <b>Mostrar los títulos</b> si prefieres verlos. <b class="ui">Enviar un aviso de prueba</b> comprueba que funciona (llega en menos de una hora).</li>
+    <li><b>Descargar respaldo:</b> guarda una copia de todo en un archivo. Hazlo de vez en cuando.</li>
+    <li><b>Restaurar respaldo:</b> te muestra qué trae el archivo y te pide confirmar antes de reemplazar nada.</li>
+    <li><b>Guía rápida:</b> una versión corta de esta guía, dentro de la app, que muestra solo lo que tú usas según tu perfil. También se ofrece la primera vez que entras.</li>
+  </ul>
+</section>
+
+<!-- ───────────── 11. ADMINISTRADOR ───────────── -->
+<section id="admin">
+  <h2><span class="n">11</span>Para el administrador</h2>
+  <p class="lead">Quien administra la app decide quién entra y qué tipo de perfil tiene cada cuenta.</p>
+  <ol class="steps">
+    <li><b class="ui">⋯</b> Ajustes → <b class="ui">Administrar usuarios</b>.</li>
+    <li>Las cuentas nuevas aparecen como <b>Pendiente (sin acceso)</b>, con su correo y el nombre que enviaron.</li>
+    <li>Elige su tipo en el selector. A esa persona se le abre la app sola. Para quitarle el acceso, vuelve a ponerla en «Pendiente».</li>
+  </ol>
+  <table>
+    <tr><th>Tipo de perfil</th><th>Qué ve</th></tr>
+    <tr><td><b>Publicador</b></td><td>Todo, excepto «Cuerpo de ancianos» y «Pastoreo».</td></tr>
+    <tr><td><b>Precursor</b></td><td>Como publicador, más la invitación a activar su meta y la sección de objetivos semanales.</td></tr>
+    <tr><td><b>Anciano / Siervo ministerial</b></td><td>Todo.</td></tr>
+  </table>
+  <div class="tip"><span class="i">🔒</span><span>El administrador <b>no puede ver</b> los datos de nadie: solo su correo, su nombre y su tipo de perfil. Cada persona ve únicamente lo suyo.</span></div>
+</section>
+
+<!-- ───────────── 12. PREGUNTAS ───────────── -->
+<section id="preguntas">
+  <h2><span class="n">12</span>Preguntas frecuentes</h2>
+
+  <details><summary>Dice «me faltan 14:40 h», pero en realidad me faltan 28 h. ¿Cuál es la correcta?</summary><div>
+    <p>Las dos. <b>28:00 h</b> es lo que te falta para <b>completar tu meta del mes</b> (50 − 22). <b>14:40 h</b> es lo que te falta para <b>ir al día hoy</b>: al día 22 de un mes de 30 deberías llevar 50 × 22 ÷ 30 = 36:40 h, y llevas 22:00.</p>
+    <p>Si recuperas esas 14:40 h pasas a 🦉, pero aún te quedarían las horas del resto del mes. Por eso la app te muestra también cuánto necesitas por día.</p>
+  </div></details>
+
+  <details><summary>Planeé 13 h por semana: ¿no deberían ser 52 h al mes?</summary><div>
+    <p>13 × 4 = 52, pero los meses tienen algo más de 4 semanas (unas 4,3). La app suma los días reales del calendario, y en septiembre de 2026 eso da 54 h. Te muestra las dos cifras para que no haya confusión.</p>
+  </div></details>
+
+  <details><summary>Agregué CEH y no me aparece al registrar tiempo.</summary><div>
+    <p>Revisa que la hayas agregado en <b>Categorías propias de Mi Informe</b> (con <b class="ui">Agregar categoría</b>) y que después hayas tocado <b class="ui">Guardar</b>. Si la escribiste en el campo «Otro» de «Sirvo como…», bórrala de ahí. Las categorías propias aparecen al final de la lista; desliza hacia abajo.</p>
+  </div></details>
+
+  <details><summary>No me sale la tortuga, el búho ni el conejo.</summary><div>
+    <p>Activa <b>Meta personal</b> en <b class="ui">Editar mi perfil</b> y escribe tu meta mensual (por ejemplo, 50).</p>
+  </div></details>
+
+  <details><summary>¿Funciona sin internet?</summary><div>
+    <p>Sí. Registra lo que quieras sin señal: se guarda en el teléfono y se envía solo cuando vuelve la conexión. Solo necesitas internet la primera vez que la abres y para iniciar sesión.</p>
+  </div></details>
+
+  <details><summary>¿Puedo usarla en el teléfono y en la computadora?</summary><div>
+    <p>Sí. Entra con el mismo correo en cualquier dispositivo y verás lo mismo, sincronizado.</p>
+  </div></details>
+
+  <details><summary>Me sale «Cuenta en revisión».</summary><div>
+    <p>Es normal en las cuentas nuevas: el administrador tiene que asignarte tu tipo de perfil. Envíale tu nombre desde esa misma pantalla y espera; se abre sola cuando te aprueben.</p>
+  </div></details>
+
+  <details><summary>Me apareció «Hay una versión nueva de la app».</summary><div>
+    <p>Toca <b class="ui">Actualizar</b>. Tus datos no se pierden; solo se carga la versión más reciente.</p>
+  </div></details>
+
+  <details><summary>No me llegan los avisos.</summary><div>
+    <p>Revisa que el teléfono permita las notificaciones de la app (o del navegador) y que no esté en ahorro de batería extremo. En iPhone solo funcionan con la app instalada en la pantalla de inicio (iOS 16.4 o más). Se activan en cada teléfono por separado. Prueba con <b class="ui">Enviar un aviso de prueba</b>.</p>
+  </div></details>
+
+  <details><summary>¿Quién puede ver mis datos?</summary><div>
+    <p>Solo tú, con tu cuenta. Ni el administrador ni otros usuarios pueden verlos. Aun así, conviene guardar solo notas breves y no datos muy delicados.</p>
+  </div></details>
+</section>
+
+<footer>
+  <p><b>Mi Agenda Teocrática</b> · Guía de uso · versión <span>3.14</span></p>
+  <p>¿Tienes una duda que no está aquí? Pregúntale a quien te compartió la app.</p>
+</footer>
+</div>
+</body>
+</html>

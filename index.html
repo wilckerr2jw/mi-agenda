@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Mi Agenda Teocrática</title>
+  <meta name="description" content="Agenda personal: notas, eventos, tareas con seguimiento, personas y reuniones.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#EEF1EC" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0E1618" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Mi Agenda Teocrática">
+  <script>try{var d=document.documentElement.dataset,t=localStorage.getItem("miagenda.tema"),a=localStorage.getItem("miagenda.acento"),z=localStorage.getItem("miagenda.letra");if(t==="light"||t==="dark")d.theme=t;if(a)d.accent=a;if(z)d.size=z}catch(e){}</script>
+  <link rel="stylesheet" href="css/styles.css">
+  <!-- Carga en paralelo (y no en cascada) los módulos de la app y se adelanta la conexión con Firebase -->
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+  <link rel="modulepreload" href="js/app.js">
+  <link rel="modulepreload" href="js/store.js">
+  <link rel="modulepreload" href="js/model.js">
+  <link rel="modulepreload" href="js/views.js">
+  <link rel="modulepreload" href="js/sheets.js">
+  <link rel="modulepreload" href="js/util.js">
+  <link rel="modulepreload" href="js/agenda.js">
+</head>
+<body>
+  
+<!-- Iconos (se usan con <use href="#i-nombre">) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="i-tasks" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.5-3.5 3.2-5.5 6.5-5.5s6 2 6.5 5.5"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.5c2.5 0 4.2 1.6 4.5 4.5"/></symbol>
+  <symbol id="i-notebook" viewBox="0 0 24 24"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6z"/><path d="M6 3v18M10 8h5M10 12h5"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M11 20V4M18 20v-7"/><path d="M2 20h20"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M6 21V4"/><path d="M6 4h12l-3 4 3 4H6"/></symbol>
+  <!-- Iconos para categorías propias de Mi Informe -->
+  <symbol id="i-medical" viewBox="0 0 24 24"><path d="M5 3v5a5 5 0 0 0 10 0V3"/><path d="M10 13v2a4.5 4.5 0 0 0 9 0v-2"/><circle cx="19" cy="11" r="2"/></symbol>
+  <symbol id="i-hospital" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></symbol>
+  <symbol id="i-hammer" viewBox="0 0 24 24"><path d="M13 7L3.5 16.5a2 2 0 0 0 3 3L16 10"/><path d="M11 4.5l3-1.5 7 7-2 2-2.5-1-2-2z"/></symbol>
+  <symbol id="i-building" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M10 21v-4h4v4"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2z"/><path d="M5 20a1 1 0 0 0 1 1h13v-3"/></symbol>
+  <symbol id="i-school" viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3.5 2.5 8.5 2.5 12 0v-5M22 9v5"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/><path d="M3 4h2l2.5 11h11L21 7H6.2"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></symbol>
+  <symbol id="i-letter" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.2 3.2 14.8 0 18M12 3c-3.2 3.2-3.2 14.8 0 18"/></symbol>
+  <symbol id="i-car" viewBox="0 0 24 24"><path d="M4 16v-4l2.2-5h11.6L20 12v4z"/><path d="M4 12h16"/><circle cx="7.5" cy="16.5" r="1.8"/><circle cx="16.5" cy="16.5" r="1.8"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+</svg>
+
+<div id="login" hidden></div>
+
+<div id="app" hidden>
+  <main id="view" tabindex="-1"></main>
+
+  <button id="fab" class="fab" data-a="fab" aria-label="Agregar"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></button>
+
+  <nav id="tabs" aria-label="Secciones">
+    <button class="tab" data-a="nav" data-v="hoy"><span class="pill"><svg class="ic" aria-hidden="true"><use href="#i-sun"/></svg></span><span>Hoy</span></button>
+    <button class="tab" data-a="nav" data-v="agenda"><span class="pill"><svg class="ic" aria-hidden="true"><use href="#i-calendar"/></svg></span><span>Agenda</span></button>
+    <button class="tab" data-a="nav" data-v="tareas"><span class="pill"><svg class="ic" aria-hidden="true"><use href="#i-tasks"/></svg></span><span>Tareas</span></button>
+    <button class="tab" data-a="nav" data-v="personas"><span class="pill"><svg class="ic" aria-hidden="true"><use href="#i-users"/></svg></span><span>Personas</span></button>
+    <button class="tab" data-a="nav" data-v="notas"><span class="pill"><svg class="ic" aria-hidden="true"><use href="#i-notebook"/></svg></span><span>Notas</span></button>
+    <button class="tab" data-a="nav" data-v="informe"><span class="pill"><svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg></span><span>Informe</span></button>
+  </nav>
+</div>
+
+<div id="sheet-root"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

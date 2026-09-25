@@ -1,0 +1,39 @@
+# Avisos de Mi Agenda: se ejecuta cada hora (gratis) y manda los avisos del día, de eventos compartidos,
+# de versión nueva y de prueba. Usa el mismo secreto FIREBASE_SERVICE_ACCOUNT que «Publicar».
+# GitHub puede atrasar unos minutos las tareas programadas; es normal.
+
+name: Avisos
+
+on:
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: avisos
+  cancel-in-progress: false
+
+jobs:
+  avisos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: avisos
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar
+        run: npm install --omit=dev --no-audit --no-fund
+        working-directory: avisos
+
+      - name: Iniciar sesión en Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Enviar avisos
+        run: node avisos/run.js
