@@ -65,7 +65,7 @@ export async function enable() {
   if (!t) return 'No se pudo registrar el teléfono';
   await store.saveDevice(id, { token: t, tz: tz(), mobile: isMobile() });
   ls.set(id);
-  if (!M.profile().notif) store.upsert('profile', { ...M.profile(), id: 'me', notif: { ...DEFAULTS } });
+  store.patchProfile(v => (v.notif ? null : { notif: { ...DEFAULTS } }));
   return '';
 }
 

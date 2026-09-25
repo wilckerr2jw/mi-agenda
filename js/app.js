@@ -29,9 +29,7 @@ const data_ready = () => store.all('profile').length > 0 || store.all('events').
 let pendingDone = null, pendingLog = false;
 // «Hoy no salí»: el recordatorio de la noche no insiste ese día (se guarda en el perfil, los últimos 60 días)
 function markNoActivity(day = today()) {
-  const v = M.profile();
-  const list = [...new Set([...(v.noActivityDays || []), day])].sort().slice(-60);
-  store.upsert('profile', { ...v, id: 'me', noActivityDays: list });
+  store.patchProfile(v => ({ noActivityDays: [...new Set([...(v.noActivityDays || []), day])].sort().slice(-60) }));
   toast('Anotado: hoy sin actividad. ¡Mañana será!');
 }
 function queueDone(eid, day) { if (eid && day) { pendingDone = { eid, day, until: Date.now() + 30000 }; applyPendingDone(); } }

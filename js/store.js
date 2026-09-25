@@ -37,10 +37,29 @@ export const get = (col, id) => data[col].find(x => x.id === id);
 // se guarda en el teléfono o se envía a Firestore.
 function write(col, item) {
   if (col === 'events' && item.sharedId) return sharedWrite(item);
+  // Protección: nunca se guarda el perfil antes de haberlo recibido de la nube
+  // (si no, un perfil vacío borraría tu rol, tus metas y tus ajustes)
+  if (col === 'profile' && isCloud && !profileLoaded) { console.warn('Perfil aún no cargado: no se guarda'); return; }
   const i = data[col].findIndex(x => x.id === item.id);
   if (i >= 0) data[col][i] = item; else data[col].push(item);
   notify();
   if (isCloud) cloud.upsert(col, item); else local.persist();
+}
+
+// Cambia solo algunos campos del perfil. Si el perfil aún no llegó de la nube, espera a que llegue.
+// fields puede ser un objeto o una función (perfil actual) => campos
+let profileLoaded = false, profileQueue = [];
+export function patchProfile(fields) {
+  if (isCloud && !profileLoaded) { profileQueue.push(fields); return; }
+  const cur = data.profile.find(p => p.id === 'me') || { id: 'me' };
+  const f = typeof fields === 'function' ? fields(cur) : fields;
+  if (f && Object.keys(f).length) upsert('profile', { ...cur, ...f, id: 'me' });
+}
+function profileArrived() {
+  if (profileLoaded) return;
+  profileLoaded = true;
+  const q = profileQueue; profileQueue = [];
+  setTimeout(() => q.forEach(patchProfile), 0);
 }
 
 // Crea o actualiza un elemento y devuelve la versión guardada
@@ -141,7 +160,7 @@ export function startSync(uid) {
       snap => {
         const list = snap.docs.map(d => ({ ...d.data(), id: d.id }));
         if (c === 'events') { ownEvents = list; composeEvents(); }
-        else { data[c] = list; if (c === 'profile') { composeEvents(); if (myName() !== lastMemberName) touchMember(); } }
+        else { data[c] = list; if (c === 'profile') { if (list.length || !snap.metadata.fromCache) profileArrived(); composeEvents(); if (myName() !== lastMemberName) touchMember(); } }
         notify();
       },
       err => onError(err)));
@@ -278,6 +297,7 @@ export async function listMembers() {
 export function stopSync() {
   unsubs.forEach(u => u());
   unsubs = [];
+  profileLoaded = false; profileQueue = [];
   COLS.forEach(c => { data[c] = []; });
   ownEvents = []; sharedDocs = [];
   notify();
