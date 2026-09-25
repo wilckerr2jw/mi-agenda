@@ -4,4 +4,5 @@
     <string name="title_activity_main">Agenda Teocrática</string>
     <string name="package_name">app.miagenda.teocratica</string>
     <string name="custom_url_scheme">app.miagenda.teocratica</string>
+    <string name="widget_desc">Lo que tienes hoy y el botón para registrar tu actividad</string>
 </resources>

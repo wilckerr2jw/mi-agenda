@@ -2,13 +2,14 @@
   "name": "mi-agenda-android",
   "private": true,
   "version": "1.0.0",
-  "description": "App de Android de Mi Agenda Teocrática (Capacitor). Abre la web publicada y agrega avisos nativos.",
+  "description": "App de Android de Mi Agenda Teocr\u00e1tica (Capacitor). Abre la web publicada y agrega avisos nativos.",
   "dependencies": {
     "@capacitor/android": "^8.5.2",
     "@capacitor/app": "^8.1.1",
     "@capacitor/browser": "^8.0.4",
     "@capacitor/core": "^8.5.2",
-    "@capacitor/local-notifications": "^8.3.1"
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/push-notifications": "^8.1.2"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",

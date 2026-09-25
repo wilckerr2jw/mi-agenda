@@ -14,6 +14,12 @@
     "LocalNotifications": {
       "smallIcon": "ic_stat_agenda",
       "iconColor": "#1D5F5A"
+    },
+    "PushNotifications": {
+      "presentationOptions": [
+        "alert",
+        "sound"
+      ]
     }
   }
 }

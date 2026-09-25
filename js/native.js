@@ -24,7 +24,7 @@ const CHANNELS = [
 ];
 
 export const state = { ready: false, perm: '', exact: '', update: null, build: 0, version: '' };
-let handlers = { done: () => {}, log: () => {}, changed: () => {} };
+let handlers = { done: () => {}, log: () => {}, noActivity: () => {}, changed: () => {} };
 let timer = 0;
 
 const hash = s => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h) % 2000000000 + 1; };
@@ -43,11 +43,12 @@ export async function init(h) {
     for (const ch of CHANNELS) await LN.createChannel({ ...ch, vibration: true, visibility: 1, lights: true, lightColor: '#1D5F5A' }).catch(() => {});
     await LN.registerActionTypes({ types: [
       { id: 'rutina', actions: [{ id: 'done', title: '✓ Ya lo hice' }, { id: 'open', title: 'Abrir' }] },
-      { id: 'registro', actions: [{ id: 'log', title: '📝 Registrar ahora', foreground: true }] },
+      { id: 'registro', actions: [{ id: 'log', title: '📝 Registrar ahora', foreground: true }, { id: 'none', title: 'Hoy no salí' }] },
     ] });
     await LN.addListener('localNotificationActionPerformed', ev => {
       const x = ev.notification?.extra || {};
       if (ev.actionId === 'done' && x.eid) handlers.done(x.eid, x.day);
+      else if (ev.actionId === 'none') handlers.noActivity(x.day || today());
       else if (ev.actionId === 'log' || x.kind === 'log') handlers.log();
     });
     try { state.exact = (await LN.checkExactNotificationSetting()).exact_alarm; } catch { state.exact = ''; }
@@ -56,6 +57,11 @@ export async function init(h) {
     const v = M.profile();
     if (!v.nativeAppSeen || Date.now() - Date.parse(v.nativeAppSeen) > 12 * 3600e3) store.upsert('profile', { ...v, id: 'me', nativeAppSeen: new Date().toISOString() });
     plug('App')?.addListener('resume', () => { schedule(); checkUpdate(); });
+    // Enlaces del widget (app.miagenda.teocratica://registrar)
+    const onUrl = url => { if (/registrar/.test(url || '')) handlers.log(); };
+    plug('App')?.addListener('appUrlOpen', ev => onUrl(ev.url));
+    plug('App')?.getLaunchUrl?.().then(r => onUrl(r?.url)).catch(() => {});
+    registerPush();
     schedule();
     checkUpdate();
   } catch (e) { console.warn('Avisos nativos no disponibles', e); }
@@ -132,7 +138,7 @@ function planFor(iso, p) {
     if (tm.length) add(21 * 60 + 30, 'tm', `🌙 Mañana: ${plural(tm.length, 'evento', 'eventos')}; el primero, ${tm[0].title} a las ${fmtTime(tm[0].time)}.`, 'general', { kind: 'tomorrow' });
   }
   // Registro de la noche (importante, siempre activo si usas Mi Informe)
-  if (M.isModuleVisible('informe')) {
+  if (M.isModuleVisible('informe') && !(M.profile().noActivityDays || []).includes(iso)) {
     const hoy = data.entries.filter(e => e.date === iso);
     const mins = hoy.reduce((s, e) => s + (Number(e.minutes) || 0), 0);
     const cursos = hoy.reduce((s, e) => s + (Array.isArray(e.studyNames) ? e.studyNames.length : Number(e.studies) || 0), 0);
@@ -143,7 +149,52 @@ function planFor(iso, p) {
   return out;
 }
 
+// ───── Avisos que manda el servidor (eventos compartidos, rutinas de la familia, versión nueva) ─────
+// Necesitan Firebase Cloud Messaging nativo: solo si esta app trae su configuración (google-services.json).
+async function registerPush() {
+  const PN = plug('PushNotifications'), W = plug('AgendaWidget');
+  if (!PN || !W) return;
+  try {
+    if (!(await W.info()).fcm) return;
+    await PN.addListener('registration', t => {
+      let id = '';
+      try { id = localStorage.getItem('miagenda.nativo') || ''; if (!id) { id = `app-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`; localStorage.setItem('miagenda.nativo', id); } } catch { id = 'app-telefono'; }
+      store.saveDevice(id, { token: t.value, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Caracas', native: true, mobile: true }).catch(() => {});
+    });
+    await PN.addListener('pushNotificationActionPerformed', ev => {
+      const x = ev.notification?.data || {};
+      if (x.eid && x.day) handlers.done(x.eid, x.day);
+    });
+    const perm = await PN.requestPermissions();
+    if (perm.receive === 'granted') await PN.register();
+    state.push = true;
+  } catch (e) { console.warn('Avisos del servidor no disponibles', e); }
+}
+
+// ───── Widget de la pantalla de inicio ─────
+function updateWidget() {
+  const W = plug('AgendaWidget');
+  if (!W) return;
+  const t = today();
+  const a = M.agendaFor(t);
+  const me = store.doneId();
+  const items = M.entriesFor(a).slice(0, 6).map(({ kind, item }) => {
+    const done = kind === 'event' && M.isRepeating(item) && M.isDoneBy(item, t, me);
+    return `${item.time ? fmtTime(item.time).replace(' a. m.', 'a').replace(' p. m.', 'p') : '•'}  ${item.title}${done ? '  ✓' : ''}`;
+  });
+  const pend = a.tasks.filter(x => M.isMineTask(x)).length;
+  if (pend) items.push(`📋 ${plural(pend, 'tarea', 'tareas')} para hoy`);
+  const hoy = data.entries.filter(e => e.date === t);
+  const mins = hoy.reduce((s, e) => s + (Number(e.minutes) || 0), 0);
+  const skip = (M.profile().noActivityDays || []).includes(t);
+  const footer = hoy.length ? `Registrado hoy: ${M.fmtHM(mins)} h` : skip ? 'Hoy: sin actividad (marcado)' : 'Aún no registras la actividad de hoy';
+  const d = new Date();
+  const title = `Hoy · ${['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'][d.getDay()]} ${d.getDate()}`;
+  W.update({ title, lines: items.join('\n') || 'Nada programado para hoy.', footer }).catch(() => {});
+}
+
 async function doSchedule() {
+  updateWidget();
   const LN = plug('LocalNotifications');
   if (!LN) return;
   try {

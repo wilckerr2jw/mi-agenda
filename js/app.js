@@ -27,6 +27,13 @@ const ROUTES = ['hoy', 'agenda', 'tareas', 'personas', 'notas', 'informe'];
 const data_ready = () => store.all('profile').length > 0 || store.all('events').length > 0 || !store.isCloud;
 // Rutinas que se marcaron como hechas desde un aviso (se aplican cuando el evento ya está cargado)
 let pendingDone = null, pendingLog = false;
+// «Hoy no salí»: el recordatorio de la noche no insiste ese día (se guarda en el perfil, los últimos 60 días)
+function markNoActivity(day = today()) {
+  const v = M.profile();
+  const list = [...new Set([...(v.noActivityDays || []), day])].sort().slice(-60);
+  store.upsert('profile', { ...v, id: 'me', noActivityDays: list });
+  toast('Anotado: hoy sin actividad. ¡Mañana será!');
+}
 function queueDone(eid, day) { if (eid && day) { pendingDone = { eid, day, until: Date.now() + 30000 }; applyPendingDone(); } }
 function applyPendingDone() {
   if (pendingLog && !$('#app').hidden && data_ready()) { pendingLog = false; setTimeout(() => runQuick('time'), 300); }
@@ -527,7 +534,7 @@ function showApp() {
   render();
   if (Nat.isNative && !natStarted) {   // app de Android: avisos en el teléfono y aviso de actualización
     natStarted = true;
-    Nat.init({ done: (eid, day) => queueDone(eid, day), log: () => { pendingLog = true; applyPendingDone(); }, changed: () => render() });
+    Nat.init({ done: (eid, day) => queueDone(eid, day), log: () => { pendingLog = true; applyPendingDone(); }, noActivity: markNoActivity, changed: () => render() });
   }
   lockOnce();
   runHashAction();
@@ -564,11 +571,13 @@ async function boot() {
     const q = new URLSearchParams(location.search);
     if (q.get('hecho')) queueDone(q.get('hecho'), q.get('dia'));
     if (q.get('accion') === 'registrar') pendingLog = true;
+    if (q.get('accion') === 'nosali') setTimeout(() => markNoActivity(), 1500);
     if (q.get('hecho') || q.get('accion')) history.replaceState(history.state, '', location.pathname + location.hash);
   } catch { /* sin parámetros */ }
   navigator.serviceWorker?.addEventListener('message', ev => {
     if (ev.data?.type === 'hecho') queueDone(ev.data.eid, ev.data.day);
     if (ev.data?.type === 'registrar') { pendingLog = true; applyPendingDone(); }
+    if (ev.data?.type === 'nosali') markNoActivity();
     if (ev.data?.type === 'aviso' && document.visibilityState === 'visible') N.playSound();
   });
 

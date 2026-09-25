@@ -130,23 +130,27 @@ async function buildMessage(uid, p, now) {
 
 // ───── Envío ─────
 const stats = { ok: 0, fallidos: 0, errores: {} };
+// Canal de Android (en la app) según el tipo de aviso: define su sonido
+const CHANNEL = { soon: 'eventos', routine: 'rutinas', streak: 'rutinas', partner: 'rutinas', test: 'rutinas', log: 'registro' };
 async function sendTo(uid, devices, msg) {
-  const tokens = devices.map(d => d.token).filter(Boolean);
-  if (!tokens.length) return 0;
-  const res = await getMessaging().sendEachForMulticast({
-    tokens,
-    data: Object.fromEntries(Object.entries(msg).map(([k, v]) => [k, String(v)])),
-    webpush: { headers: { TTL: '43200', Urgency: 'high' } },
-  });
+  const valid = devices.filter(d => d.token);
+  if (!valid.length) return 0;
+  const data = Object.fromEntries(Object.entries(msg).map(([k, v]) => [k, String(v)]));
+  // Web (navegador): solo datos; el service worker arma el aviso. App de Android: aviso nativo con su canal.
+  const messages = valid.map(d => d.native
+    ? { token: d.token, data, notification: { title: msg.title, body: msg.body },
+        android: { priority: 'high', notification: { channelId: CHANNEL[msg.kind] || 'general', icon: 'ic_stat_agenda', color: '#1D5F5A', ...(msg.tag ? { tag: String(msg.tag) } : {}) } } }
+    : { token: d.token, data, webpush: { headers: { TTL: '43200', Urgency: 'high' } } });
+  const res = await getMessaging().sendEach(messages);
   // Teléfonos que ya no existen o quitaron el permiso: se borran
   const gone = [];
   res.responses.forEach((r, i) => {
     const code = r.error?.code || '';
-    if (/registration-token-not-registered|invalid-registration-token|invalid-argument/.test(code)) gone.push(devices.find(d => d.token === tokens[i]));
+    if (/registration-token-not-registered|invalid-registration-token|invalid-argument/.test(code)) gone.push(valid[i]);
     if (r.error) { stats.fallidos++; stats.errores[code] = (stats.errores[code] || 0) + 1; } else stats.ok++;
     if (r.error && !/registration-token-not-registered|invalid-registration-token|invalid-argument/.test(code)) log.warn('Aviso no enviado', code, r.error.message);
   });
-  await Promise.all(gone.filter(Boolean).map(d => db.collection('users').doc(uid).collection('devices').doc(d.id).delete().catch(() => {})));
+  await Promise.all(gone.map(d => db.collection('users').doc(uid).collection('devices').doc(d.id).delete().catch(() => {})));
   return res.successCount;
 }
 
@@ -314,7 +318,7 @@ async function buildPlan(uid, p, now) {
   }
   // Aviso importante de cada noche: registra tu actividad (horas y cursos) antes de que termine el día.
   // Siempre sale (no se puede apagar), salvo que la sección «Mi Informe» esté oculta.
-  if (!(prof.hiddenModules || []).includes('informe')) {
+  if (!(prof.hiddenModules || []).includes('informe') && !(prof.noActivityDays || []).includes(today)) {
     const hoy = docs(await user.collection('entries').where('date', '==', today).get());
     const mins = hoy.reduce((a, e) => a + (Number(e.minutes) || 0), 0);
     const cursos = hoy.reduce((a, e) => a + (Array.isArray(e.studyNames) ? e.studyNames.length : Number(e.studies) || 0), 0);

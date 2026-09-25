@@ -106,7 +106,7 @@ export function hoy() {
   const due = M.sortActive(data.tasks.filter(x => x.status !== 'hecha' && x.due && x.due <= t && M.isMineTask(x)));
   const sup = M.isModuleVisible('tareas') ? M.toSupervise() : [];
   const hour = new Date().getHours();
-  const logToday = M.isModuleVisible('informe') && hour >= 18 && !data.entries.some(e => e.date === t);
+  const logToday = M.isModuleVisible('informe') && hour >= 18 && !data.entries.some(e => e.date === t) && !(M.profile().noActivityDays || []).includes(t);
   const juntaHoy = data.meetings.find(m => m.date === t && (m.agenda || []).length && !m.juntaRun?.finishedAt);
   const next = data.meetings.filter(m => m.date > t)
     .sort((x, y) => (x.date + (x.time || '')).localeCompare(y.date + (y.time || ''))).slice(0, 3);

@@ -1,7 +1,7 @@
 {
-  "version": "5.0",
+  "version": "5.1",
   "notes": [
-    "Nueva app de Android: avisos exactos sin internet y con sonidos propios",
-    "Descárgala en Ajustes → Ayuda → App para Android"
+    "Widget de Agenda Teocrática para la pantalla de inicio",
+    "«Hoy no salí» en el aviso de la noche"
   ]
 }

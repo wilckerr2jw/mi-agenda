@@ -6,7 +6,7 @@
 //  · Datos y sesión (Firestore / Auth): no se tocan; Firestore tiene su propia caché sin conexión.
 // Al añadir archivos nuevos a la app, agrégalos a SHELL y sube el número de VERSION.
 
-const VERSION = 'agenda-v5.0';
+const VERSION = 'agenda-v5.1';
 const CDN = 'agenda-cdn';
 const SHELL = [
   './', 'index.html', 'guia.html', 'manifest.webmanifest',
@@ -75,7 +75,7 @@ self.addEventListener('push', e => {
   try { p = e.data ? e.data.json() : {}; } catch { p = { data: { body: e.data?.text() || '' } }; }
   const d = p.data || p.notification || p;
   const icon = `icons/${KIND_ICON[d.kind] || 'icon-192'}.png`;
-  const actions = d.kind === 'log' ? [{ action: 'log', title: '📝 Registrar ahora' }, { action: 'open', title: 'Después' }]
+  const actions = d.kind === 'log' ? [{ action: 'log', title: '📝 Registrar ahora' }, { action: 'none', title: 'Hoy no salí' }]
     : d.eid && d.day ? [{ action: 'done', title: '✓ Ya lo hice' }, { action: 'open', title: 'Abrir' }] : [];
   // Si la app está abierta en pantalla, que suene el sonido que elegiste
   self.clients.matchAll({ type: 'window' }).then(list => list.forEach(c => c.postMessage({ type: 'aviso', kind: d.kind || '' })));
@@ -100,12 +100,14 @@ self.addEventListener('notificationclick', e => {
   let url = new URL(nd.url || './', self.registration.scope);
   if (e.action === 'done' && nd.eid) { url.searchParams.set('hecho', nd.eid); url.searchParams.set('dia', nd.day); }
   if (e.action === 'log' || (!e.action && nd.kind === 'log')) url.searchParams.set('accion', 'registrar');
+  if (e.action === 'none') url.searchParams.set('accion', 'nosali');
   url = url.href;
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
     const open = list.find(c => c.url.startsWith(self.registration.scope));
     if (open) {
       if (e.action === 'done') open.postMessage({ type: 'hecho', eid: nd.eid, day: nd.day });
       if (url.includes('accion=registrar')) { open.postMessage({ type: 'registrar' }); open.focus(); return; }
+      if (url.includes('accion=nosali')) { open.postMessage({ type: 'nosali' }); return; }
       open.focus();
       if (e.action !== 'done' && 'navigate' in open && url !== open.url) return open.navigate(url).catch(() => {});
       return;
