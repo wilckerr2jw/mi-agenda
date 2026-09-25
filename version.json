@@ -1,7 +1,7 @@
 {
-  "version": "4.8",
+  "version": "4.9",
   "notes": [
-    "Avisos con ícono propio y vibración según el tipo",
-    "Botón «✓ Ya lo hice» en los avisos de rutinas"
+    "Aviso importante cada noche: registra tu actividad del día",
+    "Sonidos propios de Mi Agenda para los avisos"
   ]
 }

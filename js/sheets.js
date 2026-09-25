@@ -1947,6 +1947,9 @@ function notifSettingsHtml() {
         ${opt('junta', 'Reunión de hoy o mañana (y si falta enviar la agenda)')}
         ${opt('supervise', 'Los lunes: tareas que supervisas')}
         ${opt('weekly', 'Los domingos: resumen de la semana y lo que viene')}
+        <p class="hint pick-h"><b>📝 Registro de la noche (importante)</b></p>
+        <p class="hint">Cada noche te recuerda registrar tus horas y cursos del día para que no se te pase ninguno. Este aviso siempre está activo; solo eliges la hora.</p>
+        <label class="mini-f"><span>Hora del recordatorio</span><select id="notif-logat">${[1140, 1170, 1200, 1230, 1260, 1290, 1320].map(m => `<option value="${m}" ${m === Number(p.logAt) ? 'selected' : ''}>${Math.floor(m / 60) - 12}:${String(m % 60).padStart(2, '0')} p. m.</option>`).join('')}</select></label>
         <p class="hint pick-h"><b>Durante el día</b></p>
         ${opt('soon', 'Antes de cada evento')}
         <label class="mini-f"><span>¿Cuánto antes?</span><select id="notif-before">${[5, 10, 15, 30, 60].map(n => `<option value="${n}" ${n === Number(p.before) ? 'selected' : ''}>${n < 60 ? `${n} min` : '1 hora'}</option>`).join('')}</select></label>
@@ -1957,6 +1960,16 @@ function notifSettingsHtml() {
         ${opt('partner', 'Cuando alguien hace una rutina compartida contigo')}
         ${opt('tomorrow', 'Por la noche: lo que tienes mañana (9:30 p. m.)')}
         ${opt('report', 'Primeros días del mes: enviar tu informe')}
+        <p class="hint pick-h"><b>🔊 Sonidos de Mi Agenda</b></p>
+        <p class="hint">Suena en la app cuando llega un aviso con la app abierta. Para que el teléfono use este sonido siempre, descárgalo y elígelo en el teléfono (abajo te explico cómo).</p>
+        <div class="sound-list">${N.SOUNDS.map(([id, n]) => `<div class="sound-row"><label class="check"><input type="radio" name="notif-sound" value="${id}" ${p.sound === id ? 'checked' : ''}> ${n}</label>
+          <span class="quick"><button type="button" class="btn small" data-a="sound-play" data-v="${id}">▶ Oír</button><a class="btn small ghost" href="sonidos/${id}.mp3" download="MiAgenda-${n}.mp3">⬇ Descargar</a></span></div>`).join('')}
+          <label class="check"><input type="radio" name="notif-sound" value="ninguno" ${p.sound === 'ninguno' ? 'checked' : ''}> Sin sonido en la app</label></div>
+        <details class="howto"><summary>Cómo poner el sonido en el teléfono (Android)</summary>
+          <ol><li>Toca <b>⬇ Descargar</b> en el sonido que te guste (queda en «Descargas»).</li>
+          <li>Cuando te llegue un aviso de Mi Agenda, mantenlo presionado y toca ⚙️ (o Ajustes del teléfono → Aplicaciones → Mi Agenda o Chrome → Notificaciones).</li>
+          <li>Entra a <b>Sonido</b> → <b>Sonido personalizado</b> (o «+», «Desde el almacenamiento») y elige <b>MiAgenda-…mp3</b> en Descargas.</li></ol>
+          <p class="hint">En cada teléfono los nombres cambian un poco; si no ves «personalizado», busca «Tonos» o «Agregar».</p></details>
         <p class="hint pick-h"><b>Otros</b></p>
         ${opt('shared', 'Cuando alguien te comparte o cambia un evento')}
         ${opt('updates', 'Cuando hay una versión nueva de la app')}

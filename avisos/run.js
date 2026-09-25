@@ -21,7 +21,7 @@ const db = getFirestore();
 const log = { info: (...a) => console.log(...a), warn: (...a) => console.warn(...a), error: (...a) => console.error(...a) };
 
 const DEFAULTS = { hour: 7, tasks: true, events: true, junta: true, supervise: true, shared: true, updates: true, weekly: true, details: false,
-  before: 10, soon: true, routine: true, streak: true, taskTime: true, meetingSoon: true, partner: true, tomorrow: true, report: true };
+  before: 10, logAt: 1230, soon: true, routine: true, streak: true, taskTime: true, meetingSoon: true, partner: true, tomorrow: true, report: true };
 const CATCH_UP_HOURS = 3;          // si una hora falla, lo intenta en las 3 siguientes
 const SUPERVISE_DAYS = 7;
 
@@ -264,7 +264,7 @@ function streakOf(e, uid, today) {
 
 async function changedSince(uid, since) {
   const user = db.collection('users').doc(uid);
-  for (const c of ['events', 'tasks', 'meetings', 'profile']) {
+  for (const c of ['events', 'tasks', 'meetings', 'profile', 'entries']) {
     const q = await user.collection(c).where('updatedAt', '>', since).limit(1).get();
     if (!q.empty) return true;
   }
@@ -308,6 +308,18 @@ async function buildPlan(uid, p, now) {
   if (p.tomorrow) {
     const tmr = events.filter(e => occursOn(e, tomorrow) && e.time).sort((a, b) => a.time.localeCompare(b.time));
     if (tmr.length) add(21 * 60 + 30, `tm:${today}`, `🌙 Mañana: ${plural(tmr.length, 'evento', 'eventos')}; el primero, ${tmr[0].title} a las ${fmtTime(tmr[0].time)}.`, 'tomorrow');
+  }
+  // Aviso importante de cada noche: registra tu actividad (horas y cursos) antes de que termine el día.
+  // Siempre sale (no se puede apagar), salvo que la sección «Mi Informe» esté oculta.
+  if (!(prof.hiddenModules || []).includes('informe')) {
+    const hoy = docs(await user.collection('entries').where('date', '==', today).get());
+    const mins = hoy.reduce((a, e) => a + (Number(e.minutes) || 0), 0);
+    const cursos = hoy.reduce((a, e) => a + (Array.isArray(e.studyNames) ? e.studyNames.length : Number(e.studies) || 0), 0);
+    const hhmm = `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, '0')} h`;
+    const body = hoy.length
+      ? `📝 Hoy registraste ${hhmm}${cursos ? ` y ${plural(cursos, 'curso', 'cursos')}` : ''}. ¿Te falta algo por anotar antes de que termine el día?`
+      : '📝 Registra tu actividad de hoy: aún no guardaste horas ni cursos. Hazlo antes de que termine el día.';
+    add(Number(p.logAt) || 1230, `lg:${today}`, body, 'log', '', 'Importante · Mi Agenda');
   }
   if (p.report && now.day <= 3) {
     const [y, m] = today.split('-').map(Number);

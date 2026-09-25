@@ -23,10 +23,12 @@ const ROUTES = ['hoy', 'agenda', 'tareas', 'personas', 'notas', 'informe'];
 
 // ───────────── Pintado ─────────────
 
+const data_ready = () => store.all('profile').length > 0 || store.all('events').length > 0 || !store.isCloud;
 // Rutinas que se marcaron como hechas desde un aviso (se aplican cuando el evento ya está cargado)
-let pendingDone = null;
+let pendingDone = null, pendingLog = false;
 function queueDone(eid, day) { if (eid && day) { pendingDone = { eid, day, until: Date.now() + 30000 }; applyPendingDone(); } }
 function applyPendingDone() {
+  if (pendingLog && !$('#app').hidden && data_ready()) { pendingLog = false; setTimeout(() => runQuick('time'), 300); }
   if (!pendingDone) return;
   if (Date.now() > pendingDone.until) { pendingDone = null; return; }
   const e = store.get('events', pendingDone.eid);
@@ -191,6 +193,7 @@ document.addEventListener('click', e => {
     case 'ag-paste': return S.agendaPaste();
     case 'junta-start': return S.juntaStart(id);
     case 'notif-test': return S.notifTest();
+    case 'sound-play': return N.playSound(v);
     case 'shared-unhide': store.upsert('profile', { ...M.profile(), id: 'me', sharedHidden: [] }); return S.settings();
     case 'ag-deadline-off': return S.agendaSetDeadline('');
     case 'ag-mode': return S.agendaSetMode(v);
@@ -298,6 +301,8 @@ document.addEventListener('change', e => {
   if (t.id === 'notif-toggle') return S.notifToggle(t.checked, t);
   if (t.id === 'notif-hour') { N.setPref('hour', Number(t.value)); return; }
   if (t.id === 'notif-before') { N.setPref('before', Number(t.value)); return; }
+  if (t.id === 'notif-logat') { N.setPref('logAt', Number(t.value)); return; }
+  if (t.name === 'notif-sound') { N.setPref('sound', t.value); N.playSound(t.value); return; }
   if (t.matches?.('input[data-a="notif-pref"]')) { N.setPref(t.dataset.v, t.checked); if (t.dataset.v === 'details') S.settings(); return; }
   if (t.matches?.('input[data-a="ag-pick"]')) return S.agendaTogglePick(t.dataset.id);
   if (t.matches?.('select[data-admin-uid]')) return S.adminSetType(t.dataset.adminUid, t.value, t);
@@ -547,9 +552,15 @@ async function boot() {
   store.onData(applyPendingDone);
   try {
     const q = new URLSearchParams(location.search);
-    if (q.get('hecho')) { queueDone(q.get('hecho'), q.get('dia')); history.replaceState(history.state, '', location.pathname + location.hash); }
+    if (q.get('hecho')) queueDone(q.get('hecho'), q.get('dia'));
+    if (q.get('accion') === 'registrar') pendingLog = true;
+    if (q.get('hecho') || q.get('accion')) history.replaceState(history.state, '', location.pathname + location.hash);
   } catch { /* sin parámetros */ }
-  navigator.serviceWorker?.addEventListener('message', ev => { if (ev.data?.type === 'hecho') queueDone(ev.data.eid, ev.data.day); });
+  navigator.serviceWorker?.addEventListener('message', ev => {
+    if (ev.data?.type === 'hecho') queueDone(ev.data.eid, ev.data.day);
+    if (ev.data?.type === 'registrar') { pendingLog = true; applyPendingDone(); }
+    if (ev.data?.type === 'aviso' && document.visibilityState === 'visible') N.playSound();
+  });
 
   registerServiceWorker();
 

@@ -104,6 +104,8 @@ export function hoy() {
   const entries = M.entriesFor(M.agendaFor(t));
   const due = M.sortActive(data.tasks.filter(x => x.status !== 'hecha' && x.due && x.due <= t && M.isMineTask(x)));
   const sup = M.isModuleVisible('tareas') ? M.toSupervise() : [];
+  const hour = new Date().getHours();
+  const logToday = M.isModuleVisible('informe') && hour >= 18 && !data.entries.some(e => e.date === t);
   const juntaHoy = data.meetings.find(m => m.date === t && (m.agenda || []).length && !m.juntaRun?.finishedAt);
   const next = data.meetings.filter(m => m.date > t)
     .sort((x, y) => (x.date + (x.time || '')).localeCompare(y.date + (y.time || ''))).slice(0, 3);
@@ -140,6 +142,7 @@ export function hoy() {
     </div>
     ${actions()}
   </header>
+  ${logToday ? `<button class="log-now" data-a="qa" data-v="time">📝 <span><b>Registra tu actividad de hoy</b><small>Aún no guardaste horas ni cursos. Toca aquí para anotarlos.</small></span></button>` : ''}
   ${juntaHoy ? `<button class="btn primary junta-now" data-a="junta-start" data-id="${juntaHoy.id}">▶ Iniciar la junta de hoy<small>${esc(juntaHoy.title)}${juntaHoy.time ? ` · ${fmtTime(juntaHoy.time)}` : ''}</small></button>` : ''}
   ${tiles.length ? `<div class="tiles">${tiles.join('')}</div>` : `<p class="sub pad">${summary}</p>`}
   ${quickRow()}

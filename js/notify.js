@@ -10,7 +10,12 @@ import { FIREBASE_VERSION, VAPID_KEY } from './config.js';
 import * as M from './model.js';
 
 const KEY = 'miagenda.aviso';        // id de este teléfono (si tiene los avisos activos)
-export const DEFAULTS = { hour: 7, tasks: true, events: true, junta: true, supervise: true, shared: true, updates: true, weekly: true, details: false,
+export const SOUNDS = [['campanita', 'Campanita'], ['suave', 'Suave'], ['amanecer', 'Amanecer'], ['alerta', 'Alerta']];
+export function playSound(id = prefs().sound) {
+  if (!id || id === 'ninguno') return;
+  try { const a = new Audio(`sonidos/${id}.mp3`); a.volume = 0.9; a.play().catch(() => {}); } catch { /* sin audio */ }
+}
+export const DEFAULTS = { sound: 'campanita', logAt: 1230, hour: 7, tasks: true, events: true, junta: true, supervise: true, shared: true, updates: true, weekly: true, details: false,
   before: 10, soon: true, routine: true, streak: true, taskTime: true, meetingSoon: true, partner: true, tomorrow: true, report: true };
 
 const ls = {
