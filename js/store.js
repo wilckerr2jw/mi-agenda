@@ -162,7 +162,7 @@ export function startSync(uid) {
 const SH = 'sh_';
 let ownEvents = [];
 let sharedDocs = [];
-const SHARED_FIELDS = ['title', 'category', 'date', 'time', 'endTime', 'place', 'repeat', 'days', 'notes', 'theme', 'skipDates'];
+const SHARED_FIELDS = ['title', 'category', 'date', 'time', 'endTime', 'place', 'repeat', 'days', 'notes', 'theme', 'color', 'skipDates'];
 const myProfile = () => data.profile.find(p => p.id === 'me') || { id: 'me' };
 export const myName = () => (myProfile().myName || account.user?.displayName || (account.user?.email || '').split('@')[0] || 'Alguien').slice(0, 80);
 const pick = o => Object.fromEntries(SHARED_FIELDS.filter(k => o[k] !== undefined).map(k => [k, o[k]]));

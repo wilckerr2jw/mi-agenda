@@ -40,7 +40,7 @@ let drag = null;                 // { el, mode: 'move'|'resize', startX, startY,
 let api = null;                  // funciones de la vista montada ahora (move/end/activate)
 let winBound = false;
 
-export function mount(onChange) {
+export function mount(onChange, onCreate) {
   const scroller = document.getElementById('wc-scroll');
   if (!scroller) return;
   if (lastScroll) { scroller.scrollTop = lastScroll.top; scroller.scrollLeft = lastScroll.left; }
@@ -49,6 +49,19 @@ export function mount(onChange) {
 
   // Que un arrastre no abra el evento al soltar
   scroller.addEventListener('click', e => { if (suppressClick) { e.stopPropagation(); e.preventDefault(); suppressClick = false; } }, true);
+  // Tocar un espacio vacío: crear un evento en ese día y a esa hora (de media en media hora)
+  scroller.addEventListener('click', e => {
+    if (e.target.closest('.wc-ev, .wc-chip') || !onCreate) return;
+    const col = e.target.closest('.wc-col');
+    if (!col) return;
+    const min = Math.floor(((e.clientY - col.getBoundingClientRect().top) / PX_H * 60 + START_H * 60) / 30) * 30;
+    const s = clamp(min, START_H * 60, END_H * 60 - 30);
+    const slot = document.createElement('i');
+    slot.className = 'wc-slot';
+    slot.style.top = `${(s - START_H * 60) / 60 * PX_H}px`; slot.style.height = `${PX_H - 2}px`;
+    col.append(slot);
+    setTimeout(() => onCreate(col.dataset.date, hhmm(s), hhmm(Math.min(s + 60, 23 * 60 + 59))), 120);
+  });
 
   const cols = () => [...scroller.querySelectorAll('.wc-col')];
   const bodyTop = () => scroller.querySelector('.wc-body').getBoundingClientRect().top;

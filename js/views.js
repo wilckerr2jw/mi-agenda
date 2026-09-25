@@ -30,7 +30,7 @@ function timeCell(time) {
 function tlItem({ kind, item }, iso) {
   const isMeeting = kind === 'meeting';
   const cat = M.catOf(item.category);
-  const color = isMeeting ? 'var(--c-mtg)' : cat.c;
+  const color = isMeeting ? 'var(--c-mtg)' : M.eventColor(item);
   let label = isMeeting ? 'Reunión importante' : cat.n;
   if (item.endTime) label += `, hasta ${fmtTime(item.endTime)}`;
   // Si es una ocurrencia de un evento repetido (no su fecha original), se manda la fecha
@@ -194,7 +194,7 @@ function agendaAll(st) {
   const repeating = evs.filter(e => M.isRepeating(e));
   const once = evs.filter(e => !M.isRepeating(e) && e.date >= t).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
   const row = e => {
-    const cat = M.catOf(e.category);
+    const cat = { c: M.eventColor(e) };
     const when = [M.isRepeating(e) ? M.repeatText(e) : cap(fmtShort(e.date)), e.time ? fmtTime(e.time) + (e.endTime ? `–${fmtTime(e.endTime)}` : '') : ''].filter(Boolean).join(' · ');
     const body = `<span class="bar"></span>
       <span class="tl-body"><strong>${esc(e.title)}</strong><span class="meta">${esc(when)}</span>
@@ -217,9 +217,12 @@ function agendaAll(st) {
 }
 
 // Semana como calendario: cada evento en su hora y con su duración; se mueve arrastrando (js/weekcal.js)
+export const weekSpan = st => st.span || (typeof window !== 'undefined' && window.innerWidth < 560 ? 3 : 7);
+export const weekStartOf = st => (weekSpan(st) === 7 ? (st.week || M.mondayOf(today())) : (st.day || today()));
 function agendaWeek(st) {
-  const monday = st.week || M.mondayOf(today());
-  const days = Array.from({ length: 7 }, (_, i) => M.addDaysISO(monday, i));
+  const n = weekSpan(st);
+  const monday = weekStartOf(st);
+  const days = Array.from({ length: n }, (_, i) => M.addDaysISO(monday, i));
   const t = today();
   const { START_H, END_H, PX_H } = WC;
   const allDay = days.map(() => []);
@@ -230,7 +233,7 @@ function agendaWeek(st) {
     items.forEach(x => { const sp = WC.span(x.item); if (sp) timed.push({ ...x, ...sp }); else allDay[di].push(x); });
     return WC.lanes(timed).map(x => {
       const isM = x.kind === 'meeting';
-      const color = isM ? 'var(--c-mtg)' : M.catOf(x.item.category).c;
+      const color = isM ? 'var(--c-mtg)' : M.eventColor(x.item);
       const occ = !isM && M.isRepeating(x.item) && iso !== x.item.date ? iso : '';
       const s0 = Math.max(x.s, START_H * 60), e0 = Math.min(Math.max(x.e, s0 + 15), END_H * 60);
       const top = (s0 - START_H * 60) / 60 * PX_H, h = Math.max(18, (e0 - s0) / 60 * PX_H - 2);
@@ -244,15 +247,20 @@ function agendaWeek(st) {
   const now = new Date(); const nowMin = now.getHours() * 60 + now.getMinutes();
   const head = days.map(iso => `<div class="wc-dh ${iso === t ? 'today' : ''}"><span>${cap(DIAS[parseISO(iso).getDay()]).slice(0, 3)}</span><b>${Number(iso.slice(8))}</b></div>`).join('');
   const hasAllDay = allDay.some(l => l.length);
-  return `<div class="wk-nav"><button class="icon-btn" data-a="wk-move" data-v="-7" aria-label="Semana anterior">${ic('left')}</button>
-      <strong>${fmtShort(monday)} – ${fmtShort(days[6])}</strong>
-      <button class="icon-btn" data-a="wk-move" data-v="7" aria-label="Semana siguiente">${ic('right')}</button></div>
-    <div class="quick wk-actions"><button class="btn small" data-a="wk-move" data-v="0">Esta semana</button><button class="btn small primary" data-a="wk-share">Enviar como imagen</button></div>
-    <p class="hint wc-help">Arrastra un evento para cambiarlo de hora o de día (con el dedo: mantenlo presionado y muévelo). La rayita de abajo cambia cuánto dura.</p>
+  return `<div class="wk-nav"><button class="icon-btn" data-a="wk-move" data-v="-${n}" aria-label="Anteriores">${ic('left')}</button>
+      <strong>${fmtShort(monday)} – ${fmtShort(days[n - 1])}</strong>
+      <button class="icon-btn" data-a="wk-move" data-v="${n}" aria-label="Siguientes">${ic('right')}</button></div>
+    <div class="wk-actions">
+      <div class="seg small" role="group" aria-label="Días a la vista"><button data-a="wk-span" data-v="3" aria-pressed="${n === 3}">3 días</button><button data-a="wk-span" data-v="7" aria-pressed="${n === 7}">Semana</button></div>
+      <button class="btn small" data-a="wk-move" data-v="0">Hoy</button>
+      <button class="btn small primary" data-a="wk-share">Enviar imagen</button>
+      <button class="btn small ghost" data-a="wk-tpl">📑 Plantillas</button>
+    </div>
+    <p class="hint wc-help">Toca un espacio vacío para crear un evento a esa hora. Arrastra un evento para moverlo (con el dedo: mantenlo presionado) y la rayita de abajo para cambiar cuánto dura.</p>
     <div class="wc-scroll" id="wc-scroll">
-      <div class="wc-grid" style="--ph:${PX_H}px">
+      <div class="wc-grid ${n === 3 ? 'three' : ''}" style="--ph:${PX_H}px;--n:${n}">
         <div class="wc-head"><div class="wc-gut"></div>${head}</div>
-        ${hasAllDay ? `<div class="wc-allday"><div class="wc-gut">Sin hora</div>${allDay.map(l => `<div class="wc-ad">${l.map(x => `<button class="wc-chip" style="--c:${x.kind === 'meeting' ? 'var(--c-mtg)' : M.catOf(x.item.category).c}" data-a="${x.kind}" data-id="${x.item.id}">${esc(x.item.title)}</button>`).join('')}</div>`).join('')}</div>` : ''}
+        ${hasAllDay ? `<div class="wc-allday"><div class="wc-gut">Sin hora</div>${allDay.map(l => `<div class="wc-ad">${l.map(x => `<button class="wc-chip" style="--c:${x.kind === 'meeting' ? 'var(--c-mtg)' : M.eventColor(x.item)}" data-a="${x.kind}" data-id="${x.item.id}">${esc(x.item.title)}</button>`).join('')}</div>`).join('')}</div>` : ''}
         <div class="wc-body" style="height:${(END_H - START_H) * PX_H}px">
           <div class="wc-times">${hours.map(h => `<span style="top:${(h - START_H) * PX_H}px">${h % 12 || 12} ${h < 12 ? 'a. m.' : 'p. m.'}</span>`).join('')}</div>
           ${days.map((iso, i) => `<div class="wc-col ${iso === t ? 'today' : ''}" data-date="${iso}"><div class="wc-evs">${cols[i]}</div>${iso === t && nowMin >= START_H * 60 ? `<i class="wc-now" style="top:${(nowMin - START_H * 60) / 60 * PX_H}px"></i>` : ''}</div>`).join('')}
@@ -281,7 +289,7 @@ export function agenda(ui) {
   for (let d = 1; d <= days; d++) {
     const iso = `${y}-${pad(m)}-${pad(d)}`;
     const a = M.agendaFor(iso);
-    const colors = [...new Set([...a.events.map(e => M.catOf(e.category).c), ...(a.meetings.length ? ['var(--c-mtg)'] : [])])].slice(0, 3);
+    const colors = [...new Set([...a.events.map(e => M.eventColor(e)), ...(a.meetings.length ? ['var(--c-mtg)'] : [])])].slice(0, 3);
     const dots = colors.map(c => `<i class="dot" style="--c:${c}"></i>`).join('') + (a.tasks.length ? '<i class="dot task"></i>' : '');
     cells += `<button class="day ${iso === t ? 'today' : ''}" data-a="cal-sel" data-date="${iso}" aria-pressed="${iso === st.sel}" aria-label="${fmtLong(iso)}"><span class="n">${d}</span><span class="dots">${dots}</span></button>`;
   }

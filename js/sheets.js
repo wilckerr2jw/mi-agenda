@@ -111,13 +111,13 @@ function rememberType(col, value, builtIns) {
 // ───────────── Evento ─────────────
 
 // Campos que se copian al duplicar un evento o al cambiar solo un día
-const EVENT_COPY = ['title', 'category', 'date', 'time', 'endTime', 'place', 'notes', 'theme', 'repeat', 'days', 'companionId', 'companionGroupIds', 'companionPersonIds'];
+const EVENT_COPY = ['title', 'category', 'date', 'time', 'endTime', 'place', 'notes', 'theme', 'color', 'repeat', 'days', 'companionId', 'companionGroupIds', 'companionPersonIds'];
 const copyOf = e => Object.fromEntries(EVENT_COPY.filter(k => e[k] !== undefined).map(k => [k, Array.isArray(e[k]) ? [...e[k]] : e[k]]));
 
 export function eventSheet(id, preset = {}, back) {
   const e = id ? store.get('events', id) : null;
   const src = !e && preset.copyOf ? store.get('events', preset.copyOf) : null;
-  const v = e || (src ? copyOf(src) : null) || { title: '', category: 'reunion', date: preset.date || today(), time: '', endTime: '', place: '', notes: '', repeat: 'none', companionId: '', companionGroupIds: [], companionPersonIds: [] };
+  const v = e || (src ? copyOf(src) : null) || { title: '', category: 'reunion', date: preset.date || today(), time: preset.time || '', endTime: preset.endTime || '', place: '', notes: '', repeat: 'none', companionId: '', companionGroupIds: [], companionPersonIds: [] };
   // Si se abrió tocando una ocurrencia puntual de un evento que se repite, se puede cancelar solo esa semana.
   const occDate = preset.occDate || '';
   const skipped = e && occDate ? (e.skipDates || []).includes(occDate) : false;
@@ -138,6 +138,8 @@ export function eventSheet(id, preset = {}, back) {
         ${fld('Termina', `<input id="endTime" name="endTime" type="time" value="${v.endTime || ''}">`, 'endTime')}
       </div>
       ${fld('Lugar', `<input id="place" name="place" maxlength="120" value="${esc(v.place || '')}" placeholder="Salón, dirección o enlace">`, 'place')}
+      <div class="f"><span class="lbl">Color <span class="hint">(como en tu calendario impreso)</span></span>
+        <div class="colorpick" role="radiogroup" aria-label="Color del evento">${M.EVENT_COLORS.map(([c, n]) => `<label title="${n}"><input type="radio" name="color" value="${c}" ${(v.color || '') === c ? 'checked' : ''}><span style="--sw:${c || M.catOf(v.category).c}" class="${c ? '' : 'auto'}">${c ? '' : 'A'}</span><em>${n}</em></label>`).join('')}</div></div>
       ${fld('Tema sugerido <span class="hint">(opcional)</span>', `<input id="theme" name="theme" maxlength="200" value="${esc(v.theme || '')}" placeholder="Ej. tema para la noche de adoración en familia">`, 'theme')}
       ${owner ? '' : '<div hidden>'}
       <div class="f" id="companion-single" ${isAncianos ? 'hidden' : ''}>
@@ -245,6 +247,55 @@ export function calMoveApply(all) {
   afterMove?.();
 }
 
+// ───── Plantillas de semana: guarda tu semana y aplícala a otra con un toque ─────
+let tplCtx = { start: '', span: 7 };
+export function weekTemplates(start, span) {
+  const monday = M.mondayOf(start);
+  tplCtx = { start: monday, span: 7 };
+  const list = M.profile().weekTemplates || [];
+  open({
+    title: 'Plantillas de semana',
+    body: `<p class="hint">Guarda cómo es una semana (sus eventos, con día y hora) y aplícala a otra semana cuando la necesites: por ejemplo tu «semana normal», una semana de asamblea o la visita del superintendente. Al aplicar solo se agrega lo que falta; no se repite lo que ya está.</p>
+      ${list.length ? `<div class="mini-list">${list.map(t => `<div class="mini-row"><span class="grow"><strong>${esc(t.name)}</strong><span class="meta">${t.items.length} eventos</span></span>
+        <span class="ag-btns"><button type="button" class="btn small primary" data-a="wk-tpl-apply" data-id="${t.id}">Aplicar a la semana del ${fmtShort(monday)}</button><button type="button" class="icon-btn" data-a="wk-tpl-del" data-id="${t.id}" aria-label="Borrar plantilla">${ic('x', 'sm')}</button></span></div>`).join('')}</div>` : '<p class="hint">Aún no tienes plantillas.</p>'}
+      <h3 class="sub-h">Guardar la semana del ${fmtShort(monday)}</h3>
+      <div class="log-add"><input id="wk-tpl-name" maxlength="60" placeholder="Nombre (ej. Semana normal)" aria-label="Nombre de la plantilla"><button type="button" class="btn" data-a="wk-tpl-save">Guardar</button></div>`,
+    actions: '<button type="button" class="btn primary" data-a="sheet-close">Listo</button>',
+  });
+}
+const weekItems = monday => Array.from({ length: 7 }, (_, d) => ({ d, iso: addDays(monday, d) }))
+  .flatMap(({ d, iso }) => M.agendaFor(iso).events.map(e => ({ d, title: e.title, category: e.category, time: e.time || '', endTime: e.endTime || '', place: e.place || '', notes: e.notes || '', theme: e.theme || '', color: e.color || '' })));
+export function weekTemplateSave() {
+  const input = document.getElementById('wk-tpl-name');
+  const name = (input?.value || '').trim();
+  if (!name) return input?.focus();
+  const items = weekItems(tplCtx.start);
+  if (!items.length) return toast('Esta semana no tiene eventos para guardar');
+  const list = (M.profile().weekTemplates || []).filter(t => norm(t.name) !== norm(name));
+  store.upsert('profile', { ...M.profile(), id: 'me', weekTemplates: [...list, { id: uid(), name, items }] });
+  toast(`Plantilla «${name}» guardada (${items.length} eventos)`);
+  weekTemplates(tplCtx.start);
+}
+export function weekTemplateApply(id) {
+  const t = (M.profile().weekTemplates || []).find(x => x.id === id);
+  if (!t) return;
+  const created = [];
+  t.items.forEach(it => {
+    const date = addDays(tplCtx.start, it.d);
+    const exists = M.agendaFor(date).events.some(e => norm(e.title) === norm(it.title) && (e.time || '') === it.time);
+    if (exists) return;
+    const { d, ...rest } = it;
+    created.push(store.upsert('events', { ...rest, id: uid(), date, repeat: 'none', days: [], skipDates: [], companionId: '', companionGroupIds: [], companionPersonIds: [] }));
+  });
+  close();
+  toast(created.length ? `${created.length} eventos agregados a la semana del ${fmtShort(tplCtx.start)}` : 'Esa semana ya tiene todo lo de la plantilla',
+    created.length ? 'Deshacer' : undefined, () => created.forEach(e => store.remove('events', e.id)), 9000);
+}
+export function weekTemplateDelete(id) {
+  store.upsert('profile', { ...M.profile(), id: 'me', weekTemplates: (M.profile().weekTemplates || []).filter(x => x.id !== id) });
+  weekTemplates(tplCtx.start);
+}
+
 // ───── Compartir varios eventos a la vez ─────
 let bulkShareIds = [], bulkShareDone = null;
 export async function bulkShareSheet(ids, done) {
@@ -313,7 +364,7 @@ function saveEvent(id, r, form) {
   const companionPersonIds = new FormData(form).getAll('companionPersonIds');
   const days = new FormData(form).getAll('days').map(Number);
   if (r.repeat === 'days' && !days.length) { toast('Marca al menos un día'); return; }
-  const item = { ...prev, id: id || uid(), title: r.title, category, date: r.date, time: r.time, endTime: r.endTime, place: r.place, companionId: r.companionId, companionGroupIds, companionPersonIds, repeat: r.repeat, days: r.repeat === 'days' ? days : [], notes: r.notes, theme: (r.theme || '').trim(), skipDates: prev.skipDates || [] };
+  const item = { ...prev, id: id || uid(), title: r.title, category, date: r.date, time: r.time, endTime: r.endTime, place: r.place, companionId: r.companionId, companionGroupIds, companionPersonIds, repeat: r.repeat, days: r.repeat === 'days' ? days : [], color: r.color || '', notes: r.notes, theme: (r.theme || '').trim(), skipDates: prev.skipDates || [] };
   const fd = new FormData(form);
   if (isCloud && fd.get('shareLoaded') && (!prev.sharedId || store.isSharedOwner(prev))) {
     const chosen = fd.getAll('shareWith');
@@ -1859,6 +1910,7 @@ function notifSettingsHtml() {
         ${opt('supervise', 'Los lunes: tareas que supervisas')}
         ${opt('shared', 'Cuando alguien te comparte o cambia un evento')}
         ${opt('updates', 'Cuando hay una versión nueva de la app')}
+        ${opt('weekly', 'Los domingos: resumen de la semana y lo que viene')}
         ${opt('details', 'Mostrar los títulos en el aviso')}
         <p class="hint">${p.details ? '⚠️ Los títulos se verán en la pantalla bloqueada.' : 'Sin títulos: el aviso solo dice cuántas cosas tienes (más privado).'}</p>
         <button type="button" class="btn" data-a="notif-test">Enviar un aviso de prueba</button>` : ''}

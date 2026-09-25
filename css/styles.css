@@ -774,7 +774,11 @@ body.privacy #app, body.privacy #sheet-root { filter: blur(14px); }
 
 /* ───── Semana en cuadro ───── */
 .wk-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
-.wk-actions { margin: 0 0 10px; }
+.wk-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 8px; }
+.seg.small button { padding: 6px 10px; font-size: 13px; }
+.seg.small { display: inline-flex; margin: 0; }
+.wc-col { cursor: copy; }
+.wc-slot { position: absolute; left: 2px; right: 2px; border-radius: 8px; border: 2px dashed var(--primary); background: color-mix(in srgb, var(--primary) 10%, transparent); pointer-events: none; z-index: 4; }
 .wk-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); }
 .wk-table { border-collapse: collapse; min-width: 680px; width: 100%; table-layout: fixed; font-size: 13px; }
 .wk-table th, .wk-table td { border-bottom: 1px solid var(--line); padding: 4px; vertical-align: top; }
@@ -789,8 +793,10 @@ body.privacy #app, body.privacy #sheet-root { filter: blur(14px); }
 /* ───── Semana como calendario (arrastrar para mover) · v4.4 ───── */
 .wc-help { margin: 0 0 8px; }
 .wc-scroll { overflow: auto; max-height: max(440px, calc(100vh - 290px)); border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-.wc-grid { --gut: 52px; min-width: calc(var(--gut) + 7 * 76px); position: relative; }
-.wc-head, .wc-allday { display: grid; grid-template-columns: var(--gut) repeat(7, 1fr); }
+.wc-grid { --gut: 52px; --n: 7; min-width: calc(var(--gut) + var(--n) * 76px); position: relative; }
+.wc-grid.three .wc-ev { font-size: 13px; }
+.wc-grid.three .wc-ev .wc-t { font-size: 12px; }
+.wc-head, .wc-allday { display: grid; grid-template-columns: var(--gut) repeat(var(--n), 1fr); }
 .wc-head { position: sticky; top: 0; z-index: 4; background: var(--primary); color: #fff; }
 .wc-dh { text-align: center; padding: 6px 2px; font-weight: 600; }
 .wc-dh span { display: block; font-size: 11px; opacity: .85; }
@@ -801,7 +807,7 @@ body.privacy #app, body.privacy #sheet-root { filter: blur(14px); }
 .wc-allday .wc-gut { background: var(--surface-2); }
 .wc-ad { padding: 3px; border-left: 1px solid var(--line); }
 .wc-chip { display: block; width: 100%; text-align: left; font-size: 11px; font-weight: 600; padding: 3px 5px; margin-bottom: 3px; border-radius: 6px; border-left: 3px solid var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
-.wc-body { position: relative; display: grid; grid-template-columns: var(--gut) repeat(7, 1fr);
+.wc-body { position: relative; display: grid; grid-template-columns: var(--gut) repeat(var(--n), 1fr);
   background-image: repeating-linear-gradient(to bottom, var(--line) 0 1px, transparent 1px var(--ph)); background-position: 0 0; }
 .wc-times { position: sticky; left: 0; z-index: 3; background: var(--surface); border-right: 1px solid var(--line); }
 .wc-times span { position: absolute; right: 6px; transform: translateY(-50%); font-size: 10.5px; color: var(--ink-2); white-space: nowrap; }
@@ -824,3 +830,12 @@ body.privacy #app, body.privacy #sheet-root { filter: blur(14px); }
 body.wc-dragging, body.wc-dragging * { cursor: grabbing !important; user-select: none !important; }
 .wc-now { position: absolute; left: 0; right: 0; height: 2px; background: #D93025; z-index: 5; pointer-events: none; }
 .wc-now::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: #D93025; }
+
+/* Color propio del evento */
+.colorpick { display: flex; flex-wrap: wrap; gap: 8px; }
+.colorpick label { position: relative; display: grid; justify-items: center; gap: 2px; font-size: 10.5px; color: var(--ink-2); width: 46px; }
+.colorpick input { position: absolute; opacity: 0; inset: 0; }
+.colorpick span { width: 30px; height: 30px; border-radius: 50%; background: var(--sw); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line); display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; }
+.colorpick em { font-style: normal; }
+.colorpick input:checked + span { box-shadow: 0 0 0 3px var(--ink); }
+.colorpick input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 3px; }

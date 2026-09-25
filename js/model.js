@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '4.4';
+export const APP_VERSION = '4.5';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -74,6 +74,9 @@ export function customColor(text) {
   return `var(--c-x${(h % 4) + 1})`;
 }
 export const catOf = key => CATEGORIAS[key] || (key ? { n: key, c: customColor(key) } : CATEGORIAS.personal);
+// Color de un evento: el que elegiste para ese evento o, si no, el de su tipo
+export const EVENT_COLORS = [['', 'Del tipo'], ['#8FD3E8', 'Celeste'], ['#F5D76E', 'Amarillo'], ['#F4B183', 'Naranja'], ['#C9B6E4', 'Lila'], ['#8E7CC3', 'Morado'], ['#F2A7C3', 'Rosado'], ['#A8D5A2', 'Verde'], ['#E57373', 'Rojo'], ['#9E9E9E', 'Gris']];
+export const eventColor = e => (e && e.color) || catOf(e?.category).c;
 export const kindLabel = k => KINDS[k] || k || '';
 
 // Fecha que se muestra y usa para ordenar una nota: la que el usuario puso a mano
@@ -412,7 +415,7 @@ export function weekGrid(monday) {
     items.forEach(({ kind, item }) => {
       const key = item.time || '';
       if (!rows.has(key)) rows.set(key, days.map(() => []));
-      rows.get(key)[col].push({ kind, item, iso, color: kind === 'meeting' ? 'var(--c-mtg)' : catOf(item.category).c });
+      rows.get(key)[col].push({ kind, item, iso, color: kind === 'meeting' ? 'var(--c-mtg)' : eventColor(item) });
     });
   });
   return { days, rows: [...rows.entries()].sort(([a], [b]) => (a || '00').localeCompare(b || '00')).map(([time, cells]) => ({ time, cells })) };

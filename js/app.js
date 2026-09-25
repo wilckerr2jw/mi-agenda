@@ -14,7 +14,7 @@ import { $, $$, esc, today, toast, photoToDataUrl, addDays } from './util.js';
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
 const ui = {
   route: 'hoy',
-  agenda: { ym: today().slice(0, 7), sel: today(), mode: (() => { try { return localStorage.getItem('miagenda.agendaVista') || 'mes'; } catch { return 'mes'; } })() },
+  agenda: { span: (() => { try { return Number(localStorage.getItem('miagenda.semanaDias')) || 0; } catch { return 0; } })(), ym: today().slice(0, 7), sel: today(), mode: (() => { try { return localStorage.getItem('miagenda.agendaVista') || 'mes'; } catch { return 'mes'; } })() },
   tareas: { f: 'activas', p: '', m: '' },
   personas: { q: '', seg: 'personas', g: '', pv: '' },
   notas: { seg: 'notas', q: '', tag: '' },
@@ -36,7 +36,7 @@ function render() {
   $('#fab').hidden = ui.route === 'agenda' && !!ui.agenda.picking;   // al seleccionar varios, el botón + no tapa «Eliminar»
   if (focused !== null) { const q = $('#q'); q?.focus(); q?.setSelectionRange(focused, focused); }
   window.scrollTo(0, y);
-  if (ui.route === 'agenda' && ui.agenda.mode === 'semana') WC.mount(c => S.calMove(c, render));
+  if (ui.route === 'agenda' && ui.agenda.mode === 'semana') WC.mount(c => S.calMove(c, render), (date, time, endTime) => S.eventSheet(null, { date, time, endTime }));
 }
 
 function go(route) {
@@ -114,8 +114,13 @@ document.addEventListener('click', e => {
     case 'ev-done': { const on = store.toggleDone(store.get('events', id), el.dataset.date); if (on) toast('¡Hecho! ✓'); return; }
     case 'occ-edit': return S.occEdit(id, el.dataset.date);
     case 'ev-dup': return S.eventSheet(null, { copyOf: id });
-    case 'wk-move': { const n = Number(v); ui.agenda.week = n ? addDays(ui.agenda.week || M.mondayOf(today()), n) : M.mondayOf(today()); return render(); }
-    case 'wk-share': return import('./weekimg.js').then(W => W.shareWeek(ui.agenda.week || M.mondayOf(today())));
+    case 'wk-move': { const n = Number(v); if (V.weekSpan(ui.agenda) === 7) ui.agenda.week = n ? addDays(ui.agenda.week || M.mondayOf(today()), n) : M.mondayOf(today()); else ui.agenda.day = n ? addDays(ui.agenda.day || today(), n) : today(); return render(); }
+    case 'wk-span': ui.agenda.span = Number(v); try { localStorage.setItem('miagenda.semanaDias', v); } catch { /* sin almacenamiento */ } return render();
+    case 'wk-tpl': return S.weekTemplates(V.weekStartOf(ui.agenda), V.weekSpan(ui.agenda));
+    case 'wk-tpl-save': return S.weekTemplateSave();
+    case 'wk-tpl-apply': return S.weekTemplateApply(id);
+    case 'wk-tpl-del': return S.weekTemplateDelete(id);
+    case 'wk-share': return import('./weekimg.js').then(W => W.shareWeek(M.mondayOf(V.weekStartOf(ui.agenda))));
     case 'cal-move-one': return S.calMoveApply(false);
     case 'cal-move-all': return S.calMoveApply(true);
     case 'cal-move-cancel': return S.calMoveCancel();

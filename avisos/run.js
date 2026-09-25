@@ -20,7 +20,7 @@ initializeApp({ credential: applicationDefault(), projectId: PROJECT });
 const db = getFirestore();
 const log = { info: (...a) => console.log(...a), warn: (...a) => console.warn(...a), error: (...a) => console.error(...a) };
 
-const DEFAULTS = { hour: 7, tasks: true, events: true, junta: true, supervise: true, shared: true, updates: true, details: false };
+const DEFAULTS = { hour: 7, tasks: true, events: true, junta: true, supervise: true, shared: true, updates: true, weekly: true, details: false };
 const CATCH_UP_HOURS = 3;          // si una hora falla, lo intenta en las 3 siguientes
 const SUPERVISE_DAYS = 7;
 
@@ -29,7 +29,7 @@ function localNow(tz) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
     timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23', weekday: 'short',
   }).formatToParts(new Date()).map(p => [p.type, p.value]));
-  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour), monday: parts.weekday === 'Mon' };
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour), monday: parts.weekday === 'Mon', sunday: parts.weekday === 'Sun' };
 }
 const toDate = iso => new Date(`${iso}T12:00:00Z`);
 const addDays = (iso, n) => { const d = toDate(iso); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -98,6 +98,28 @@ async function buildMessage(uid, p, now) {
       const pending = m.date === tomorrow && (m.agenda || []).length && !m.agendaSentAt ? ' · falta enviar la agenda' : '';
       lines.push(`🗓 ${when}: ${p.details && m.title ? m.title : 'reunión'}${at}${pending}`);
     }
+  }
+
+  // Domingo: resumen de la semana (rutinas cumplidas) y lo que viene la próxima
+  if (p.weekly && now.sunday) {
+    const own = docs(await user.collection('events').get());
+    const shared = docs(await db.collection('shared').where('members', 'array-contains', uid).get());
+    const all = [...own, ...shared];
+    const monday = addDays(today, -6);
+    let due = 0, done = 0;
+    all.filter(e => e.repeat && e.repeat !== 'none').forEach(e => {
+      for (let i = 0; i < 7; i++) {
+        const d = addDays(monday, i);
+        if (!occursOn(e, d)) continue;
+        due++;
+        if ((e.doneLog?.[d] || []).includes(uid)) done++;
+      }
+    });
+    if (due && done) lines.push(`🔥 Esta semana cumpliste ${done} de ${due} rutinas`);
+    let next = 0;
+    for (let i = 1; i <= 7; i++) { const d = addDays(today, i); next += all.filter(e => occursOn(e, d)).length; }
+    const nextMeetings = docs(await user.collection('meetings').where('date', '>', today).where('date', '<=', addDays(today, 7)).get());
+    if (next || nextMeetings.length) lines.push(`🗓 Próxima semana: ${plural(next, 'evento', 'eventos')}${nextMeetings.length ? ` y ${plural(nextMeetings.length, 'reunión', 'reuniones')}` : ''}`);
   }
 
   if (!lines.length) return null;

@@ -1,7 +1,8 @@
 {
-  "version": "4.4",
+  "version": "4.5",
   "notes": [
-    "Semana como calendario: arrastra los eventos para moverlos",
-    "Cambia cuánto dura un evento con la rayita de abajo"
+    "Toca un espacio de la Semana para crear un evento",
+    "Vista de 3 días, colores por evento y plantillas de semana",
+    "Resumen de la semana los domingos"
   ]
 }

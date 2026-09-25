@@ -10,7 +10,7 @@ import { FIREBASE_VERSION, VAPID_KEY } from './config.js';
 import * as M from './model.js';
 
 const KEY = 'miagenda.aviso';        // id de este teléfono (si tiene los avisos activos)
-export const DEFAULTS = { hour: 7, tasks: true, events: true, junta: true, supervise: true, shared: true, updates: true, details: false };
+export const DEFAULTS = { hour: 7, tasks: true, events: true, junta: true, supervise: true, shared: true, updates: true, weekly: true, details: false };
 
 const ls = {
   get: () => { try { return localStorage.getItem(KEY) || ''; } catch { return ''; } },
