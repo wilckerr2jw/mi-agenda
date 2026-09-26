@@ -14,7 +14,8 @@
       "avisos/**",
       "mi-agenda-app-855f1-*.json",
       "*.key.json",
-      "app-android/**"
+      "app-android/**",
+      "*.apk"
     ],
     "headers": [
       {

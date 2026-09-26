@@ -70,12 +70,3 @@ jobs:
           gh release create "apk-${{ github.run_number }}" agenda-teocratica.apk mi-agenda.apk \
             --title "Agenda Teocrática 1.${{ github.run_number }}" \
             --notes "Instálala encima de la anterior: no se borra nada. Descarga: agenda-teocratica.apk" --latest
-
-      # La misma app también en la web (más rápida de descargar que GitHub en algunos países)
-      - name: Iniciar sesión en Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-
-      - name: Publicar la web con la app nueva
-        run: npx --yes firebase-tools@15 deploy --only hosting --project mi-agenda-app-855f1 --non-interactive

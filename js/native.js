@@ -12,8 +12,9 @@ export const isNative = !!C?.isNativePlatform?.();
 const plug = name => C?.Plugins?.[name];
 const REPO = 'wilckerr2jw/mi-agenda';
 // La app se descarga desde la misma web (rápido); GitHub queda de respaldo
-export const APK_URL = 'https://mi-agenda-app-855f1.web.app/agenda-teocratica.apk';
+// La web gratuita de Firebase no deja publicar archivos .apk: la app se descarga de GitHub
 export const APK_URL_GITHUB = `https://github.com/${REPO}/releases/latest/download/agenda-teocratica.apk`;
+export const APK_URL = APK_URL_GITHUB;
 
 // Canales: cada tipo de aviso con su sonido (los archivos están en la app: res/raw)
 const CHANNELS = [
