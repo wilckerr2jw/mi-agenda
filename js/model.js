@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '6.1';
+export const APP_VERSION = '6.2';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -533,6 +533,13 @@ export function deptTree() {
   const seen = new Set();
   const node = d => { if (seen.has(d.id)) return null; seen.add(d.id); return { d, children: kids(d.id).map(node).filter(Boolean) }; };
   return all.filter(d => !d.parentId || !ids.has(d.parentId)).sort(byOrder).map(node).filter(Boolean);
+}
+// Hermanos de un departamento (en el orden en que se ven) y su lista padre
+export function deptSiblings(id) {
+  let found = null;
+  const walk = (list, parent) => list.forEach(n => { if (n.d.id === id) found = { list: list.map(x => x.d), parent }; else walk(n.children, n.d); });
+  walk(deptTree(), null);
+  return found || { list: [], parent: null };
 }
 // Los que cuelgan de un departamento (para no elegirlos como su «padre»)
 export function deptDescendants(id) {

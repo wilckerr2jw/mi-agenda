@@ -1,8 +1,7 @@
 {
-  "version": "6.1",
+  "version": "6.2",
   "notes": [
-    "Organigrama: auxiliares, asignaciones mecánicas, JW Hub, hospitalidad, visita a pacientes y más",
-    "Datos de la congregación y nombramientos (ancianos, siervos, precursores)",
-    "Imprimir o guardar el organigrama como PDF desde la computadora"
+    "Organigrama: mostrar u ocultar lo que depende de cada departamento (o todos a la vez)",
+    "Ordenar: subir, bajar o mover los departamentos de nivel"
   ]
 }

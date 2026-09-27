@@ -19,7 +19,7 @@ const ui = {
   tareas: { f: 'activas', p: '', m: '' },
   personas: { q: '', seg: 'personas', g: '', pv: '' },
   notas: { seg: 'notas', q: '', tag: '' },
-  congre: { picking: false, picked: [] },
+  congre: { picking: false, picked: [], sorting: false, fold: (() => { try { return JSON.parse(localStorage.getItem('miagenda.orgPlegados') || '[]'); } catch { return []; } })() },
 };
 const ROUTES = ['hoy', 'agenda', 'tareas', 'personas', 'notas', 'informe', 'congregacion'];
 
@@ -106,6 +106,13 @@ function fab() {
   }
 }
 
+// Departamentos plegados en el organigrama (se recuerdan en este dispositivo)
+function saveFold(list) {
+  ui.congre.fold = list;
+  try { localStorage.setItem('miagenda.orgPlegados', JSON.stringify(list)); } catch { /* sin almacenamiento */ }
+  render();
+}
+
 function download(name, text) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
@@ -181,9 +188,13 @@ document.addEventListener('click', e => {
     case 'dept-suggest': S.deptLoadSuggested(); return render();
     case 'congre-edit': return S.congreSheet();
     case 'dept-unskip': S.deptRestoreSkipped(); return setTimeout(render, 50);
-    case 'org-pick': ui.congre = { picking: !ui.congre.picking, picked: [] }; return render();
+    case 'org-pick': ui.congre = { ...ui.congre, picking: !ui.congre.picking, picked: [], sorting: false }; return render();
+    case 'org-sort': ui.congre = { ...ui.congre, sorting: !ui.congre.sorting, picking: false }; return render();
+    case 'dept-move': S.deptMove(id, v); return render();
+    case 'org-fold': { const f = new Set(ui.congre.fold || []); f.has(id) ? f.delete(id) : f.add(id); return saveFold([...f]); }
+    case 'org-fold-all': return saveFold(v === 'close' ? (store.all('depts') || []).filter(d => (store.all('depts') || []).some(x => x.parentId === d.id)).map(d => d.id) : []);
     case 'org-pick-all': ui.congre.picked = (store.all('depts') || []).map(d => d.id); return render();
-    case 'org-del': { const n = S.deptRemoveMany(ui.congre.picked); ui.congre = { picking: false, picked: [] }; return n ? render() : null; }
+    case 'org-del': { const n = S.deptRemoveMany(ui.congre.picked); ui.congre = { ...ui.congre, picking: false, picked: [] }; return n ? render() : null; }
     case 'org-share': return import('./orgimg.js').then(O => O.shareOrg());
     case 'org-print': return import('./orgimg.js').then(O => O.printOrg());
     case 'visit-new': return S.visitSheet(id, v);

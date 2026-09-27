@@ -813,6 +813,38 @@ function saveDept(id, r, form) {
   closeOrBack();
 }
 // Si se elimina uno, los que dependían de él pasan a depender de su «padre»
+// ───── Ordenar el organigrama: subir, bajar, sacar un nivel o meter dentro del de arriba ─────
+function renumber(list) { list.forEach((d, i) => { if (Number(d.order) !== i + 1) store.upsert('depts', { ...store.get('depts', d.id), order: i + 1 }); }); }
+export function deptMove(id, dir) {
+  const { list, parent } = M.deptSiblings(id);
+  const i = list.findIndex(d => d.id === id);
+  if (i < 0) return;
+  const d = list[i];
+  if (dir === 'up' || dir === 'down') {
+    const j = dir === 'up' ? i - 1 : i + 1;
+    if (j < 0 || j >= list.length) return;
+    const l = [...list]; [l[i], l[j]] = [l[j], l[i]];
+    return renumber(l);
+  }
+  if (dir === 'in') {   // queda debajo del que está justo arriba (p. ej. el auxiliar debajo del encargado)
+    const host = list[i - 1];
+    if (!host) return toast('No hay un departamento arriba para meterlo dentro');
+    const kids = (data.depts || []).filter(x => x.parentId === host.id);
+    store.upsert('depts', { ...d, parentId: host.id, order: kids.reduce((m, x) => Math.max(m, Number(x.order) || 0), 0) + 1 });
+    renumber(list.filter(x => x.id !== id));
+    return toast(`Ahora depende de «${host.name}»`);
+  }
+  if (dir === 'out') {  // sube un nivel: queda justo después del que lo tenía
+    if (!parent) return toast('Ya está en el primer nivel');
+    const up = M.deptSiblings(parent.id);
+    const l = [...up.list]; l.splice(l.findIndex(x => x.id === parent.id) + 1, 0, d);
+    store.upsert('depts', { ...d, parentId: up.parent?.id || '' });
+    renumber(l);
+    renumber(list.filter(x => x.id !== id));
+    return toast(`Ahora depende de «${up.parent?.name || 'nadie (arriba de todo)'}»`);
+  }
+}
+
 // Datos de la congregación (salen arriba del organigrama y en la imagen)
 export function congreSheet() {
   const c = M.profile().congre || {};

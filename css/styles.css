@@ -947,3 +947,14 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 .roster-box summary { cursor: pointer; }
 .roster-box summary b { font-size: 17px; color: var(--primary); margin-right: 4px; }
 .roster-box .chips { margin-top: 8px; }
+.org-row { display: flex; align-items: flex-start; gap: 4px; }
+.org-row > .org-node { flex: 1; min-width: 0; }
+.org-tog { flex: none; width: 26px; height: 42px; display: grid; place-items: center; font-size: 16px; color: var(--ink-2); border-radius: 8px; }
+.org-tog:active { background: var(--surface-2); }
+.org-tog.sp { visibility: hidden; }
+.org-sort { flex: none; display: grid; grid-template-columns: repeat(2, 30px); gap: 3px; }
+.org-sort button { height: 26px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; color: var(--primary); }
+.org-sort button:active { background: var(--primary-soft); }
+.org-fold-bar { font-size: 13px; margin: -4px 0 10px; color: var(--ink-2); }
+.fold-n { color: var(--primary) !important; font-weight: 600; }
+.org-ul .org-ul > .org-li::before { top: 22px; }
