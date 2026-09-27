@@ -5,7 +5,7 @@
 import { data } from './store.js';
 import * as store from './store.js';
 import * as M from './model.js';
-import { today, addDays, fmtTime } from './util.js';
+import { today, addDays, fmtTime, toast } from './util.js';
 
 const C = window.Capacitor;
 export const isNative = !!C?.isNativePlatform?.();
@@ -246,8 +246,17 @@ export async function checkUpdate() {
     handlers.changed();
   } catch { /* sin internet: se revisa después */ }
 }
+// Descargar e instalar la app nueva.
+// App con el instalador propio: descarga con el administrador de Android y abre el instalador al terminar.
+// App anterior: abre el enlace en el navegador del teléfono (no dentro de la app, donde la descarga se quedaba «Descargando…»).
 export async function openDownload() {
-  const B = plug('Browser');
-  const url = state.update?.url || APK_URL;   // el enlace exacto del APK nuevo (así nunca da «404»)
-  if (B) await B.open({ url }); else window.open(url, '_blank');
+  const url = state.update?.url || APK_URL;
+  const W = plug('AgendaWidget');
+  try {
+    const r = await W?.installApk({ url });
+    if (r?.status === 'permiso') return toast('Activa «Permitir de esta fuente» para Agenda Teocrática y vuelve a tocar Actualizar');
+    if (r?.status) return toast('Descargando… verás el avance arriba y luego se abre el instalador');
+  } catch { /* app anterior sin instalador propio */ }
+  try { await W?.openExternal({ url }); return; } catch { /* sin método */ }
+  location.href = url;   // Capacitor abre los enlaces de otros sitios en el navegador del teléfono
 }

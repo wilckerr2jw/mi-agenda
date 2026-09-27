@@ -1,8 +1,7 @@
 {
-  "version": "5.7",
+  "version": "5.8",
   "notes": [
-    "🏛 Nuevo menú Congregación con el organigrama de departamentos",
-    "Responsable y ayudantes de cada departamento, elegidos de tus Personas",
-    "Comparte el organigrama como imagen"
+    "Actualizar la app de Android ya no se queda en «Descargando…»",
+    "La app nueva se descarga sola y abre el instalador al terminar"
   ]
 }
