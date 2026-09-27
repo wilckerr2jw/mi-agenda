@@ -93,3 +93,42 @@ export function shareOrg() {
     toast('Imagen descargada');
   }, 'image/png');
 }
+
+// ───── Versión para imprimir o guardar como PDF (en la computadora) ─────
+// Cuadro como el de la sucursal: reuniones, superintendentes y auxiliares, grupos, responsabilidades y nombramientos.
+const escH = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+export function printOrg() {
+  const Nat = window.Capacitor?.isNativePlatform?.();
+  if (Nat) return toast('Para imprimir o sacar PDF abre la app en la computadora. Desde el teléfono usa «Compartir imagen».');
+  const cg = M.profile().congre || {};
+  const tree = M.deptTree();
+  const flat = []; const walk = (n, depth) => { flat.push({ d: n.d, depth, kids: n.children.length }); n.children.forEach(c => walk(c, depth + 1)); }; tree.forEach(n => walk(n, 0));
+  const grupos = flat.find(x => x.d.sk === 'grupos' || /^grupos para el servicio/i.test(x.d.name));
+  const all = [];
+  const collect = (n) => { all.push(n); n.children.forEach(collect); }; tree.forEach(collect);
+  const gNode = all.find(n => n.d === grupos?.d);
+  const gIds = new Set(gNode ? gNode.children.map(c => c.d.id) : []);
+  const people = d => ({ heads: M.deptHeads(d), helpers: M.deptHelpers(d) });
+  const row = (x, cls = '') => { const p = people(x.d); return `<tr class="${cls}"><td style="padding-left:${6 + x.depth * 14}px">${escH(x.d.name)}</td><td>${escH(p.heads.join(', ')) || '<i>—</i>'}</td><td>${escH(p.helpers.join(', '))}</td></tr>`; };
+  const rows = flat.filter(x => !gIds.has(x.d.id)).map(x => row(x, x.depth === 0 ? 'top' : x.depth === 1 ? 'lvl1' : '')).join('');
+  const gTable = gNode && gNode.children.length ? `<h2>Grupos</h2><table><tr><th>#</th><th>Superintendente</th><th>Auxiliar</th><th>Publicadores</th></tr>${gNode.children.map((c, i) => { const h = M.deptHeads(c.d); return `<tr><td>${escH(c.d.name.replace(/^grupo\s*/i, '') || i + 1)}</td><td>${escH(h[0] || '')}</td><td>${escH(h.slice(1).join(', '))}</td><td>${escH(M.deptHelpers(c.d).join(', '))}</td></tr>`; }).join('')}</table>` : '';
+  const rost = M.ROSTERS.map(r => ({ r, l: M.roster(r.k) })).filter(x => x.l.length);
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Organigrama</title><style>
+    body{font:13px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#17282A;margin:24px}
+    h1{font-size:26px;margin:0 0 4px;border-bottom:2px solid #17282A;padding-bottom:4px} h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#4B5E5F;margin:18px 0 6px}
+    .box{border:1px solid #ccd;border-radius:6px;padding:8px 12px;text-align:center;font-weight:700;margin:8px 0}
+    .meet{display:flex;gap:40px;flex-wrap:wrap} table{border-collapse:collapse;width:100%} td,th{padding:4px 6px;border-bottom:1px solid #e3e6e1;text-align:left;vertical-align:top} th{font-size:12px}
+    tr.top td{font-weight:800;background:#eaf3f1} tr.lvl1 td:first-child{font-weight:700} .cols{columns:3;column-gap:24px} .cols div{break-inside:avoid;padding:1px 0}
+    .foot{margin-top:18px;text-align:right;color:#888;font-size:11px} @media print{body{margin:10mm}}</style></head><body>
+    <h1>Organigrama</h1>
+    ${cg.name || cg.circuit ? `<div class="box">${escH([cg.name, cg.number ? `(${cg.number})` : ''].filter(Boolean).join(' '))}${cg.circuit ? ` | ${escH(cg.circuit)}` : ''}</div>` : ''}
+    ${cg.midweek || cg.weekend || cg.address ? `<h2>Reuniones</h2><div class="meet">${cg.midweek ? `<div><b>Reunión de entre semana</b><br>${escH(cg.midweek)}</div>` : ''}${cg.weekend ? `<div><b>Reunión del fin de semana</b><br>${escH(cg.weekend)}</div>` : ''}${cg.address ? `<div><b>Dirección</b><br>${escH(cg.address)}</div>` : ''}</div>` : ''}
+    <h2>Departamentos y responsabilidades</h2><table><tr><th>Departamento</th><th>Responsables</th><th>Ayudantes</th></tr>${rows}</table>
+    ${gTable}
+    ${rost.map(({ r, l }) => `<h2>${escH(r.n)} (${l.length})</h2><div class="cols">${l.map(p => `<div>${escH(p.name)}</div>`).join('')}</div>`).join('')}
+    <div class="foot">Impreso el ${fmtShort(today())} · Mi Agenda Teocrática</div>
+    <script>setTimeout(()=>print(),300)<\/script></body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return toast('Permite las ventanas emergentes para imprimir');
+  w.document.write(html); w.document.close();
+}

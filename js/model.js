@@ -64,7 +64,8 @@ export const STATUS = {
 
 // Privilegios y responsabilidades que puede tener una persona (se pueden agregar otros; quedan en tu lista)
 export const PRIVILEGES = [
-  'Coordinador del cuerpo de ancianos', 'Secretario', 'Superintendente de servicio',
+  'Anciano', 'Siervo ministerial',
+  'Coordinador del cuerpo de ancianos', 'Auxiliar del coordinador', 'Auxiliar del superintendente de servicio', 'Superintendente de asignaciones mecánicas', 'Siervo de JW Hub', 'Secretario', 'Superintendente de servicio',
   'Superintendente de la reunión Vida y Ministerio', 'Conductor de La Atalaya', 'Consejero auxiliar',
   'Superintendente de grupo', 'Auxiliar de grupo',
   'Siervo de cuentas', 'Siervo de publicaciones', 'Siervo de territorios', 'Siervo de acomodadores', 'Siervo de audio y video',
@@ -477,6 +478,7 @@ export const DEPT_SUGGESTED = [
   { k: 'emergencia',n: 'Preparación para desastres',                      ic: 'shield',   p: 'comite', old: ['Plan de emergencia y desastres'], info: 'Listas de contacto por grupo.' },
   { k: 'conmem',    n: 'Conmemoración',                                   ic: 'calendar', p: 'cuerpo' },
   { k: 'enlace',    n: 'Contacto con el Comité de Enlace con los Hospitales', ic: 'heart', p: 'cuerpo' },
+  { k: 'visitapac', n: 'Grupo de Visita a Pacientes',                     ic: 'heart',    p: 'enlace' },
   { k: 'coord',     n: 'Coordinador del cuerpo de ancianos',              ic: 'flag',     p: 'cuerpo' },
   { k: 'aux-coord', n: 'Auxiliar del coordinador',                      ic: 'flag',     p: 'coord' },
   { k: 'mecanicas', n: 'Superintendente de asignaciones mecánicas',     ic: 'calendar', p: 'coord', info: 'Programa de acomodadores, audio y video, micrófonos y plataforma.' },
@@ -487,6 +489,7 @@ export const DEPT_SUGGESTED = [
   { k: 'video',     n: 'Video y videoconferencia',                        ic: 'globe',    p: 'av' },
   { k: 'micros',    n: 'Micrófonos',                                      ic: 'mic',      p: 'av' },
   { k: 'plataforma',n: 'Plataforma',                                      ic: 'building', p: 'av' },
+  { k: 'hospital',  n: 'Hospitalidad para oradores visitantes',          ic: 'heart',    p: 'discursos' },
   { k: 'presid',    n: 'Presidentes del discurso público',                ic: 'calendar', p: 'coord', info: 'Programa de presidentes.' },
   { k: 'lectores',  n: 'Lectores del Estudio de La Atalaya',              ic: 'book',     p: 'coord', info: 'Programa de lectores.' },
   { k: 'anuncios',  n: 'Anuncios a la congregación',                      ic: 'letter',   p: 'coord', info: 'Revisa y aprueba los anuncios.' },
@@ -506,6 +509,7 @@ export const DEPT_SUGGESTED = [
   { k: 'accesible', n: 'Publicaciones accesibles (sordos, ciegos, baja visión)', ic: 'heart', p: 'pubs' },
   { k: 'terr',      n: 'Siervo de territorios',                           ic: 'pin',      p: 'serv', old: ['Territorios'] },
   { k: 'campanas',  n: 'Predicación en días festivos y campañas especiales', ic: 'calendar', p: 'serv' },
+  { k: 'idioma',    n: 'Grupos en otro idioma o lengua de señas',         ic: 'chat',     p: 'serv' },
   { k: 'ppub',      n: 'Predicación pública (exhibidores)',               ic: 'cart',     p: 'serv', old: ['Predicación pública'] },
   { k: 'grupos',    n: 'Grupos para el servicio del campo',               ic: 'users',    p: 'serv', old: ['Grupos de servicio'], info: 'Cada grupo: superintendente de grupo y auxiliar.' },
   { k: 'grupo1',    n: 'Grupo 1',                                         ic: 'users',    p: 'grupos', info: 'Responsables: superintendente y auxiliar. Ayudantes: los publicadores del grupo.' },
@@ -538,6 +542,19 @@ export function deptDescendants(id) {
   return out;
 }
 export const personName = id => data.people.find(p => p.id === id)?.name || '';
+// Nombramientos: quiénes son ancianos, siervos ministeriales y precursores (según su relación o privilegios en Personas)
+export const ROSTERS = [
+  { k: 'anc',  n: 'Ancianos',             re: /^anciano|coordinador del cuerpo|^secretario$|superintendente de (servicio|la reunión)/i },
+  { k: 'sm',   n: 'Siervos ministeriales', re: /^siervo ministerial/i },
+  { k: 'pr',   n: 'Precursores regulares', re: /^precursor(a)? regular/i },
+  { k: 'pa',   n: 'Precursores auxiliares', re: /^precursor(a)? auxiliar/i },
+  { k: 'pe',   n: 'Precursores especiales', re: /^precursor(a)? especial/i },
+];
+export function roster(k) {
+  const r = ROSTERS.find(x => x.k === k);
+  return data.people.filter(p => [...String(p.role || '').split(','), ...(p.privileges || [])].some(x => r.re.test(String(x || '').trim())))
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+}
 const splitNames = t => String(t || '').split(/\s*[,;\n]\s*/).map(x => x.trim()).filter(Boolean);
 export const deptHeadIds = d => (Array.isArray(d.headIds) ? d.headIds : d.headId ? [d.headId] : []);
 export const deptHeads = d => [...deptHeadIds(d).map(personName).filter(Boolean), ...splitNames(d.headNames ?? d.headName)];

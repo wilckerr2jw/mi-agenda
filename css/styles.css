@@ -942,3 +942,8 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 .btn.danger[disabled] { opacity: .45; }
 .congre-card { display: grid; gap: 2px; width: 100%; text-align: left; padding: 12px 14px; margin: 0 0 12px; border-left: 4px solid var(--primary); }
 .congre-card .meta { display: block; }
+.roster { display: grid; gap: 8px; }
+.roster-box { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--surface); }
+.roster-box summary { cursor: pointer; }
+.roster-box summary b { font-size: 17px; color: var(--primary); margin-right: 4px; }
+.roster-box .chips { margin-top: 8px; }

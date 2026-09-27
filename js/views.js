@@ -515,14 +515,20 @@ export function congregacion(ui) {
       ${c.midweek || c.weekend ? `<span class="meta">${c.midweek ? `Entre semana: ${esc(c.midweek)}` : ''}${c.midweek && c.weekend ? ' · ' : ''}${c.weekend ? `Fin de semana: ${esc(c.weekend)}` : ''}</span>` : ''}
       ${c.address ? `<span class="meta">${ic('pin', 'sm')} ${esc(c.address)}</span>` : ''}`
     : `<strong>Datos de la congregación</strong><span class="meta">Nombre, número, circuito, horarios de las reuniones y dirección. Salen en la imagen del organigrama.</span>`}</button>`;
+  const rosters = M.ROSTERS.map(r => ({ ...r, list: M.roster(r.k) })).filter(r => r.list.length || ['anc', 'sm', 'pr'].includes(r.k));
+  const rosterHtml = `<section><div class="sec-h"><h2>👥 Nombramientos</h2></div>
+    <div class="roster">${rosters.map(r => `<details class="roster-box"><summary><b>${r.list.length}</b> ${esc(r.n)}</summary>
+      ${r.list.length ? `<div class="chips">${r.list.map(p => `<button class="chip" data-a="person" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>` : '<p class="hint">Nadie todavía.</p>'}</details>`).join('')}</div>
+    <p class="hint pad">Salen de tus Personas: pon «Anciano», «Siervo ministerial» o «Precursor regular» en su relación o en sus privilegios.</p></section>`;
   return `${head('Congregación', actions())}
   ${congreCard}
+  ${rosterHtml}
   <section><div class="sec-h"><h2>🏛 Organigrama</h2>${empty_ ? '' : `<span class="hint">${all.length} departamentos${noHead ? ` · ${noHead} sin responsable` : ''}</span>`}</div>
   ${empty_ ? empty('Arma el organigrama de tu congregación: quién atiende cada departamento y quiénes le ayudan.', `<div class="stack"><button class="btn primary" data-a="dept-suggest">Cargar departamentos sugeridos</button><button class="btn" data-a="dept-new">Empezar desde cero</button></div>`, 'users')
     : pick ? `<div class="org-tools pick-bar"><span class="grow"><b>${pick.size}</b> elegidos</span><button class="btn small ghost" data-a="org-pick-all">Todos</button><button class="btn small ghost" data-a="org-pick">Cancelar</button><button class="btn small danger" data-a="org-del" ${pick.size ? '' : 'disabled'}>Eliminar</button></div>
       <p class="hint pad">Marca los departamentos que no aplican en tu congregación. Los que dependían de ellos suben un nivel. «Sugeridos» no los vuelve a traer.</p>
       <ul class="org-ul org-root">${tree.map(n => orgNode(n, 0, pick)).join('')}</ul>`
-    : `<div class="org-tools"><button class="btn small" data-a="org-share">${ic('chat', 'sm')} Compartir imagen</button><button class="btn small ghost" data-a="dept-new">＋ Departamento</button><button class="btn small ghost" data-a="dept-suggest">Sugeridos</button><button class="btn small ghost" data-a="org-pick">Quitar varios</button></div>
+    : `<div class="org-tools"><button class="btn small" data-a="org-share">${ic('chat', 'sm')} Compartir imagen</button><button class="btn small ghost" data-a="org-print">🖨 Imprimir / PDF</button><button class="btn small ghost" data-a="dept-new">＋ Departamento</button><button class="btn small ghost" data-a="dept-suggest">Sugeridos</button><button class="btn small ghost" data-a="org-pick">Quitar varios</button></div>
       <ul class="org-ul org-root">${tree.map(n => orgNode(n, 0)).join('')}</ul>
       <p class="hint pad">Toca un departamento para poner a sus responsables y ayudantes, cambiarle el nombre, moverlo debajo de otro o eliminarlo. Con «Quitar varios» borras de una vez los que no aplican. La imagen lleva nombres: compártela solo con quien corresponda.</p>
       ${skipped ? `<p class="hint pad">Quitaste ${skipped} ${skipped === 1 ? 'departamento sugerido' : 'departamentos sugeridos'}. <button class="link" data-a="dept-unskip">Volver a traerlos</button></p>` : ''}`}
