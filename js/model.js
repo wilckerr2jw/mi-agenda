@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '5.8';
+export const APP_VERSION = '5.9';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -458,26 +458,48 @@ export const studentsLate = (t = today()) => data.people.filter(isStudent).filte
 export const pastoreoLate = (t = today()) => (canShepherd() ? data.people.filter(isShepherdable).filter(p => pastoreoStatus(p, t).late) : []);
 
 // ───────────── Congregación: organigrama de departamentos ─────────────
-// depts/{id} = { name, ic, parentId, order, headId, headName, helperIds, notes }
+// depts/{id} = { name, ic, parentId, order, headIds, headNames, helperIds, helperNames, notes, info }
+// (headId / headName: versión anterior con un solo responsable; se siguen leyendo)
+// Lista sugerida: k = clave, p = de quién depende, info = qué atiende, old = nombres de la lista anterior
 export const DEPT_SUGGESTED = [
-  { k: 'cuerpo',    n: 'Cuerpo de ancianos',                             ic: 'shield' },
-  { k: 'coord',     n: 'Coordinador del cuerpo de ancianos',             ic: 'flag',     p: 'cuerpo' },
-  { k: 'secre',     n: 'Secretario',                                     ic: 'letter',   p: 'cuerpo' },
-  { k: 'serv',      n: 'Superintendente de servicio',                    ic: 'globe',    p: 'cuerpo' },
-  { k: 'vym',       n: 'Superintendente de la reunión Vida y Ministerio', ic: 'school',  p: 'cuerpo' },
-  { k: 'atalaya',   n: 'Conductor de La Atalaya',                        ic: 'book',     p: 'cuerpo' },
-  { k: 'discursos', n: 'Coordinador de discursos públicos',              ic: 'mic',      p: 'cuerpo' },
-  { k: 'cuentas',   n: 'Cuentas',                                        ic: 'clip',     p: 'coord' },
-  { k: 'mant',      n: 'Mantenimiento del Salón del Reino',              ic: 'hammer',   p: 'coord' },
-  { k: 'limpieza',  n: 'Limpieza',                                       ic: 'building', p: 'coord' },
-  { k: 'av',        n: 'Audio y video',                                  ic: 'mic',      p: 'coord' },
-  { k: 'acom',      n: 'Acomodadores',                                   ic: 'users',    p: 'coord' },
-  { k: 'informes',  n: 'Informes y registros',                           ic: 'clip',     p: 'secre' },
-  { k: 'terr',      n: 'Territorios',                                    ic: 'pin',      p: 'serv' },
-  { k: 'lit',       n: 'Literatura',                                     ic: 'book',     p: 'serv' },
-  { k: 'grupos',    n: 'Grupos de servicio',                             ic: 'users',    p: 'serv' },
-  { k: 'ppub',      n: 'Predicación pública',                            ic: 'cart',     p: 'serv' },
-  { k: 'consejero', n: 'Consejero auxiliar',                             ic: 'chat',     p: 'vym' },
+  { k: 'cuerpo',    n: 'Cuerpo de ancianos',                              ic: 'shield',   info: 'Todos los ancianos pastorean a la congregación y deciden los grupos y sus superintendentes.' },
+  { k: 'comite',    n: 'Comité de Servicio de la Congregación',           ic: 'users',    p: 'cuerpo', info: 'Coordinador, secretario y superintendente de servicio. Asigna los publicadores a los grupos.' },
+  { k: 'coord',     n: 'Coordinador del cuerpo de ancianos',              ic: 'flag',     p: 'cuerpo' },
+  { k: 'acom',      n: 'Acomodadores',                                    ic: 'users',    p: 'coord' },
+  { k: 'discursos', n: 'Coordinador de discursos públicos',               ic: 'mic',      p: 'coord', old: ['Coordinador de discursos públicos'] },
+  { k: 'av',        n: 'Coordinador de apoyo a audio y video',            ic: 'mic',      p: 'coord', old: ['Audio y video'] },
+  { k: 'sonido',    n: 'Sonido',                                          ic: 'mic',      p: 'av' },
+  { k: 'video',     n: 'Video y videoconferencia',                        ic: 'globe',    p: 'av' },
+  { k: 'micros',    n: 'Micrófonos',                                      ic: 'mic',      p: 'av' },
+  { k: 'plataforma',n: 'Plataforma',                                      ic: 'building', p: 'av' },
+  { k: 'presid',    n: 'Presidentes del discurso público',                ic: 'calendar', p: 'coord', info: 'Programa de presidentes.' },
+  { k: 'lectores',  n: 'Lectores del Estudio de La Atalaya',              ic: 'book',     p: 'coord', info: 'Programa de lectores.' },
+  { k: 'anuncios',  n: 'Anuncios a la congregación',                      ic: 'letter',   p: 'coord', info: 'Revisa y aprueba los anuncios.' },
+  { k: 'auditoria', n: 'Auditoría de las cuentas',                        ic: 'clip',     p: 'coord' },
+  { k: 'nobaut',    n: 'Publicadores no bautizados',                      ic: 'heart',    p: 'coord', info: 'Dos hermanos se reúnen con quienes desean ser publicadores.' },
+  { k: 'bautismo',  n: 'Candidatos al bautismo',                          ic: 'heart',    p: 'coord', info: 'Ancianos que analizan las preguntas con los candidatos.' },
+  { k: 'circuito',  n: 'Visita del superintendente de circuito',          ic: 'car',      p: 'coord' },
+  { k: 'secre',     n: 'Secretario',                                      ic: 'letter',   p: 'cuerpo', info: 'Responsabilidades legales y financieras a tiempo.' },
+  { k: 'cuentas',   n: 'Siervo de cuentas',                               ic: 'clip',     p: 'secre', old: ['Cuentas'] },
+  { k: 'asamblea',  n: 'Asamblea regional',                               ic: 'calendar', p: 'secre' },
+  { k: 'informe',   n: 'Informe de actividad de la congregación',         ic: 'clip',     p: 'secre', old: ['Informes y registros'], info: 'Puede ayudar un siervo ministerial capacitado.' },
+  { k: 'registros', n: 'Registros de los publicadores',                   ic: 'book',     p: 'secre' },
+  { k: 'emergencia',n: 'Plan de emergencia y desastres',                  ic: 'shield',   p: 'secre', info: 'Listas de contacto por grupo.' },
+  { k: 'serv',      n: 'Superintendente de servicio',                     ic: 'globe',    p: 'cuerpo', info: 'Visita cada grupo por lo menos una vez al año.' },
+  { k: 'pubs',      n: 'Siervo de publicaciones',                         ic: 'book',     p: 'serv', old: ['Literatura'] },
+  { k: 'accesible', n: 'Publicaciones accesibles (sordos, ciegos, baja visión)', ic: 'heart', p: 'pubs' },
+  { k: 'terr',      n: 'Siervo de territorios',                           ic: 'pin',      p: 'serv', old: ['Territorios'] },
+  { k: 'campanas',  n: 'Predicación en días festivos y campañas especiales', ic: 'calendar', p: 'serv' },
+  { k: 'ppub',      n: 'Predicación pública (exhibidores)',               ic: 'cart',     p: 'serv', old: ['Predicación pública'] },
+  { k: 'grupos',    n: 'Grupos para el servicio del campo',               ic: 'users',    p: 'serv', old: ['Grupos de servicio'], info: 'Cada grupo: superintendente de grupo y auxiliar.' },
+  { k: 'grupo1',    n: 'Grupo 1',                                         ic: 'users',    p: 'grupos', info: 'Responsables: superintendente y auxiliar. Ayudantes: los publicadores del grupo.' },
+  { k: 'vym',       n: 'Superintendente de la reunión Vida y Ministerio', ic: 'school',   p: 'cuerpo' },
+  { k: 'consejero', n: 'Consejero auxiliar',                              ic: 'chat',     p: 'vym' },
+  { k: 'sala',      n: 'Sala auxiliar',                                   ic: 'school',   p: 'vym' },
+  { k: 'atalaya',   n: 'Conductor del Estudio de La Atalaya',             ic: 'book',     p: 'cuerpo', old: ['Conductor de La Atalaya'] },
+  { k: 'mant',      n: 'Mantenimiento del Salón del Reino',               ic: 'hammer',   p: 'cuerpo' },
+  { k: 'limpieza',  n: 'Limpieza',                                        ic: 'building', p: 'mant' },
+  { k: 'seguridad', n: 'Seguridad del Salón',                             ic: 'shield',   p: 'mant' },
 ];
 export const DEPT_ICONS = ['shield', 'flag', 'letter', 'globe', 'school', 'book', 'mic', 'clip', 'hammer', 'building', 'users', 'pin', 'cart', 'chat', 'heart', 'car', 'calendar'];
 const byOrder = (a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || (a.name || '').localeCompare(b.name || '', 'es');
@@ -498,10 +520,13 @@ export function deptDescendants(id) {
   return out;
 }
 export const personName = id => data.people.find(p => p.id === id)?.name || '';
-export const deptHead = d => personName(d.headId) || d.headName || '';
-export const deptHelpers = d => (d.helperIds || []).map(personName).filter(Boolean);
-export const deptsOfPerson = pid => (data.depts || []).filter(d => d.headId === pid || (d.helperIds || []).includes(pid))
-  .map(d => ({ d, head: d.headId === pid })).sort((a, b) => (b.head ? 1 : 0) - (a.head ? 1 : 0) || byOrder(a.d, b.d));
+const splitNames = t => String(t || '').split(/\s*[,;\n]\s*/).map(x => x.trim()).filter(Boolean);
+export const deptHeadIds = d => (Array.isArray(d.headIds) ? d.headIds : d.headId ? [d.headId] : []);
+export const deptHeads = d => [...deptHeadIds(d).map(personName).filter(Boolean), ...splitNames(d.headNames ?? d.headName)];
+export const deptHelpers = d => [...(d.helperIds || []).map(personName).filter(Boolean), ...splitNames(d.helperNames)];
+export const deptHead = d => deptHeads(d).join(', ');
+export const deptsOfPerson = pid => (data.depts || []).filter(d => deptHeadIds(d).includes(pid) || (d.helperIds || []).includes(pid))
+  .map(d => ({ d, head: deptHeadIds(d).includes(pid) })).sort((a, b) => (b.head ? 1 : 0) - (a.head ? 1 : 0) || byOrder(a.d, b.d));
 
 // ───────────── Resumen del año de servicio (para la gráfica) ─────────────
 export function yearSummary(withCredit = false) {

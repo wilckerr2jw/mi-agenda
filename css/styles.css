@@ -931,3 +931,6 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 .iconpick span { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--surface); }
 .iconpick input:checked + span { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
 .dept-chip { font-size: 12.5px; }
+.pick-box { margin: 0 0 8px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--surface); }
+.pick-box summary { cursor: pointer; font-weight: 600; color: var(--primary); }
+.pick-box .checklist { max-height: 260px; overflow: auto; margin-top: 6px; }

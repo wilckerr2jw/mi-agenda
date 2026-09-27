@@ -1,7 +1,7 @@
 {
-  "version": "5.8",
+  "version": "5.9",
   "notes": [
-    "Actualizar la app de Android ya no se queda en «Descargando…»",
-    "La app nueva se descarga sola y abre el instalador al terminar"
+    "Organigrama: unos 40 departamentos sugeridos, ordenados por quién los supervisa",
+    "Cada departamento puede tener uno o más responsables y una lista de ayudantes"
   ]
 }

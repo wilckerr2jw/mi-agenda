@@ -775,7 +775,10 @@ function saveStudy(pid, r, form) {
 // ───────────── Congregación: departamentos del organigrama ─────────────
 export function deptSheet(id, preset = {}) {
   const d = id ? store.get('depts', id) : null;
-  const v = d || { name: '', ic: 'flag', parentId: preset.parentId || '', headId: '', headName: '', helperIds: [], notes: '' };
+  const v = d || { name: '', ic: 'flag', parentId: preset.parentId || '', headIds: [], headNames: '', helperIds: [], helperNames: '', notes: '' };
+  const heads = M.deptHeadIds(v);
+  const people = sortedPeople();
+  const who = p => esc(p.name) + (p.role ? ` <span class="hint">${esc(p.role)}</span>` : '');
   const block = id ? new Set([id, ...M.deptDescendants(id)]) : new Set();
   const parents = [...(data.depts || [])].filter(x => !block.has(x.id)).sort((a, b) => a.name.localeCompare(b.name, 'es'));
   const kids = id ? (data.depts || []).filter(x => x.parentId === id).length : 0;
@@ -784,9 +787,13 @@ export function deptSheet(id, preset = {}) {
     body: `${formTag('dept', d?.id)}
       ${fld('Nombre', `<input id="name" name="name" required maxlength="80" value="${esc(v.name)}" placeholder="Ej. Audio y video">`, 'name')}
       ${fld('Depende de', `<select id="parentId" name="parentId"><option value="">Nadie (arriba de todo)</option>${parents.map(x => `<option value="${x.id}" ${x.id === v.parentId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`, 'parentId')}
-      <div class="f"><label for="headId">Responsable</label>${peopleSelect('headId', v.headId, 'Sin asignar')}
-        <input id="headName" name="headName" maxlength="80" value="${esc(v.headId ? '' : v.headName || '')}" placeholder="…o escribe su nombre si no está en Personas" aria-label="Nombre del responsable"></div>
-      <div class="f"><span class="lbl">Ayudantes</span>${sortedPeople().length ? pickList('', sortedPeople(), 'helperIds', v.helperIds || [], p => esc(p.name) + (p.role ? ` <span class="hint">${esc(p.role)}</span>` : '')) : '<p class="hint">Agrega personas en la pestaña Personas para elegirlas aquí.</p>'}</div>
+      ${v.info ? `<p class="hint">ℹ️ ${esc(v.info)}</p>` : ''}
+      <div class="f"><span class="lbl">★ Responsables <span class="hint">(uno o más)</span></span>
+        ${people.length ? `<details class="pick-box" ${heads.length || !d ? 'open' : ''}><summary>${heads.length ? `${heads.length} elegido${heads.length === 1 ? '' : 's'}` : 'Elegir de Personas'}</summary>${pickList('', people, 'headIds', heads, who)}</details>` : ''}
+        <input id="headNames" name="headNames" maxlength="200" value="${esc(v.headNames ?? v.headName ?? '')}" placeholder="Otros nombres que no están en Personas (separa con comas)" aria-label="Otros responsables"></div>
+      <div class="f"><span class="lbl">Ayudantes</span>
+        ${people.length ? `<details class="pick-box" ${(v.helperIds || []).length ? 'open' : ''}><summary>${(v.helperIds || []).length ? `${v.helperIds.length} elegido${v.helperIds.length === 1 ? '' : 's'}` : 'Elegir de Personas'}</summary>${pickList('', people, 'helperIds', v.helperIds || [], who)}</details>` : '<p class="hint">Agrega personas en la pestaña Personas para marcarlas aquí.</p>'}
+        <input id="helperNames" name="helperNames" maxlength="300" value="${esc(v.helperNames || '')}" placeholder="Otros nombres (separa con comas)" aria-label="Otros ayudantes"></div>
       <div class="f"><span class="lbl">Icono</span><div class="iconpick">${M.DEPT_ICONS.map(x => `<label><input type="radio" name="ic" value="${x}" ${x === (v.ic || 'flag') ? 'checked' : ''}><span>${ic(x)}</span></label>`).join('')}</div></div>
       ${fld('Notas <span class="hint">(opcional)</span>', `<textarea id="notes" name="notes" rows="2" maxlength="400">${esc(v.notes || '')}</textarea>`, 'notes')}
     </form>
@@ -797,9 +804,11 @@ export function deptSheet(id, preset = {}) {
 }
 function saveDept(id, r, form) {
   const prev = id ? store.get('depts', id) : {};
-  const helperIds = new FormData(form).getAll('helperIds').filter(x => x !== r.headId);
+  const fd = new FormData(form);
+  const headIds = fd.getAll('headIds');
+  const helperIds = fd.getAll('helperIds').filter(x => !headIds.includes(x));
   const siblings = (data.depts || []).filter(x => (x.parentId || '') === (r.parentId || '') && x.id !== id);
-  store.upsert('depts', { ...prev, id: id || uid(), name: r.name, ic: r.ic || 'flag', parentId: r.parentId || '', headId: r.headId || '', headName: r.headId ? '' : (r.headName || ''), helperIds, notes: r.notes || '',
+  store.upsert('depts', { ...prev, id: id || uid(), name: r.name, ic: r.ic || 'flag', parentId: r.parentId || '', headIds, headNames: r.headNames || '', headId: null, headName: null, helperIds, helperNames: r.helperNames || '', notes: r.notes || '',
     order: prev.order ?? (siblings.reduce((m, x) => Math.max(m, Number(x.order) || 0), 0) + 1) });
   closeOrBack();
 }
@@ -813,19 +822,29 @@ export function deptRemove(id) {
   close();
   toast('Departamento eliminado', 'Deshacer', () => { store.restore('depts', d); kids.forEach(k => store.upsert('depts', { ...store.get('depts', k.id), parentId: id })); });
 }
-// Carga la lista sugerida (solo los que aún no existen con ese nombre)
+// Carga la lista sugerida: agrega los que falten y acomoda los de la lista anterior (nombre y lugar nuevos),
+// sin tocar sus responsables ni ayudantes. Los departamentos que creaste tú no se mueven.
 export function deptLoadSuggested() {
-  const have = new Map((data.depts || []).map(d => [norm(d.name), d.id]));
+  const byName = new Map((data.depts || []).map(d => [norm(d.name), d]));
   const idOf = {};
-  let n = 0;
+  let added = 0, fixed = 0;
   M.DEPT_SUGGESTED.forEach((s, i) => {
-    if (have.has(norm(s.n))) { idOf[s.k] = have.get(norm(s.n)); return; }
+    const hit = [s.n, ...(s.old || [])].map(n => byName.get(norm(n))).find(Boolean);
+    const parentId = s.p ? idOf[s.p] || '' : '';
+    if (hit) {
+      idOf[s.k] = hit.id;
+      if (hit.name !== s.n || (hit.parentId || '') !== parentId || (s.info && !hit.info)) {
+        store.upsert('depts', { ...hit, name: s.n, parentId, info: hit.info || s.info || '', order: i + 1 });
+        fixed++;
+      }
+      return;
+    }
     const id = uid();
     idOf[s.k] = id;
-    store.upsert('depts', { id, name: s.n, ic: s.ic, parentId: s.p ? idOf[s.p] || '' : '', headId: '', headName: '', helperIds: [], notes: '', order: i + 1 });
-    n++;
+    store.upsert('depts', { id, name: s.n, ic: s.ic, parentId, headIds: [], headNames: '', helperIds: [], helperNames: '', notes: '', info: s.info || '', order: i + 1 });
+    added++;
   });
-  toast(n ? `Listo: ${n} departamentos. Toca cada uno para poner quién lo atiende` : 'Ya tenías todos los departamentos sugeridos');
+  toast(added || fixed ? `Listo: ${added} nuevos${fixed ? ` y ${fixed} acomodados` : ''}. Toca cada uno para poner a sus responsables` : 'Ya tenías todos los departamentos sugeridos');
 }
 
 // Estas tres conservan la hoja anterior (p. ej. el grupo desde el que se abrió la ficha)
