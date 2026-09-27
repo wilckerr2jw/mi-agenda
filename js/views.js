@@ -508,7 +508,15 @@ export function congregacion(ui) {
   const all = data.depts || [];
   const empty_ = !all.length;
   const noHead = all.filter(d => !M.deptHead(d)).length;
+  const c = M.profile().congre || {};
+  const cTitle = [c.name, c.number ? `(${c.number})` : ''].filter(Boolean).join(' ');
+  const congreCard = `<button class="card congre-card" data-a="congre-edit">
+    ${cTitle || c.circuit ? `<strong>${esc(cTitle || 'Mi congregación')}${c.circuit ? ` <span class="hint">· ${esc(c.circuit)}</span>` : ''}</strong>
+      ${c.midweek || c.weekend ? `<span class="meta">${c.midweek ? `Entre semana: ${esc(c.midweek)}` : ''}${c.midweek && c.weekend ? ' · ' : ''}${c.weekend ? `Fin de semana: ${esc(c.weekend)}` : ''}</span>` : ''}
+      ${c.address ? `<span class="meta">${ic('pin', 'sm')} ${esc(c.address)}</span>` : ''}`
+    : `<strong>Datos de la congregación</strong><span class="meta">Nombre, número, circuito, horarios de las reuniones y dirección. Salen en la imagen del organigrama.</span>`}</button>`;
   return `${head('Congregación', actions())}
+  ${congreCard}
   <section><div class="sec-h"><h2>🏛 Organigrama</h2>${empty_ ? '' : `<span class="hint">${all.length} departamentos${noHead ? ` · ${noHead} sin responsable` : ''}</span>`}</div>
   ${empty_ ? empty('Arma el organigrama de tu congregación: quién atiende cada departamento y quiénes le ayudan.', `<div class="stack"><button class="btn primary" data-a="dept-suggest">Cargar departamentos sugeridos</button><button class="btn" data-a="dept-new">Empezar desde cero</button></div>`, 'users')
     : pick ? `<div class="org-tools pick-bar"><span class="grow"><b>${pick.size}</b> elegidos</span><button class="btn small ghost" data-a="org-pick-all">Todos</button><button class="btn small ghost" data-a="org-pick">Cancelar</button><button class="btn small danger" data-a="org-del" ${pick.size ? '' : 'disabled'}>Eliminar</button></div>

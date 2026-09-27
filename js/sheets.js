@@ -813,6 +813,28 @@ function saveDept(id, r, form) {
   closeOrBack();
 }
 // Si se elimina uno, los que dependían de él pasan a depender de su «padre»
+// Datos de la congregación (salen arriba del organigrama y en la imagen)
+export function congreSheet() {
+  const c = M.profile().congre || {};
+  open({
+    title: 'Datos de la congregación', focus: '#cname',
+    body: `${formTag('congre')}
+      <div class="two">${fld('Nombre', `<input id="cname" name="name" maxlength="60" value="${esc(c.name || '')}" placeholder="Ej. Central">`, 'cname')}
+        ${fld('Número', `<input id="cnum" name="number" maxlength="12" inputmode="numeric" value="${esc(c.number || '')}">`, 'cnum')}</div>
+      ${fld('Circuito', `<input id="circ" name="circuit" maxlength="60" value="${esc(c.circuit || '')}">`, 'circ')}
+      ${fld('Reunión de entre semana', `<input id="midweek" name="midweek" maxlength="60" value="${esc(c.midweek || '')}" placeholder="Ej. Miércoles 6:30 p. m.">`, 'midweek')}
+      ${fld('Reunión del fin de semana', `<input id="weekend" name="weekend" maxlength="60" value="${esc(c.weekend || '')}" placeholder="Ej. Domingo 11:15 a. m.">`, 'weekend')}
+      ${fld('Dirección del Salón', `<input id="addr" name="address" maxlength="120" value="${esc(c.address || '')}">`, 'addr')}
+    </form>`,
+    actions: '<button type="submit" form="f" class="btn primary">Guardar</button>',
+  });
+}
+function saveCongre(r) {
+  store.patchProfile({ congre: { name: r.name || '', number: r.number || '', circuit: r.circuit || '', midweek: r.midweek || '', weekend: r.weekend || '', address: r.address || '' } });
+  toast('Datos guardados');
+  close();
+}
+
 // Los sugeridos que borras quedan anotados para que «Sugeridos» no los vuelva a traer.
 export function deptRemove(id) { deptRemoveMany([id]); close(); }
 export function deptRemoveMany(ids) {
@@ -851,7 +873,8 @@ export function deptLoadSuggested() {
     const parentId = parentOf(s.k);
     if (hit) {
       idOf[s.k] = hit.id;
-      const renamed = hit.sk ? hit.name : s.n;   // si ya lo renombraste tú, se respeta
+      const isOld = norm(hit.name) === norm(s.n) || (s.old || []).some(o => norm(o) === norm(hit.name));
+      const renamed = isOld || !hit.sk ? s.n : hit.name;   // si ya lo renombraste tú, se respeta
       if (hit.name !== renamed || (hit.parentId || '') !== parentId || (s.info && !hit.info) || hit.sk !== s.k) {
         store.upsert('depts', { ...hit, name: renamed, parentId: hit.sk ? hit.parentId : parentId, sk: s.k, info: hit.info || s.info || '', order: hit.order ?? i + 1 });
         fixed++;
@@ -2463,6 +2486,7 @@ export function submit(form) {
     case 'pin': return savePin(id, r);
     case 'visit': return saveVisit(id, r);
     case 'dept': return saveDept(id, r, form);
+    case 'congre': return saveCongre(r);
     case 'study': return saveStudy(id, r, form);
   }
 }

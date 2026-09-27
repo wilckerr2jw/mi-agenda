@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '6.0';
+export const APP_VERSION = '6.1';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -478,6 +478,8 @@ export const DEPT_SUGGESTED = [
   { k: 'conmem',    n: 'Conmemoración',                                   ic: 'calendar', p: 'cuerpo' },
   { k: 'enlace',    n: 'Contacto con el Comité de Enlace con los Hospitales', ic: 'heart', p: 'cuerpo' },
   { k: 'coord',     n: 'Coordinador del cuerpo de ancianos',              ic: 'flag',     p: 'cuerpo' },
+  { k: 'aux-coord', n: 'Auxiliar del coordinador',                      ic: 'flag',     p: 'coord' },
+  { k: 'mecanicas', n: 'Superintendente de asignaciones mecánicas',     ic: 'calendar', p: 'coord', info: 'Programa de acomodadores, audio y video, micrófonos y plataforma.' },
   { k: 'acom',      n: 'Acomodadores',                                    ic: 'users',    p: 'coord' },
   { k: 'discursos', n: 'Coordinador de discursos públicos',               ic: 'mic',      p: 'coord', old: ['Coordinador de discursos públicos'] },
   { k: 'av',        n: 'Coordinador de apoyo a audio y video',            ic: 'mic',      p: 'coord', old: ['Audio y video'] },
@@ -492,11 +494,14 @@ export const DEPT_SUGGESTED = [
   { k: 'nobaut',    n: 'Publicadores no bautizados',                      ic: 'heart',    p: 'coord', info: 'Dos hermanos se reúnen con quienes desean ser publicadores.' },
   { k: 'bautismo',  n: 'Candidatos al bautismo',                          ic: 'heart',    p: 'coord', info: 'Ancianos que analizan las preguntas con los candidatos.' },
   { k: 'secre',     n: 'Secretario',                                      ic: 'letter',   p: 'cuerpo', info: 'Responsabilidades legales y financieras a tiempo.' },
-  { k: 'cuentas',   n: 'Siervo de cuentas',                               ic: 'clip',     p: 'secre', old: ['Cuentas'] },
+  { k: 'aux-secre', n: 'Auxiliares del secretario',                     ic: 'letter',   p: 'secre' },
+  { k: 'jwhub',     n: 'Siervo de JW y JW Hub',                         ic: 'globe',    p: 'secre' },
+  { k: 'cuentas',   n: 'Siervo de cuentas',                               ic: 'clip',     p: 'secre', old: ['Cuentas'], info: 'Ayudantes de cuentas: márcalos como ayudantes.' },
   { k: 'asamblea',  n: 'Asamblea regional',                               ic: 'calendar', p: 'secre' },
   { k: 'informe',   n: 'Informe de actividad de la congregación',         ic: 'clip',     p: 'secre', old: ['Informes y registros'], info: 'Puede ayudar un siervo ministerial capacitado.' },
   { k: 'registros', n: 'Registros de los publicadores',                   ic: 'book',     p: 'secre' },
   { k: 'serv',      n: 'Superintendente de servicio',                     ic: 'globe',    p: 'cuerpo', info: 'Visita cada grupo por lo menos una vez al año.' },
+  { k: 'aux-serv',  n: 'Auxiliar del superintendente de servicio',      ic: 'globe',    p: 'serv' },
   { k: 'pubs',      n: 'Siervo de publicaciones',                         ic: 'book',     p: 'serv', old: ['Literatura'] },
   { k: 'accesible', n: 'Publicaciones accesibles (sordos, ciegos, baja visión)', ic: 'heart', p: 'pubs' },
   { k: 'terr',      n: 'Siervo de territorios',                           ic: 'pin',      p: 'serv', old: ['Territorios'] },
@@ -505,11 +510,13 @@ export const DEPT_SUGGESTED = [
   { k: 'grupos',    n: 'Grupos para el servicio del campo',               ic: 'users',    p: 'serv', old: ['Grupos de servicio'], info: 'Cada grupo: superintendente de grupo y auxiliar.' },
   { k: 'grupo1',    n: 'Grupo 1',                                         ic: 'users',    p: 'grupos', info: 'Responsables: superintendente y auxiliar. Ayudantes: los publicadores del grupo.' },
   { k: 'vym',       n: 'Superintendente de la reunión Vida y Ministerio', ic: 'school',   p: 'cuerpo' },
+  { k: 'aux-vym',   n: 'Auxiliar del superintendente de la reunión Vida y Ministerio', ic: 'school', p: 'vym' },
   { k: 'consejero', n: 'Consejero auxiliar',                              ic: 'chat',     p: 'vym' },
   { k: 'sala',      n: 'Sala auxiliar',                                   ic: 'school',   p: 'vym' },
   { k: 'atalaya',   n: 'Conductor del Estudio de La Atalaya',             ic: 'book',     p: 'cuerpo', old: ['Conductor de La Atalaya'] },
-  { k: 'mant',      n: 'Mantenimiento del Salón del Reino',               ic: 'hammer',   p: 'cuerpo' },
-  { k: 'limpieza',  n: 'Limpieza',                                        ic: 'building', p: 'mant' },
+  { k: 'aux-atal',  n: 'Auxiliar del conductor del Estudio de La Atalaya', ic: 'book',    p: 'atalaya' },
+  { k: 'mant',      n: 'Comité de mantenimiento del Salón del Reino',     ic: 'hammer',   p: 'cuerpo', old: ['Mantenimiento del Salón del Reino'] },
+  { k: 'limpieza',  n: 'Coordinador de limpieza',                         ic: 'building', p: 'mant', old: ['Limpieza'], info: 'Programa de limpieza por grupos.' },
   { k: 'seguridad', n: 'Seguridad del Salón',                             ic: 'shield',   p: 'mant' },
 ];
 export const DEPT_ICONS = ['shield', 'flag', 'letter', 'globe', 'school', 'book', 'mic', 'clip', 'hammer', 'building', 'users', 'pin', 'cart', 'chat', 'heart', 'car', 'calendar'];

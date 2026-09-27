@@ -179,6 +179,7 @@ document.addEventListener('click', e => {
     case 'dept': return S.deptSheet(id);
     case 'dept-new': return S.deptSheet(null, { parentId: id || '' });
     case 'dept-suggest': S.deptLoadSuggested(); return render();
+    case 'congre-edit': return S.congreSheet();
     case 'dept-unskip': S.deptRestoreSkipped(); return setTimeout(render, 50);
     case 'org-pick': ui.congre = { picking: !ui.congre.picking, picked: [] }; return render();
     case 'org-pick-all': ui.congre.picked = (store.all('depts') || []).map(d => d.id); return render();

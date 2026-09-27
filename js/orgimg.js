@@ -14,7 +14,11 @@ function wrap(ctx, text, width) {
 }
 
 export function drawOrg(title = 'Organigrama de la congregación') {
-  const W = 1200, PAD = 40, IND = 56, GAP = 14, top = 150;
+  const cg = M.profile().congre || {};
+  const sub1 = [[cg.name, cg.number ? `(${cg.number})` : ''].filter(Boolean).join(' '), cg.circuit].filter(Boolean).join(' · ');
+  const sub2 = [cg.midweek ? `Entre semana: ${cg.midweek}` : '', cg.weekend ? `Fin de semana: ${cg.weekend}` : '', cg.address].filter(Boolean).join('   ·   ');
+  const extra = (sub1 ? 34 : 0) + (sub2 ? 30 : 0);
+  const W = 1200, PAD = 40, IND = 56, GAP = 14, top = 150 + extra;
   const accent = cssColor('--primary');
   const c = document.createElement('canvas');
   const ctx = c.getContext('2d');
@@ -42,6 +46,9 @@ export function drawOrg(title = 'Organigrama de la congregación') {
   ctx.fillStyle = accent; ctx.fillRect(PAD, PAD, W - PAD * 2, 70);
   ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = font(700, 32);
   ctx.fillText(title, W / 2, PAD + 46);
+  ctx.fillStyle = '#17282A';
+  if (sub1) { ctx.font = font(700, 24); ctx.fillText(sub1, W / 2, PAD + 110); }
+  if (sub2) { ctx.font = font(500, 19); ctx.fillStyle = '#4B5E5F'; ctx.fillText(sub2, W / 2, PAD + 110 + (sub1 ? 32 : 0)); }
   ctx.textAlign = 'left';
   // Líneas que unen cada caja con la de arriba
   ctx.strokeStyle = '#b9c4bd'; ctx.lineWidth = 3;
