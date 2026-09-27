@@ -2172,7 +2172,7 @@ function settingsSection(id) {
     datos: () => `<p class="hint">Haz un respaldo de vez en cuando: guarda una copia de todo en un archivo.</p>
       <div class="stack">
         <button class="btn primary" data-a="export">Descargar respaldo</button>
-        <label class="btn file">Restaurar respaldo<input type="file" id="import-file" accept="application/json,.json" hidden></label>
+        <label class="btn file">Restaurar respaldo<input type="file" id="import-file" hidden></label>
         <button class="btn" data-a="keep">Importar notas de Google Keep</button>
       </div>
       <h3 class="sub-h">🛟 Copias automáticas</h3>
