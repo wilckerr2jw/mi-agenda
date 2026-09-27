@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '5.9';
+export const APP_VERSION = '6.0';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -463,7 +463,20 @@ export const pastoreoLate = (t = today()) => (canShepherd() ? data.people.filter
 // Lista sugerida: k = clave, p = de quién depende, info = qué atiende, old = nombres de la lista anterior
 export const DEPT_SUGGESTED = [
   { k: 'cuerpo',    n: 'Cuerpo de ancianos',                              ic: 'shield',   info: 'Todos los ancianos pastorean a la congregación y deciden los grupos y sus superintendentes.' },
-  { k: 'comite',    n: 'Comité de Servicio de la Congregación',           ic: 'users',    p: 'cuerpo', info: 'Coordinador, secretario y superintendente de servicio. Asigna los publicadores a los grupos.' },
+  { k: 'comite',    n: 'Comité de Servicio de la Congregación',           ic: 'users',    p: 'cuerpo', info: 'Coordinador, secretario y superintendente de servicio.' },
+  { k: 'c-grupos',  n: 'Asignar publicadores a los grupos',               ic: 'users',    p: 'comite' },
+  { k: 'c-inact',   n: 'Cursos bíblicos a inactivos',                     ic: 'book',     p: 'comite' },
+  { k: 'c-novis',   n: 'Direcciones «no visitar»',                        ic: 'pin',      p: 'comite' },
+  { k: 'c-prec',    n: 'Precursores regulares',                           ic: 'flag',     p: 'comite' },
+  { k: 'c-resid',   n: 'Predicación en residencias de ancianos y de jubilados', ic: 'heart', p: 'comite' },
+  { k: 'c-reun',    n: 'Reuniones para el servicio del campo',            ic: 'calendar', p: 'comite' },
+  { k: 'c-ayuda',   n: 'Servir donde se necesita ayuda',                  ic: 'globe',    p: 'comite' },
+  { k: 'c-solic',   n: 'Solicitudes, correspondencia y registros',        ic: 'letter',   p: 'comite' },
+  { k: 'c-salon',   n: 'Uso del Salón del Reino para bodas y funerales',  ic: 'building', p: 'comite' },
+  { k: 'circuito',  n: 'Visita del superintendente de circuito',          ic: 'car',      p: 'comite' },
+  { k: 'emergencia',n: 'Preparación para desastres',                      ic: 'shield',   p: 'comite', old: ['Plan de emergencia y desastres'], info: 'Listas de contacto por grupo.' },
+  { k: 'conmem',    n: 'Conmemoración',                                   ic: 'calendar', p: 'cuerpo' },
+  { k: 'enlace',    n: 'Contacto con el Comité de Enlace con los Hospitales', ic: 'heart', p: 'cuerpo' },
   { k: 'coord',     n: 'Coordinador del cuerpo de ancianos',              ic: 'flag',     p: 'cuerpo' },
   { k: 'acom',      n: 'Acomodadores',                                    ic: 'users',    p: 'coord' },
   { k: 'discursos', n: 'Coordinador de discursos públicos',               ic: 'mic',      p: 'coord', old: ['Coordinador de discursos públicos'] },
@@ -478,13 +491,11 @@ export const DEPT_SUGGESTED = [
   { k: 'auditoria', n: 'Auditoría de las cuentas',                        ic: 'clip',     p: 'coord' },
   { k: 'nobaut',    n: 'Publicadores no bautizados',                      ic: 'heart',    p: 'coord', info: 'Dos hermanos se reúnen con quienes desean ser publicadores.' },
   { k: 'bautismo',  n: 'Candidatos al bautismo',                          ic: 'heart',    p: 'coord', info: 'Ancianos que analizan las preguntas con los candidatos.' },
-  { k: 'circuito',  n: 'Visita del superintendente de circuito',          ic: 'car',      p: 'coord' },
   { k: 'secre',     n: 'Secretario',                                      ic: 'letter',   p: 'cuerpo', info: 'Responsabilidades legales y financieras a tiempo.' },
   { k: 'cuentas',   n: 'Siervo de cuentas',                               ic: 'clip',     p: 'secre', old: ['Cuentas'] },
   { k: 'asamblea',  n: 'Asamblea regional',                               ic: 'calendar', p: 'secre' },
   { k: 'informe',   n: 'Informe de actividad de la congregación',         ic: 'clip',     p: 'secre', old: ['Informes y registros'], info: 'Puede ayudar un siervo ministerial capacitado.' },
   { k: 'registros', n: 'Registros de los publicadores',                   ic: 'book',     p: 'secre' },
-  { k: 'emergencia',n: 'Plan de emergencia y desastres',                  ic: 'shield',   p: 'secre', info: 'Listas de contacto por grupo.' },
   { k: 'serv',      n: 'Superintendente de servicio',                     ic: 'globe',    p: 'cuerpo', info: 'Visita cada grupo por lo menos una vez al año.' },
   { k: 'pubs',      n: 'Siervo de publicaciones',                         ic: 'book',     p: 'serv', old: ['Literatura'] },
   { k: 'accesible', n: 'Publicaciones accesibles (sordos, ciegos, baja visión)', ic: 'heart', p: 'pubs' },

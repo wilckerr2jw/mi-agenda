@@ -17,7 +17,7 @@ import * as N from './notify.js';
 import * as Nat from './native.js';
 
 // Permite que app.js reaccione a lo guardado (p. ej. saltar a esa fecha en el calendario)
-export const hooks = { eventSaved: null };
+export const hooks = { eventSaved: null, deptsChanged: null };
 
 const root = document.getElementById('sheet-root');
 let backFn = null;
@@ -813,35 +813,55 @@ function saveDept(id, r, form) {
   closeOrBack();
 }
 // Si se elimina uno, los que dependían de él pasan a depender de su «padre»
-export function deptRemove(id) {
-  const d = store.get('depts', id);
-  if (!d) return;
-  const kids = (data.depts || []).filter(x => x.parentId === id);
-  kids.forEach(k => store.upsert('depts', { ...k, parentId: d.parentId || '' }));
-  store.remove('depts', id);
-  close();
-  toast('Departamento eliminado', 'Deshacer', () => { store.restore('depts', d); kids.forEach(k => store.upsert('depts', { ...store.get('depts', k.id), parentId: id })); });
+// Los sugeridos que borras quedan anotados para que «Sugeridos» no los vuelva a traer.
+export function deptRemove(id) { deptRemoveMany([id]); close(); }
+export function deptRemoveMany(ids) {
+  const gone = new Set(ids);
+  const before = (data.depts || []).map(d => ({ ...d }));
+  const items = before.filter(d => gone.has(d.id));
+  if (!items.length) return 0;
+  const byId = new Map(before.map(d => [d.id, d]));
+  const upTo = pid => { let p = pid; while (p && gone.has(p)) p = byId.get(p)?.parentId || ''; return p || ''; };
+  before.filter(d => !gone.has(d.id) && gone.has(d.parentId)).forEach(k => store.upsert('depts', { ...k, parentId: upTo(k.parentId) }));
+  items.forEach(d => store.remove('depts', d.id));
+  const keys = items.map(d => d.sk || M.DEPT_SUGGESTED.find(s => norm(s.n) === norm(d.name))?.k).filter(Boolean);
+  if (keys.length) store.patchProfile(v => ({ deptSkipped: [...new Set([...(v.deptSkipped || []), ...keys])] }));
+  toast(items.length === 1 ? 'Departamento eliminado' : `${items.length} departamentos eliminados`, 'Deshacer', () => {
+    before.forEach(d => { const cur = store.get('depts', d.id); if (!cur || cur.parentId !== d.parentId) store.restore('depts', d); });
+    if (keys.length) store.patchProfile(v => ({ deptSkipped: (v.deptSkipped || []).filter(k => !keys.includes(k)) }));
+    hooks.deptsChanged?.();
+  });
+  return items.length;
+}
+export function deptRestoreSkipped() {
+  store.patchProfile({ deptSkipped: [] });
+  setTimeout(deptLoadSuggested, 0);
 }
 // Carga la lista sugerida: agrega los que falten y acomoda los de la lista anterior (nombre y lugar nuevos),
 // sin tocar sus responsables ni ayudantes. Los departamentos que creaste tú no se mueven.
 export function deptLoadSuggested() {
   const byName = new Map((data.depts || []).map(d => [norm(d.name), d]));
+  const bySk = new Map((data.depts || []).filter(d => d.sk).map(d => [d.sk, d]));
+  const skipped = new Set(M.profile().deptSkipped || []);
   const idOf = {};
+  const parentOf = k => { let s = M.DEPT_SUGGESTED.find(x => x.k === k); while (s?.p && !idOf[s.p]) s = M.DEPT_SUGGESTED.find(x => x.k === s.p); return s?.p ? idOf[s.p] : ''; };
   let added = 0, fixed = 0;
   M.DEPT_SUGGESTED.forEach((s, i) => {
-    const hit = [s.n, ...(s.old || [])].map(n => byName.get(norm(n))).find(Boolean);
-    const parentId = s.p ? idOf[s.p] || '' : '';
+    const hit = bySk.get(s.k) || [s.n, ...(s.old || [])].map(n => byName.get(norm(n))).find(Boolean);
+    const parentId = parentOf(s.k);
     if (hit) {
       idOf[s.k] = hit.id;
-      if (hit.name !== s.n || (hit.parentId || '') !== parentId || (s.info && !hit.info)) {
-        store.upsert('depts', { ...hit, name: s.n, parentId, info: hit.info || s.info || '', order: i + 1 });
+      const renamed = hit.sk ? hit.name : s.n;   // si ya lo renombraste tú, se respeta
+      if (hit.name !== renamed || (hit.parentId || '') !== parentId || (s.info && !hit.info) || hit.sk !== s.k) {
+        store.upsert('depts', { ...hit, name: renamed, parentId: hit.sk ? hit.parentId : parentId, sk: s.k, info: hit.info || s.info || '', order: hit.order ?? i + 1 });
         fixed++;
       }
       return;
     }
+    if (skipped.has(s.k)) return;   // lo quitaste antes: no se vuelve a traer
     const id = uid();
     idOf[s.k] = id;
-    store.upsert('depts', { id, name: s.n, ic: s.ic, parentId, headIds: [], headNames: '', helperIds: [], helperNames: '', notes: '', info: s.info || '', order: i + 1 });
+    store.upsert('depts', { id, sk: s.k, name: s.n, ic: s.ic, parentId, headIds: [], headNames: '', helperIds: [], helperNames: '', notes: '', info: s.info || '', order: i + 1 });
     added++;
   });
   toast(added || fixed ? `Listo: ${added} nuevos${fixed ? ` y ${fixed} acomodados` : ''}. Toca cada uno para poner a sus responsables` : 'Ya tenías todos los departamentos sugeridos');

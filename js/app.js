@@ -19,6 +19,7 @@ const ui = {
   tareas: { f: 'activas', p: '', m: '' },
   personas: { q: '', seg: 'personas', g: '', pv: '' },
   notas: { seg: 'notas', q: '', tag: '' },
+  congre: { picking: false, picked: [] },
 };
 const ROUTES = ['hoy', 'agenda', 'tareas', 'personas', 'notas', 'informe', 'congregacion'];
 
@@ -178,6 +179,10 @@ document.addEventListener('click', e => {
     case 'dept': return S.deptSheet(id);
     case 'dept-new': return S.deptSheet(null, { parentId: id || '' });
     case 'dept-suggest': S.deptLoadSuggested(); return render();
+    case 'dept-unskip': S.deptRestoreSkipped(); return setTimeout(render, 50);
+    case 'org-pick': ui.congre = { picking: !ui.congre.picking, picked: [] }; return render();
+    case 'org-pick-all': ui.congre.picked = (store.all('depts') || []).map(d => d.id); return render();
+    case 'org-del': { const n = S.deptRemoveMany(ui.congre.picked); ui.congre = { picking: false, picked: [] }; return n ? render() : null; }
     case 'org-share': return import('./orgimg.js').then(O => O.shareOrg());
     case 'visit-new': return S.visitSheet(id, v);
     case 'visit-del': return S.visitDelete(id, v);
@@ -329,6 +334,7 @@ document.addEventListener('change', e => {
   if (t.matches?.('select[data-admin-uid]')) return S.adminSetType(t.dataset.adminUid, t.value, t);
   if (t.matches?.('input[data-a="ev-pick"]')) { const cur = new Set(ui.agenda.picked || []); t.checked ? cur.add(t.value) : cur.delete(t.value); ui.agenda.picked = [...cur]; return render(); }
   if (t.id === 'kind' && t.form?.dataset.form === 'visit') { const box = document.getElementById('visit-lesson'); if (box) box.hidden = t.value !== 'estudio'; return; }
+  if (t.matches?.('input[data-a="org-pick-item"]')) { const cur = new Set(ui.congre.picked || []); t.checked ? cur.add(t.value) : cur.delete(t.value); ui.congre.picked = [...cur]; return render(); }
   if (t.id === 'pastoreo-months') { store.patchProfile({ pastoreoMonths: Number(t.value) || 6 }); return render(); }
   if (t.id === 'repeat' && t.form?.dataset.form === 'event') { const box = document.getElementById('repeat-days'); if (box) box.hidden = t.value !== 'days'; return; }
   if (t.matches?.('select[data-otro]')) {   // «✏️ Nuevo tipo…» muestra el campo de texto
@@ -378,6 +384,7 @@ document.addEventListener('submit', e => {
 });
 
 // Al guardar un evento, el calendario salta a su fecha
+S.hooks.deptsChanged = () => render();
 S.hooks.eventSaved = date => {
   if (ui.route !== 'agenda') return;
   ui.agenda.sel = date;

@@ -934,3 +934,9 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 .pick-box { margin: 0 0 8px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--surface); }
 .pick-box summary { cursor: pointer; font-weight: 600; color: var(--primary); }
 .pick-box .checklist { max-height: 260px; overflow: auto; margin-top: 6px; }
+.org-node.picking { cursor: pointer; }
+.org-node.picking input { width: 20px; height: 20px; margin: 6px 2px 0 0; flex: none; accent-color: var(--danger); }
+.org-node.picking.on { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 7%, var(--surface)); }
+.pick-bar { position: sticky; top: 0; z-index: 5; align-items: center; padding: 8px 10px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.btn.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn.danger[disabled] { opacity: .45; }
