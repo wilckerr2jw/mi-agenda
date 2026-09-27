@@ -958,3 +958,14 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 .org-fold-bar { font-size: 13px; margin: -4px 0 10px; color: var(--ink-2); }
 .fold-n { color: var(--primary) !important; font-weight: 600; }
 .org-ul .org-ul > .org-li::before { top: 22px; }
+
+/* Modo junta minimizado (v6.3) */
+#junta-mini { position: fixed; z-index: 240; left: 12px; bottom: calc(84px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 10px; max-width: calc(100% - 100px);
+  padding: 10px 14px; border-radius: 18px; background: var(--primary); color: var(--on-primary); box-shadow: 0 6px 20px rgba(0,0,0,.25); text-align: left; }
+#junta-mini .jm-ic { font-size: 22px; }
+#junta-mini .jm-txt { display: grid; min-width: 0; }
+#junta-mini .jm-txt b { font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+#junta-mini .jm-txt b.over { color: #FFD27A; }
+#junta-mini .jm-txt small { font-size: 12px; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
+#junta-mini .jm-tot { font-size: 11.5px; opacity: .85; white-space: nowrap; }
+#junta-mini .jm-tot b { font-variant-numeric: tabular-nums; }

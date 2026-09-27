@@ -1,7 +1,8 @@
 {
-  "version": "6.2",
+  "version": "6.3",
   "notes": [
-    "Organigrama: mostrar u ocultar lo que depende de cada departamento (o todos a la vez)",
-    "Ordenar: subir, bajar o mover los departamentos de nivel"
+    "Modo junta: «Minimizar» deja el cronómetro flotando y puedes seguir usando la app",
+    "En Android, aviso fijo «Junta en curso» para volver aunque salgas a otra app",
+    "Al restaurar un archivo, las personas que ya tienes no se duplican"
   ]
 }

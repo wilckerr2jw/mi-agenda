@@ -86,11 +86,15 @@ export function exportAll() {
   return JSON.stringify({ app: 'mi-agenda-teocrática', version: 1.3, exportedAt: new Date().toISOString(), data: own }, null, 2);
 }
 
+// Personas que ya tienes con el mismo nombre (así un archivo de personas no las duplica)
+const nameKey = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+export const isDuplicatePerson = it => !get('people', it.id) && data.people.some(p => nameKey(p.name) === nameKey(it.name));
 export function importAll(json) {
   const parsed = JSON.parse(json);
   const src = parsed.data || parsed;
   let n = 0;
   COLS.forEach(c => (Array.isArray(src[c]) ? src[c] : []).forEach(it => {
+    if (c === 'people' && it && isDuplicatePerson(it)) return;
     if (it && it.id) { write(c, it); n++; }
   }));
   // Un archivo de cambios puede pedir quitar elementos: { remove: { events: [ids] } }

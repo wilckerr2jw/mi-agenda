@@ -2426,7 +2426,8 @@ export function importPreview(txt) {
   let parsed;
   try { parsed = JSON.parse(txt); } catch { importPending = null; return toast('El archivo no es un respaldo válido'); }
   const src = parsed.data || parsed;
-  const counts = store.COLS.map(c => [c, Array.isArray(src[c]) ? src[c].filter(x => x && x.id) : []]);
+  const dupPeople = (Array.isArray(src.people) ? src.people : []).filter(x => x && x.id && store.isDuplicatePerson(x)).length;
+  const counts = store.COLS.map(c => [c, Array.isArray(src[c]) ? src[c].filter(x => x && x.id && !(c === 'people' && store.isDuplicatePerson(x))) : []]);
   const rm = parsed.remove || {};
   const removes = store.COLS.map(c => [c, (Array.isArray(rm[c]) ? rm[c] : []).filter(id => store.get(c, id))]);
   const nRemove = removes.reduce((n, [, l]) => n + l.length, 0);
@@ -2440,6 +2441,7 @@ export function importPreview(txt) {
     body: `<p>El archivo trae <b>${total}</b> elementos:</p>
       <ul class="steps">${counts.filter(([, l]) => l.length).map(([c, l]) => `<li>${l.length} ${names[c]}</li>`).join('')}</ul>
       ${nRemove ? `<p class="err pad">Y se quitarán ${nRemove}: ${removes.filter(([, l]) => l.length).map(([c, l]) => `${l.length} ${names[c]}`).join(', ')}.</p>` : ''}
+      ${dupPeople ? `<p class="hint pad">${dupPeople} ${dupPeople === 1 ? 'persona ya estaba' : 'personas ya estaban'} en tu lista con el mismo nombre: no se duplican.</p>` : ''}
       ${replace ? `<p class="err pad">${replace} ya existen y se reemplazarán por la versión del respaldo.</p>` : '<p class="hint pad">Nada de lo que tienes ahora se reemplaza.</p>'}`,
     actions: `<button type="button" class="btn ghost" data-a="sheet-close">Cancelar</button><button type="button" class="btn primary" data-a="import-confirm">Restaurar</button>`,
   });

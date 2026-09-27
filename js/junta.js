@@ -1,6 +1,8 @@
 // Modo junta: durante la reunión, pantalla completa con el punto actual, un cronómetro por punto y del total,
 // botones para pasar al siguiente y un campo para anotar el acuerdo (se guarda en «Acuerdos y notas»).
 // Mantiene la pantalla encendida mientras está abierto (si el teléfono lo permite).
+// «Minimizar» lo deja como un botón flotante con el cronómetro: puedes seguir usando la app (escribir notas, ver
+// personas…) y en la app de Android queda un aviso fijo «Junta en curso» para volver aunque salgas a otra app.
 
 import * as store from './store.js';
 import { esc, toast, fmtTime } from './util.js';
@@ -37,6 +39,7 @@ export function startJunta(meetingId) {
   el.addEventListener('click', onClick);
   keepAwake();
   paint();
+  notice();
   st.timer = setInterval(tick, 1000);
 }
 
@@ -60,6 +63,10 @@ function tick() {
   if (left) left.textContent = allowed ? (used > allowed ? `+${mmss(used - allowed)} de más` : `quedan ${mmss(allowed - used)}`) : '';
   const tot = document.getElementById('j-total');
   if (tot) tot.textContent = mmss(Date.now() - st.startedAt);
+  const ms = document.getElementById('jm-step');
+  if (ms) { ms.textContent = mmss(used); ms.className = allowed && used > allowed ? 'over' : ''; }
+  const mt = document.getElementById('jm-total');
+  if (mt) mt.textContent = mmss(Date.now() - st.startedAt);
   const bar = document.getElementById('j-step-bar');
   if (bar && allowed) bar.style.width = `${Math.min(100, used / allowed * 100)}%`;
 }
@@ -73,6 +80,7 @@ function paint() {
   el.innerHTML = `
     <header class="j-top">
       <div><strong>${esc(m.title || 'Junta')}</strong><span>Total <b id="j-total">0:00</b> de ${A.fmtMin(planned)}${m.time ? ` · empezó ${fmtTime(m.time)}` : ''}</span></div>
+      <button type="button" class="btn small ghost" data-j="min" aria-label="Minimizar y seguir usando la app">⤡ Minimizar</button>
       <button type="button" class="icon-btn" data-j="close" aria-label="Salir del modo junta">✕</button>
     </header>
     <div class="j-dots">${st.steps.map((x, i) => `<i class="${i < st.i ? 'done' : i === st.i ? 'on' : ''}" style="--c:${x.kind === 'oracion' ? 'var(--line)' : A.KIND_COLORS[x.kind] || 'var(--primary)'}"></i>`).join('')}</div>
@@ -106,6 +114,45 @@ function move(d) {
   st.times[st.steps[st.i].id] = st.times[st.steps[st.i].id] || 0;
   saveRun();
   paint();
+  notice();
+}
+
+// ───── Minimizar: botón flotante con el cronómetro (se puede seguir usando la app) ─────
+function minimize() {
+  const el = document.getElementById('junta');
+  if (!el || !st) return;
+  el.hidden = true;
+  document.body.classList.remove('lock');
+  let mini = document.getElementById('junta-mini');
+  if (!mini) {
+    mini = document.createElement('button');
+    mini.id = 'junta-mini';
+    mini.type = 'button';
+    mini.addEventListener('click', restore);
+    document.body.append(mini);
+  }
+  const s = st.steps[st.i];
+  mini.innerHTML = `<span class="jm-ic">⏱</span><span class="jm-txt"><b id="jm-step">0:00</b><small>${esc(s.t)}</small></span><span class="jm-tot">Total <b id="jm-total">0:00</b></span>`;
+  mini.setAttribute('aria-label', `Junta en curso: ${s.t}. Toca para volver`);
+  tick();
+  notice();
+}
+function restore() {
+  document.getElementById('junta-mini')?.remove();
+  const el = document.getElementById('junta');
+  if (!el || !st) return;
+  el.hidden = false;
+  document.body.classList.add('lock');
+  paint();
+}
+// App de Android: aviso fijo «Junta en curso» para volver aunque salgas de la app
+function notice(off = false) {
+  const LN = window.Capacitor?.Plugins?.LocalNotifications;
+  if (!LN || !window.Capacitor?.isNativePlatform?.()) return;
+  if (off || !st) { LN.removeDeliveredNotifications?.({ notifications: [{ id: 3 }] }).catch(() => {}); LN.cancel({ notifications: [{ id: 3 }] }).catch(() => {}); return; }
+  const s = st.steps[st.i];
+  const since = new Date(st.startedAt).toTimeString().slice(0, 5).replace(/^0/, '');
+  LN.schedule({ notifications: [{ id: 3, title: '⏱ Junta en curso', body: `Punto ${st.i + 1} de ${st.steps.length}: ${s.t} · empezó a las ${since}. Toca para volver.`, channelId: 'general', ongoing: true, autoCancel: false, smallIcon: 'ic_stat_agenda', extra: { kind: 'junta' } }] }).catch(() => {});
 }
 
 function saveRun(finished = false) {
@@ -144,6 +191,7 @@ function summary() {
     <p class="hint">Los acuerdos que anotaste están en «Acuerdos y notas» de la reunión: desde ahí conviértelos en tareas.</p>
     <footer class="j-nav"><button type="button" class="btn primary" data-j="close">Volver a la reunión</button></footer>`;
   clearInterval(st.timer); st.timer = 0;
+  notice(true);
 }
 
 function onClick(e) {
@@ -154,6 +202,7 @@ function onClick(e) {
   else if (a === 'note') saveNote();
   else if (a === 'finish') summary();
   else if (a === 'close') endJunta(true);
+  else if (a === 'min') minimize();
 }
 
 export function endJunta(reopen) {
@@ -162,6 +211,8 @@ export function endJunta(reopen) {
   if (st.timer) { st.times[st.steps[st.i].id] = spent(st.i); saveRun(); clearInterval(st.timer); }
   try { st.wake?.release(); } catch { /* sin bloqueo */ }
   st = null;
+  notice(true);
+  document.getElementById('junta-mini')?.remove();
   document.getElementById('junta')?.remove();
   document.body.classList.remove('lock');
   if (reopen) onClose?.(id);

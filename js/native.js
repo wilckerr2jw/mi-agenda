@@ -224,7 +224,7 @@ async function doSchedule() {
     const t = today();
     const list = [...planFor(t, p), ...planFor(addDays(t, 1), p)].slice(0, 60);
     const pending = await LN.getPending();
-    const old = (pending.notifications || []).filter(n => n.id !== 1);
+    const old = (pending.notifications || []).filter(n => n.id !== 1 && n.id !== 3);
     if (old.length) await LN.cancel({ notifications: old.map(n => ({ id: n.id })) });
     if (list.length) await LN.schedule({ notifications: list });
   } catch (e) { console.warn('No se pudieron programar los avisos', e); }
