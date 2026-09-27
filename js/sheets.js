@@ -2431,7 +2431,8 @@ export function importPreview(txt) {
   const rm = parsed.remove || {};
   const removes = store.COLS.map(c => [c, (Array.isArray(rm[c]) ? rm[c] : []).filter(id => store.get(c, id))]);
   const nRemove = removes.reduce((n, [, l]) => n + l.length, 0);
-  const total = counts.reduce((n, [, l]) => n + l.length, 0) + nRemove;
+  const assign = Array.isArray(parsed.assign) ? parsed.assign.filter(x => x && x.dept) : [];
+  const total = counts.reduce((n, [, l]) => n + l.length, 0) + nRemove + assign.length;
   if (!total) { importPending = null; return toast('El respaldo no tiene elementos'); }
   const replace = counts.reduce((n, [c, l]) => n + l.filter(x => store.get(c, x.id)).length, 0);
   importPending = txt;
@@ -2440,6 +2441,7 @@ export function importPreview(txt) {
     title: 'Restaurar respaldo', back: settings,
     body: `<p>El archivo trae <b>${total}</b> elementos:</p>
       <ul class="steps">${counts.filter(([, l]) => l.length).map(([c, l]) => `<li>${l.length} ${names[c]}</li>`).join('')}</ul>
+      ${assign.length ? `<p class="hint pad">🏛 Y pone responsables o ayudantes en ${assign.length} departamentos del organigrama (${esc(assign.slice(0, 4).map(x => x.dept).join(', '))}${assign.length > 4 ? '…' : ''}). Se suman a los que ya tengan; si falta un departamento o una persona, se crea.</p>` : ''}
       ${nRemove ? `<p class="err pad">Y se quitarán ${nRemove}: ${removes.filter(([, l]) => l.length).map(([c, l]) => `${l.length} ${names[c]}`).join(', ')}.</p>` : ''}
       ${dupPeople ? `<p class="hint pad">${dupPeople} ${dupPeople === 1 ? 'persona ya estaba' : 'personas ya estaban'} en tu lista con el mismo nombre: no se duplican.</p>` : ''}
       ${replace ? `<p class="err pad">${replace} ya existen y se reemplazarán por la versión del respaldo.</p>` : '<p class="hint pad">Nada de lo que tienes ahora se reemplaza.</p>'}`,
@@ -2448,9 +2450,44 @@ export function importPreview(txt) {
 }
 export function importConfirm() {
   if (!importPending) return;
-  try { const n = store.importAll(importPending); close(); toast(`${n} elementos restaurados`); }
+  try {
+    const n = store.importAll(importPending);
+    const a = applyAssign(JSON.parse(importPending).assign);
+    close(); toast(`${n} elementos restaurados${a ? ` · ${a} departamentos actualizados` : ''}`);
+  }
   catch { toast('El archivo no es un respaldo válido'); }
   importPending = null;
+}
+
+// Archivo con «assign»: [{ dept, alt: [otros nombres], parent, heads: [nombres], helpers: [nombres] }]
+// Busca el departamento por nombre (o crea uno debajo de «parent»); busca a cada persona por nombre (o la crea).
+// «@yo» = tu propia ficha. Se suman a los responsables y ayudantes que ya tenga.
+function applyAssign(list) {
+  if (!Array.isArray(list) || !list.length) return 0;
+  const find = names => (data.depts || []).find(d => names.some(n => norm(d.name) === norm(n)));
+  const personId = name => {
+    if (String(name).startsWith('@yo')) { const me = data.people.find(p => p.isMe); if (me) return me.id; name = String(name).split('|')[1] || ''; if (!name) return ''; }
+    const hit = data.people.find(p => norm(p.name) === norm(name));
+    if (hit) return hit.id;
+    return store.upsert('people', { id: uid(), name, role: '', privileges: [], groupIds: [], phone: '', notes: '' }).id;
+  };
+  let n = 0;
+  list.forEach(x => {
+    if (!x?.dept) return;
+    let d = find([x.dept, ...(x.alt || [])]);
+    if (!d) {
+      const parent = x.parent ? find([x.parent, ...(x.parentAlt || [])]) : null;
+      const sib = (data.depts || []).filter(y => (y.parentId || '') === (parent?.id || ''));
+      d = store.upsert('depts', { id: uid(), name: x.dept, ic: x.ic || 'flag', parentId: parent?.id || '', headIds: [], headNames: '', helperIds: [], helperNames: '', notes: '', order: sib.reduce((m, y) => Math.max(m, Number(y.order) || 0), 0) + 1 });
+    }
+    const ids = arr => (arr || []).map(nm => personId(nm) || '').filter(Boolean);
+    const heads = [...new Set([...M.deptHeadIds(d), ...ids(x.heads)])];
+    const helpers = [...new Set([...(d.helperIds || []), ...ids(x.helpers)])].filter(id => !heads.includes(id));
+    const note = x.note && !(d.notes || '').includes(x.note) ? [d.notes, x.note].filter(Boolean).join('\n') : d.notes || '';
+    store.upsert('depts', { ...store.get('depts', d.id), headIds: heads, helperIds: helpers, notes: note });
+    n++;
+  });
+  return n;
 }
 
 // ───────────── Copias automáticas (cada semana) ─────────────

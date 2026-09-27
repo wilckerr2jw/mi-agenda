@@ -1,8 +1,7 @@
 {
-  "version": "6.3",
+  "version": "6.4",
   "notes": [
-    "Modo junta: «Minimizar» deja el cronómetro flotando y puedes seguir usando la app",
-    "En Android, aviso fijo «Junta en curso» para volver aunque salgas a otra app",
-    "Al restaurar un archivo, las personas que ya tienes no se duplican"
+    "Restaurar un archivo ahora también puede poner responsables y ayudantes en el organigrama",
+    "Modo junta: «Minimizar» deja el cronómetro flotando y puedes seguir usando la app"
   ]
 }
