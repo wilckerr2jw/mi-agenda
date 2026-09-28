@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '7.7';
+export const APP_VERSION = '8.0';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -134,7 +134,7 @@ export const PRIVILEGES = [
   'Coordinador de mantenimiento', 'Comité de Enlace con los Hospitales', 'Grupo de Visita a Pacientes',
   'Coordinador de discursos públicos', 'Hospitalidad para oradores visitantes', 'Conductor del Estudio Bíblico de la Congregación',
   'Lector', 'Encargado de la predicación pública con exhibidores', 'Encargado de limpieza del Salón', 'Encargado de los grupos de servicio en idioma o señas',
-  'Superintendente de circuito sustituto', 'Precursor regular', 'Precursor auxiliar', 'Precursor especial',
+  'Superintendente de circuito sustituto', 'Precursor regular', 'Precursor auxiliar', 'Precursor especial', 'Varón bautizado',
 ];
 // Todos los que se ofrecen: los fijos + los que agregaste + los que ya tiene alguien
 export function allPrivileges() {

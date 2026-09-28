@@ -1,6 +1,8 @@
 // Vistas principales. Cada función recibe el estado de la interfaz (ui) y devuelve HTML.
 
 import { data, isCloud } from './store.js';
+import { mecaSection } from './mecas.js';
+import { comiteSection } from './comite.js';
 import * as store from './store.js';
 import * as WC from './weekcal.js';
 import * as Nat from './native.js';
@@ -130,6 +132,27 @@ function followNotice() {
   return `<button class="log-now follow-now" data-a="seguimiento">📖 <span><b>Seguimiento</b><small>${parts.join(' y ')}. Toca para verlos.</small></span></button>`;
 }
 
+// Tarjeta grande con lo que está pasando ahora o lo que sigue hoy
+function nowCard(entries, t) {
+  const d = new Date(), now = d.getHours() * 60 + d.getMinutes();
+  const mm = x => { const [h, m] = String(x || '').split(':').map(Number); return h * 60 + (m || 0); };
+  const timed = entries.filter(x => x.item.time);
+  const cur = timed.find(x => mm(x.item.time) <= now && now < (x.item.endTime ? mm(x.item.endTime) : mm(x.item.time) + 60));
+  const nxt = cur || timed.find(x => mm(x.item.time) > now);
+  if (!nxt) return '';
+  const { kind, item } = nxt;
+  const isMeeting = kind === 'meeting';
+  const color = isMeeting ? 'var(--c-mtg)' : M.eventColor(item);
+  const left = mm(item.time) - now;
+  const when = cur ? 'Ahora' : left < 60 ? `En ${left} min` : `A las ${fmtTime(item.time)}`;
+  const occ = !isMeeting && M.isRepeating(item) && t !== item.date ? t : '';
+  return `<button class="now-card" style="--c:${color}" data-a="${isMeeting ? 'meeting' : 'event'}" data-id="${item.id}" ${occ ? `data-occ="${occ}"` : ''}>
+    <span class="now-when">${cur ? '<i class="now-dot"></i>' : '⏭'} ${esc(when)}</span>
+    <strong>${esc(item.title)}</strong>
+    <span class="meta">${fmtTime(item.time)}${item.endTime ? ` – ${fmtTime(item.endTime)}` : ''}${item.place ? ` · ${esc(item.place)}` : ''}</span>
+    ${item.theme ? `<span class="meta">💬 ${esc(item.theme)}</span>` : ''}
+  </button>`;
+}
 export function hoy() {
   const t = today(), d = parseISO(t);
   const entries = M.entriesFor(M.agendaFor(t));
@@ -176,6 +199,7 @@ export function hoy() {
   ${Nat.state.update ? `<button class="log-now apk-up" data-a="apk-update">📲 <span><b>Hay una actualización de la app</b><small>Versión ${esc(Nat.state.update.name)}. Toca para descargarla e instalarla.</small></span></button>` : ''}
   ${logToday ? `<button class="log-now" data-a="qa" data-v="time">📝 <span><b>Registra tu actividad de hoy</b><small>Aún no guardaste horas ni cursos. Toca aquí para anotarlos.</small></span></button>` : ''}
   ${juntaHoy ? `<button class="btn primary junta-now" data-a="junta-start" data-id="${juntaHoy.id}">▶ Iniciar la junta de hoy<small>${esc(juntaHoy.title)}${juntaHoy.time ? ` · ${fmtTime(juntaHoy.time)}` : ''}</small></button>` : ''}
+  ${nowCard(entries, t)}
   ${tiles.length ? `<div class="tiles">${tiles.join('')}</div>` : `<p class="sub pad">${summary}</p>`}
   ${quickRow()}
   ${isCloud ? '' : `<div class="notice">${ic('pin', 'sm')}<p>Modo local: tus datos están solo en este teléfono. <button class="link" data-a="settings">Ver cómo sincronizar</button></p></div>`}
@@ -316,7 +340,8 @@ export function agenda(ui) {
   if (st.mode === 'proximos' || st.mode === 'todos') {
     return `<header class="top cal-top"><h1>Agenda</h1><div class="cal-nav"><button class="btn small" data-a="new-event">${ic('plus', 'sm')} Evento</button></div></header>
       ${agendaSeg(st.mode)}
-      ${st.mode === 'proximos' ? agendaUpcoming() : agendaAll(st)}`;
+      ${st.mode === 'proximos' ? agendaUpcoming() : agendaAll(st)}
+      <p class="hint pad"><button class="link" data-a="ics-export">📅 Pasar mi agenda a Google Calendar o al calendario del teléfono</button></p>`;
   }
   const [y, m] = st.ym.split('-').map(Number);
   const days = new Date(y, m, 0).getDate();
@@ -520,6 +545,15 @@ function orgNode(n, depth, o) {
         ${folded ? `<span class="meta fold-n">+${countAll(n)} debajo</span>` : ''}</span>
     ${o.pick ? '</label>' : '</button>'}${sortBtns}</div>${children.length && !folded ? `<ul class="org-ul">${children.map(c => orgNode(c, depth + 1, o)).join('')}</ul>` : ''}</li>`;
 }
+// Vista en árbol: arriba cada departamento principal y, debajo, sus áreas en columnas (se desliza de lado)
+function orgChart(tree) {
+  const who = d => { const h = M.isGroupBox(d) ? 'De la congregación' : M.deptHeadsLabeled(d).join(', '); return h ? `<small>${M.isGroupBox(d) ? '' : '★ '}${esc(h)}</small>` : '<small class="warn-t">Sin responsable</small>'; };
+  const sub = (n, depth) => n.children.length ? `<ul class="orgc-sub">${n.children.map(c => `<li class="d${Math.min(depth, 3)}"><button class="orgc-leaf" data-a="dept" data-id="${c.d.id}">${esc(c.d.name)}${who(c.d)}</button>${sub(c, depth + 1)}</li>`).join('')}</ul>` : '';
+  return tree.map(r => `<div class="orgc-root">
+    <button class="orgc-top" data-a="dept" data-id="${r.d.id}"><span class="org-ic">${ic(r.d.ic || 'flag', 'sm')}</span><span><b>${esc(r.d.name)}</b>${who(r.d)}</span></button>
+    ${r.children.length ? `<div class="orgc-cols">${r.children.map(c => `<div class="orgc-col"><button class="orgc-head" data-a="dept" data-id="${c.d.id}"><b>${esc(c.d.name)}</b>${who(c.d)}</button>${sub(c, 2)}</div>`).join('')}</div>` : ''}
+  </div>`).join('');
+}
 export function congregacion(ui) {
   const st = ui?.congre || {};
   const pick = st.picking ? new Set(st.picked || []) : null;
@@ -555,17 +589,20 @@ export function congregacion(ui) {
   </section>` : '';
   return `${head('Congregación', actions())}
   ${congreCard}
+  ${comiteSection()}
   ${rosterHtml}
   ${loadHtml}
+  ${mecaSection(st)}
   <section><div class="sec-h"><h2>🏛 Organigrama</h2>${empty_ ? '' : `<span class="hint">${all.length} departamentos${noHead ? ` · ${noHead} sin responsable` : ''}</span>`}</div>
   ${empty_ ? empty('Arma el organigrama de tu congregación: quién atiende cada departamento y quiénes le ayudan.', `<div class="stack"><button class="btn primary" data-a="dept-suggest">Cargar departamentos sugeridos</button><button class="btn" data-a="dept-new">Empezar desde cero</button></div>`, 'users')
     : pick ? `<div class="org-tools pick-bar"><span class="grow"><b>${pick.size}</b> elegidos</span><button class="btn small ghost" data-a="org-pick-all">Todos</button><button class="btn small ghost" data-a="org-pick">Cancelar</button><button class="btn small danger" data-a="org-del" ${pick.size ? '' : 'disabled'}>Eliminar</button></div>
       <p class="hint pad">Marca los departamentos que no aplican en tu congregación. Los que dependían de ellos suben un nivel.</p>
       <ul class="org-ul org-root">${tree.map(n => orgNode(n, 0, o)).join('')}</ul>`
     : `<div class="org-tools"><button class="btn small" data-a="org-share">${ic('chat', 'sm')} Compartir imagen</button><button class="btn small ghost" data-a="org-download">⬇ Descargar imagen</button><button class="btn small ghost" data-a="org-print">🖨 Imprimir / PDF</button><button class="btn small ghost" data-a="dept-new">＋ Departamento</button><button class="btn small ghost" data-a="org-paste">📋 Pegar acuerdos</button><button class="btn small ghost" data-a="org-pick">Quitar varios</button><button class="btn small ${o.sort ? 'primary' : 'ghost'}" data-a="org-sort">${o.sort ? '✓ Listo' : '↕ Ordenar'}</button></div>
-      <div class="org-fold-bar"><button class="link" data-a="org-fold-all" data-v="open">Mostrar todos</button> · <button class="link" data-a="org-fold-all" data-v="close">Ocultar todos</button></div>
+      <div class="org-fold-bar"><div class="seg small" role="group" aria-label="Vista del organigrama"><button data-a="org-view" data-v="lista" aria-pressed="${st.view !== 'arbol' || o.sort}">☰ Lista</button><button data-a="org-view" data-v="arbol" aria-pressed="${st.view === 'arbol' && !o.sort}">🌳 Árbol</button></div>
+        ${st.view === 'arbol' && !o.sort ? '' : `<span><button class="link" data-a="org-fold-all" data-v="open">Mostrar todos</button> · <button class="link" data-a="org-fold-all" data-v="close">Ocultar todos</button></span>`}</div>
       ${o.sort ? '<p class="hint pad">↑ ↓ lo sube o baja entre los de su mismo nivel · → lo mete dentro del de arriba (por ejemplo, el auxiliar debajo del encargado) · ← lo saca un nivel.</p>' : ''}
-      <ul class="org-ul org-root">${tree.map(n => orgNode(n, 0, o)).join('')}</ul>
+      ${st.view === 'arbol' && !o.sort ? `<div class="orgc">${orgChart(tree)}</div><p class="hint pad">Desliza de lado para ver todas las áreas.</p>` : `<ul class="org-ul org-root">${tree.map(n => orgNode(n, 0, o)).join('')}</ul>`}
       <p class="hint pad">Toca un departamento para poner a sus responsables y ayudantes, cambiarle el nombre, moverlo debajo de otro o eliminarlo. Con «Quitar varios» borras de una vez los que no aplican. La imagen lleva nombres: compártela solo con quien corresponda.</p>
 `}
   </section>`;

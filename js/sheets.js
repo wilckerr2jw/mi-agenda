@@ -7,6 +7,7 @@ import * as M from './model.js';
 import * as Theme from './theme.js';
 import { readKeep } from './keep.js';
 import { goalBlock } from './views.js';
+import { micButton, stopDictation } from './voz.js';
 import { guideGroups, guideAudience } from './guide.js';
 import * as A from './agenda.js';
 import * as Lock from './lock.js';
@@ -38,6 +39,7 @@ export function open({ title, body, actions = '', back = null, focus = null }) {
 }
 
 export function close(fromPop = false) {
+  stopDictation();
   root.innerHTML = '';
   document.body.classList.remove('lock');
   backFn = null;
@@ -509,7 +511,7 @@ export function taskSheet(id, preset = {}, back) {
       </div>
       ${fld('🔁 Repetir', `<select id="repeat" name="repeat">${Object.entries(M.TASK_REPEATS).map(([k, n]) => `<option value="${k}" ${k === (v.repeat || '') ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`, 'repeat')}
       <p class="hint" id="repeat-hint" ${v.repeat ? '' : 'hidden'}>${v.repeat ? `${esc(M.repeatLabel(v.repeat, v.due))}. Al marcarla como hecha se crea la siguiente.` : ''}</p>
-      ${fld('Notas', `<textarea id="notes" name="notes" rows="3">${esc(v.notes || '')}</textarea>`, 'notes')}
+      ${fld('Notas', `<textarea id="notes" name="notes" rows="3">${esc(v.notes || '')}</textarea>${micButton('notes')}`, 'notes')}
       ${meetings.length ? fld('Viene de la reunión…', meetingSelect, 'meetingId') : ''}
       ${v.fromAgreement && meeting ? `<p class="hint">Sale de un acuerdo de «${esc(meeting.title)}».</p>` : ''}
     </form>${log}`,
@@ -849,7 +851,7 @@ function saveStudy(pid, r, form) {
 // Lista de personas con 🔍 para buscar escribiendo el nombre. Los elegidos van primero.
 // roles = { id: 'función' } → a cada elegido se le puede escribir su función (solo en ayudantes)
 // lazy = la lista completa no se muestra: solo los elegidos, y al escribir aparecen los que coinciden
-function personPick(name, people, chosen, roles = null, type = 'checkbox', { lazy = false } = {}) {
+export function personPick(name, people, chosen, roles = null, type = 'checkbox', { lazy = false } = {}) {
   const on = new Set(chosen);
   const list = [...people].sort((a, b) => (on.has(b.id) ? 1 : 0) - (on.has(a.id) ? 1 : 0) || a.name.localeCompare(b.name, 'es'));
   return `<div class="psel ${lazy ? 'lazy' : ''}" data-psel="${name}" ${lazy ? 'data-lazy="1"' : ''}>
@@ -1230,7 +1232,7 @@ export function noteSheet(id, back) {
         ${fld('Fecha', `<input id="date" name="date" type="date" value="${v.date}">`, 'date')}
         ${fld('Etiqueta', `<input id="tag" name="tag" list="tag-list" maxlength="40" value="${esc(v.tag || '')}" placeholder="Ej. Ideas"><datalist id="tag-list">${tags.map(t => `<option value="${esc(t)}">`).join('')}</datalist>`, 'tag')}
       </div>
-      ${fld('Contenido', `<textarea id="body" name="body" rows="10">${esc(v.body || '')}</textarea>`, 'body')}
+      ${fld('Contenido', `<textarea id="body" name="body" rows="10">${esc(v.body || '')}</textarea>${micButton('body')}`, 'body')}
       <label class="check"><input type="checkbox" name="pinned" ${v.pinned ? 'checked' : ''}> Fijar arriba</label>
       ${data.meetings.length ? fld('Vincular a una reunión', meetingsSelect, 'meetingId') : ''}
       ${fld('Vincular a una persona', peopleSelect('personId', v.personId, 'Nadie'), 'personId')}
@@ -2156,7 +2158,7 @@ export function meetingSheet(id, back) {
         <input type="hidden" id="agendaPrayers" name="agendaPrayers" value="${esc(JSON.stringify(agendaPrayers))}">
       </div>
       ${fld('Otros temas <span class="hint">(texto libre)</span>', `<textarea id="topics" name="topics" rows="3">${esc(v.topics || '')}</textarea>`, 'topics')}
-      ${fld('Acuerdos y notas', `<textarea id="notes" name="notes" rows="6" data-agreements="1" placeholder="Un acuerdo por línea, empezando con un guion:&#10;- Juan visitará a la familia Pérez el viernes&#10;- Revisar el territorio antes del 15/10">${esc(v.notes || '')}</textarea>`, 'notes')}
+      ${fld('Acuerdos y notas', `<textarea id="notes" name="notes" rows="6" data-agreements="1" placeholder="Un acuerdo por línea, empezando con un guion:&#10;- Juan visitará a la familia Pérez el viernes&#10;- Revisar el territorio antes del 15/10">${esc(v.notes || '')}</textarea>${micButton('notes', 'Cada acuerdo que digas se agrega en una línea nueva, listo para convertirlo en tarea.')}`, 'notes')}
     </form>
     ${m ? `<section id="agree-box">${agreementsHtml(m)}</section>` : ''}
     ${m ? `<section><h3 class="sub-h">Tareas de esta reunión</h3>
@@ -2409,6 +2411,9 @@ function settingsSection(id) {
         <label class="btn file">Restaurar respaldo<input type="file" id="import-file" hidden></label>
         <button class="btn" data-a="keep">Importar notas de Google Keep</button>
       </div>
+      <h3 class="sub-h">📅 Google Calendar o el calendario del teléfono</h3>
+      <p class="hint">Crea un archivo con tus eventos (con su repetición) y tus tareas pendientes con fecha. Ábrelo con Google Calendar o tu calendario para pasarlos. Si luego cambias algo en la app, vuelve a pasarlo: no se duplican.</p>
+      <div class="stack"><button class="btn" data-a="ics-export">📅 Pasar mi agenda al calendario</button></div>
       <h3 class="sub-h">🛟 Copias automáticas</h3>
       ${isCloud ? `<p class="hint">Cada semana se guarda sola una copia de todo en tu cuenta (se conservan las últimas 4). Si algo se borra, lo recuperas desde aquí.</p>
       <div class="stack pad"><button class="btn" data-a="auto-backups">Ver copias automáticas</button></div>` : '<p class="hint">Disponibles solo con cuenta (modo nube).</p>'}`,

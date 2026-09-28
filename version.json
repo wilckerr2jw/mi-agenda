@@ -1,8 +1,10 @@
 {
-  "version": "7.7",
+  "version": "8.0",
   "notes": [
-    "Eventos: cada tipo muestra solo los campos que le sirven (nuevo tipo «Adoración en familia»)",
-    "El Comité de Servicio y el Cuerpo de ancianos se llenan solos y dicen qué es cada uno",
-    "Imprimir / PDF se ve bien en el teléfono"
+    "Asignaciones mecánicas: importa el arreglo (foto o PDF) y ve quién no se está usando",
+    "Panel «Para el Comité de Servicio» con todo lo pendiente",
+    "🎤 Dictado por voz en acuerdos, notas y tareas",
+    "Pasa tu agenda a Google Calendar",
+    "Tarjeta «Ahora» en Hoy y organigrama en árbol"
   ]
 }

@@ -1,0 +1,3 @@
+Bibliotecas incluidas para leer el arreglo de asignaciones mecánicas dentro del teléfono (sin enviarlo a ningún servicio):
+- ocr/: Tesseract.js 5.1.1 y tesseract.js-core 5.1.1 (Apache-2.0), datos de idioma español 4.0.0_best_int (Apache-2.0).
+- pdf/: PDF.js (pdfjs-dist 4.10.38, Apache-2.0).

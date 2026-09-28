@@ -1,6 +1,8 @@
 package app.miagenda.teocratica;
 
+import android.app.Activity;
 import android.app.DownloadManager;
+import android.content.ActivityNotFoundException;
 import android.appwidget.AppWidgetManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -12,12 +14,16 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.provider.Settings;
+import android.speech.RecognizerIntent;
+import androidx.activity.result.ActivityResult;
 import androidx.core.content.FileProvider;
 import java.io.File;
+import java.util.ArrayList;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 /** La web le pasa al widget lo que tiene hoy (título y líneas) y el widget se redibuja. */
@@ -103,6 +109,35 @@ public class WidgetPlugin extends Plugin {
         for (int id : ids) AgendaWidget.draw(ctx, mgr, id);
         JSObject ret = new JSObject();
         ret.put("widgets", ids.length);
+        call.resolve(ret);
+    }
+
+    /** Dictado por voz: abre el reconocedor de voz del teléfono y devuelve lo que se dijo (en español). */
+    @PluginMethod
+    public void dictate(PluginCall call) {
+        Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, call.getString("lang", "es-VE"));
+        i.putExtra(RecognizerIntent.EXTRA_PROMPT, call.getString("prompt", "Habla ahora"));
+        i.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
+        i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+        try {
+            startActivityForResult(call, i, "dictateResult");
+        } catch (ActivityNotFoundException e) {
+            call.reject("no-disponible");
+        }
+    }
+
+    @ActivityCallback
+    private void dictateResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        JSObject ret = new JSObject();
+        String text = "";
+        if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+            ArrayList<String> m = result.getData().getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+            if (m != null && !m.isEmpty()) text = m.get(0);
+        }
+        ret.put("text", text);
         call.resolve(ret);
     }
 }
