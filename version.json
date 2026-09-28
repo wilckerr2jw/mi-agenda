@@ -1,6 +1,8 @@
 {
-  "version": "6.4.1",
+  "version": "6.5",
   "notes": [
-    "Restaurar respaldo: en Android ya se pueden elegir los archivos .json"
+    "Al iniciar sesión, el ojito te deja ver la contraseña que escribes",
+    "Organigrama: busca al hermano con la lupa escribiendo su nombre",
+    "Ayudantes opcionales por departamento, cada uno con su función"
   ]
 }

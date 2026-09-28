@@ -772,12 +772,25 @@ function saveStudy(pid, r, form) {
   closeOrBack();
 }
 
+// Lista de personas con 🔍 para buscar escribiendo el nombre. Los elegidos van primero.
+// roles = { id: 'función' } → a cada elegido se le puede escribir su función (solo en ayudantes)
+function personPick(name, people, chosen, roles = null) {
+  const on = new Set(chosen);
+  const list = [...people].sort((a, b) => (on.has(b.id) ? 1 : 0) - (on.has(a.id) ? 1 : 0) || a.name.localeCompare(b.name, 'es'));
+  return `<div class="psel" data-psel="${name}">
+    <div class="psel-q">${ic('search', 'sm')}<input type="search" data-psel-q placeholder="Buscar por nombre…" aria-label="Buscar hermano" autocomplete="off"></div>
+    <div class="checklist psel-list">${list.map(p => `<label class="check psel-row" data-id="${p.id}" data-n="${esc(norm(p.name + ' ' + (p.role || '')))}"><input type="checkbox" name="${name}" value="${p.id}" ${on.has(p.id) ? 'checked' : ''}> <span class="psel-name">${esc(p.name)}${p.role ? ` <span class="hint">${esc(p.role)}</span>` : ''}</span>${roles ? `<input class="psel-role" name="role_${p.id}" maxlength="60" value="${esc(roles[p.id] || '')}" placeholder="Función (opcional)" aria-label="Función de ${esc(p.name)}">` : ''}</label>`).join('')}
+      <p class="hint psel-empty" hidden>Nadie con ese nombre. Escríbelo abajo en «Otros nombres».</p></div>
+  </div>`;
+}
+
 // ───────────── Congregación: departamentos del organigrama ─────────────
 export function deptSheet(id, preset = {}) {
   const d = id ? store.get('depts', id) : null;
   const v = d || { name: '', ic: 'flag', parentId: preset.parentId || '', headIds: [], headNames: '', helperIds: [], helperNames: '', notes: '' };
   const heads = M.deptHeadIds(v);
   const people = sortedPeople();
+  const hasHelpers = !!((v.helperIds || []).length || v.helperNames);
   const who = p => esc(p.name) + (p.role ? ` <span class="hint">${esc(p.role)}</span>` : '');
   const block = id ? new Set([id, ...M.deptDescendants(id)]) : new Set();
   const parents = [...(data.depts || [])].filter(x => !block.has(x.id)).sort((a, b) => a.name.localeCompare(b.name, 'es'));
@@ -789,10 +802,11 @@ export function deptSheet(id, preset = {}) {
       ${fld('Depende de', `<select id="parentId" name="parentId"><option value="">Nadie (arriba de todo)</option>${parents.map(x => `<option value="${x.id}" ${x.id === v.parentId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`, 'parentId')}
       ${v.info ? `<p class="hint">ℹ️ ${esc(v.info)}</p>` : ''}
       <div class="f"><span class="lbl">★ Responsables <span class="hint">(uno o más)</span></span>
-        ${people.length ? `<details class="pick-box" ${heads.length || !d ? 'open' : ''}><summary>${heads.length ? `${heads.length} elegido${heads.length === 1 ? '' : 's'}` : 'Elegir de Personas'}</summary>${pickList('', people, 'headIds', heads, who)}</details>` : ''}
+        ${people.length ? personPick('headIds', people, heads) : ''}
         <input id="headNames" name="headNames" maxlength="200" value="${esc(v.headNames ?? v.headName ?? '')}" placeholder="Otros nombres que no están en Personas (separa con comas)" aria-label="Otros responsables"></div>
-      <div class="f"><span class="lbl">Ayudantes</span>
-        ${people.length ? `<details class="pick-box" ${(v.helperIds || []).length ? 'open' : ''}><summary>${(v.helperIds || []).length ? `${v.helperIds.length} elegido${v.helperIds.length === 1 ? '' : 's'}` : 'Elegir de Personas'}</summary>${pickList('', people, 'helperIds', v.helperIds || [], who)}</details>` : '<p class="hint">Agrega personas en la pestaña Personas para marcarlas aquí.</p>'}
+      <label class="check"><input type="checkbox" id="has-helpers" name="hasHelpers" ${hasHelpers ? 'checked' : ''}> Este departamento tiene ayudantes</label>
+      <div class="f" id="helpers-box" ${hasHelpers ? '' : 'hidden'}><span class="lbl">Ayudantes <span class="hint">(a cada uno le puedes poner su función, si la tiene)</span></span>
+        ${people.length ? personPick('helperIds', people.filter(p => !heads.includes(p.id)), v.helperIds || [], v.helperRoles || {}) : '<p class="hint">Agrega personas en la pestaña Personas para marcarlas aquí.</p>'}
         <input id="helperNames" name="helperNames" maxlength="300" value="${esc(v.helperNames || '')}" placeholder="Otros nombres (separa con comas)" aria-label="Otros ayudantes"></div>
       <div class="f"><span class="lbl">Icono</span><div class="iconpick">${M.DEPT_ICONS.map(x => `<label><input type="radio" name="ic" value="${x}" ${x === (v.ic || 'flag') ? 'checked' : ''}><span>${ic(x)}</span></label>`).join('')}</div></div>
       ${fld('Notas <span class="hint">(opcional)</span>', `<textarea id="notes" name="notes" rows="2" maxlength="400">${esc(v.notes || '')}</textarea>`, 'notes')}
@@ -806,9 +820,12 @@ function saveDept(id, r, form) {
   const prev = id ? store.get('depts', id) : {};
   const fd = new FormData(form);
   const headIds = fd.getAll('headIds');
-  const helperIds = fd.getAll('helperIds').filter(x => !headIds.includes(x));
+  const withHelpers = !!fd.get('hasHelpers');
+  const helperIds = withHelpers ? fd.getAll('helperIds').filter(x => !headIds.includes(x)) : [];
+  const helperRoles = Object.fromEntries(helperIds.map(h => [h, String(fd.get(`role_${h}`) || '').trim()]).filter(([, t]) => t));
+  if (!withHelpers) r.helperNames = '';
   const siblings = (data.depts || []).filter(x => (x.parentId || '') === (r.parentId || '') && x.id !== id);
-  store.upsert('depts', { ...prev, id: id || uid(), name: r.name, ic: r.ic || 'flag', parentId: r.parentId || '', headIds, headNames: r.headNames || '', headId: null, headName: null, helperIds, helperNames: r.helperNames || '', notes: r.notes || '',
+  store.upsert('depts', { ...prev, id: id || uid(), name: r.name, ic: r.ic || 'flag', parentId: r.parentId || '', headIds, headNames: r.headNames || '', headId: null, headName: null, helperIds, helperRoles, helperNames: r.helperNames || '', notes: r.notes || '',
     order: prev.order ?? (siblings.reduce((m, x) => Math.max(m, Number(x.order) || 0), 0) + 1) });
   closeOrBack();
 }

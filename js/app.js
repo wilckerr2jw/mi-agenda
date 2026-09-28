@@ -10,7 +10,7 @@ import * as Lock from './lock.js';
 import * as N from './notify.js';
 import * as WC from './weekcal.js';
 import * as Nat from './native.js';
-import { $, $$, esc, today, toast, photoToDataUrl, addDays } from './util.js';
+import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays } from './util.js';
 
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
 const ui = {
@@ -308,6 +308,12 @@ document.addEventListener('input', e => {
   else if (e.target.id === 'set-q') S.settingsFilter(e.target.value);
   else if (e.target.dataset?.agreements) S.refreshAgreements();
   else if (e.target.classList?.contains('pp-q')) S.pickerFilter(e.target);
+  else if (e.target.matches?.('[data-psel-q]')) {   // 🔍 buscar hermano en la lista del departamento
+    const box = e.target.closest('.psel'), q = norm(e.target.value);
+    let shown = 0;
+    box.querySelectorAll('.psel-row').forEach(r => { const hideHead = box.dataset.psel === 'helperIds' && document.querySelector(`.psel[data-psel="headIds"] input[value="${r.dataset.id}"]:checked`); const ok = !hideHead && (!q || r.dataset.n.includes(q)); r.hidden = !ok; if (ok) shown++; });
+    box.querySelector('.psel-empty').hidden = !!shown;
+  }
   else if (e.target.classList?.contains('pp-other')) S.pickerChanged(e.target);
   else if (e.target.id === 'gsearch') {
     const box = $('#gresults');
@@ -347,6 +353,11 @@ document.addEventListener('change', e => {
   if (t.matches?.('select[data-admin-uid]')) return S.adminSetType(t.dataset.adminUid, t.value, t);
   if (t.matches?.('input[data-a="ev-pick"]')) { const cur = new Set(ui.agenda.picked || []); t.checked ? cur.add(t.value) : cur.delete(t.value); ui.agenda.picked = [...cur]; return render(); }
   if (t.id === 'kind' && t.form?.dataset.form === 'visit') { const box = document.getElementById('visit-lesson'); if (box) box.hidden = t.value !== 'estudio'; return; }
+  if (t.id === 'has-helpers') { const b = document.getElementById('helpers-box'); if (b) b.hidden = !t.checked; return; }
+  if (t.matches?.('.psel[data-psel="headIds"] input[type=checkbox]')) {   // quien es responsable no sale en ayudantes
+    document.querySelectorAll(`.psel[data-psel="helperIds"] .psel-row[data-id="${t.value}"]`).forEach(r => { r.hidden = t.checked; const c = r.querySelector('input[type=checkbox]'); if (t.checked && c) c.checked = false; });
+    return;
+  }
   if (t.matches?.('input[data-a="org-pick-item"]')) { const cur = new Set(ui.congre.picked || []); t.checked ? cur.add(t.value) : cur.delete(t.value); ui.congre.picked = [...cur]; return render(); }
   if (t.id === 'pastoreo-months') { store.patchProfile({ pastoreoMonths: Number(t.value) || 6 }); return render(); }
   if (t.id === 'repeat' && t.form?.dataset.form === 'event') { const box = document.getElementById('repeat-days'); if (box) box.hidden = t.value !== 'days'; return; }
@@ -426,7 +437,7 @@ function showLogin(message = '') {
     <div><h1>Mi Agenda</h1><p class="sub">Inicia sesión para ver tus notas, tareas y agenda en cualquier dispositivo.</p></div>
     <form id="login-form" novalidate>
       <div class="f"><label for="em">Correo</label><input id="em" type="email" autocomplete="email" inputmode="email" required></div>
-      <div class="f"><label for="pw">Contraseña</label><input id="pw" type="password" autocomplete="current-password" required></div>
+      <div class="f"><label for="pw">Contraseña</label><div class="pw-wrap"><input id="pw" type="password" autocomplete="current-password" required><button type="button" class="pw-eye" aria-label="Mostrar la contraseña" aria-pressed="false">${ic('eye')}</button></div></div>
       <p class="err" id="login-err" role="alert">${esc(message)}</p>
       <button class="btn primary" type="submit">Entrar</button>
       <button class="btn ghost" type="button" id="btn-signup">Crear cuenta</button>
@@ -434,6 +445,14 @@ function showLogin(message = '') {
       <a class="link" href="guia.html" target="_blank" rel="noopener">¿Cómo funciona la app? Ver la guía</a>
     </form></div>`;
 
+  box.querySelector('.pw-eye').addEventListener('click', e => {
+    const b = e.currentTarget, inp = $('#pw'), show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    b.setAttribute('aria-pressed', String(show));
+    b.setAttribute('aria-label', show ? 'Ocultar la contraseña' : 'Mostrar la contraseña');
+    b.innerHTML = ic(show ? 'eye-off' : 'eye');
+    inp.focus();
+  });
   const err = m => { $('#login-err').textContent = m; };
   const creds = () => ({ email: $('#em').value.trim(), pass: $('#pw').value });
   const run = async fn => {
