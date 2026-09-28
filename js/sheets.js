@@ -874,10 +874,11 @@ export function deptSheet(id, preset = {}) {
       ${fld('Nombre', `<input id="name" name="name" required maxlength="80" value="${esc(v.name)}" placeholder="Ej. Audio y video">`, 'name')}
       ${fld('Depende de', `<select id="parentId" name="parentId"><option value="">Nadie (arriba de todo)</option>${parents.map(x => `<option value="${x.id}" ${x.id === v.parentId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`, 'parentId')}
       ${v.info ? `<p class="hint">ℹ️ ${esc(v.info)}</p>` : ''}
-      <div class="f"><span class="lbl">★ Responsables <span class="hint">(uno o más)</span></span>
+      ${M.isGroupBox(v) ? '<p class="hint">Los grupos para el servicio del campo pertenecen a la congregación: no llevan responsable. Cada grupo de abajo tiene su superintendente y su auxiliar.</p>' : ''}
+      <div class="f" ${M.isGroupBox(v) ? 'hidden' : ''}><span class="lbl">★ Responsables <span class="hint">(uno o más)</span></span>
         ${people.length ? personPick('headIds', people, heads, null, 'checkbox', { lazy: true }) : ''}
         <input id="headNames" name="headNames" maxlength="200" value="${esc(v.headNames ?? v.headName ?? '')}" placeholder="Otros nombres que no están en Personas (separa con comas)" aria-label="Otros responsables"></div>
-      <label class="check"><input type="checkbox" id="has-helpers" name="hasHelpers" ${hasHelpers ? 'checked' : ''}> Este departamento tiene ayudantes</label>
+      <label class="check" ${M.isGroupBox(v) ? 'hidden' : ''}><input type="checkbox" id="has-helpers" name="hasHelpers" ${hasHelpers ? 'checked' : ''}> Este departamento tiene ayudantes</label>
       <div class="f" id="helpers-box" ${hasHelpers ? '' : 'hidden'}><span class="lbl">Ayudantes <span class="hint">(a cada uno le puedes poner su función, si la tiene)</span></span>
         ${people.length ? personPick('helperIds', people.filter(p => !heads.includes(p.id)), v.helperIds || [], v.helperRoles || {}, 'checkbox', { lazy: true }) : '<p class="hint">Agrega personas en la pestaña Personas para marcarlas aquí.</p>'}
         <input id="helperNames" name="helperNames" maxlength="300" value="${esc(v.helperNames || '')}" placeholder="Otros nombres (separa con comas)" aria-label="Otros ayudantes">
@@ -887,7 +888,7 @@ export function deptSheet(id, preset = {}) {
       <div class="f"><span class="lbl">Icono</span><div class="iconpick">${M.DEPT_ICONS.map(x => `<label><input type="radio" name="ic" value="${x}" ${x === (v.ic || 'flag') ? 'checked' : ''}><span>${ic(x)}</span></label>`).join('')}</div></div>
       ${fld('Notas <span class="hint">(opcional)</span>', `<textarea id="notes" name="notes" rows="2" maxlength="400">${esc(v.notes || '')}</textarea>`, 'notes')}
     </form>
-    ${d ? `<div class="stack pad-top"><button type="button" class="btn" data-a="dept-send" data-id="${d.id}">📤 Enviar a ${M.deptHeads(d).length > 1 ? 'los responsables' : 'el responsable'} por WhatsApp</button>
+    ${d ? `<div class="stack pad-top">${M.isGroupBox(d) ? '' : `<button type="button" class="btn" data-a="dept-send" data-id="${d.id}">📤 Enviar a ${M.deptHeads(d).length > 1 ? 'los responsables' : 'el responsable'} por WhatsApp</button>`}
       <button type="button" class="btn ghost" data-a="dept-new" data-id="${d.id}">＋ Agregar un departamento debajo</button></div>` : ''}
     ${d && (d.history || []).length ? `<h3 class="sub-h">🕓 Historial</h3><ul class="dept-hist">${[...d.history].reverse().slice(0, 10).map(h => `<li><span class="hint">${esc(fmtShort(h.d))}</span> ${h.op === '+' ? 'Entró' : 'Salió'} <b>${esc(M.personName(h.pid) || h.n || '—')}</b> como ${h.as === 'resp' ? 'responsable' : 'ayudante'}</li>`).join('')}</ul>` : ''}
     ${kids ? `<p class="hint pad-top">Tiene ${kids} ${kids === 1 ? 'departamento' : 'departamentos'} debajo. Si lo eliminas, esos suben un nivel.</p>` : ''}`,

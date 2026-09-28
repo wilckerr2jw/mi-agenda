@@ -1,7 +1,8 @@
 {
-  "version": "7.5",
+  "version": "7.6",
   "notes": [
-    "Reuniones: una línea con guion debajo de un acuerdo queda como detalle de ese acuerdo",
-    "Tareas que se repiten: cada semana, cada mes (el 2.º jueves, por ejemplo) o cada año"
+    "Organigrama: botón «Descargar imagen»",
+    "Los grupos para el servicio del campo pertenecen a la congregación (sin responsable)",
+    "Se quitó «Sugeridos» del organigrama ya armado"
   ]
 }

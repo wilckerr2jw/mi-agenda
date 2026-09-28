@@ -29,10 +29,11 @@ export function drawOrg(title = 'Organigrama de la congregación') {
     ctx.font = font(700, 24); const nameL = wrap(ctx, n.d.name, w - 40);
     const head = M.deptHead(n.d), helpers = M.deptHelpers(n.d);
     ctx.font = font(500, 20);
-    const headL = wrap(ctx, head ? `★ ${head}` : 'Sin responsable', w - 40);
+    const box = M.isGroupBox(n.d);
+    const headL = wrap(ctx, box ? 'Pertenecen a la congregación' : head ? `★ ${head}` : 'Sin responsable', w - 40);
     const helpL = helpers.length ? wrap(ctx, `Ayudan: ${helpers.join(', ')}`, w - 40) : [];
     const h = 22 + nameL.length * 30 + headL.length * 26 + helpL.length * 26 + 16;
-    const row = { n, depth, x, w, h, nameL, headL, helpL, head: !!head, parentRow };
+    const row = { n, depth, x, w, h, nameL, headL, helpL, head: !!head || box, parentRow };
     rows.push(row);
     n.children.forEach(ch => walk(ch, depth + 1, row));
   };
@@ -77,6 +78,19 @@ export function drawOrg(title = 'Organigrama de la congregación') {
   return c;
 }
 
+// Descarga la imagen (en el teléfono abre «Compartir», desde ahí se guarda en Galería o Archivos)
+export function downloadOrg() {
+  if (!M.deptTree().length) return toast('Primero agrega departamentos');
+  if (window.Capacitor?.isNativePlatform?.()) { toast('Elige «Guardar» o tu Galería para descargarla'); return shareOrg(); }
+  drawOrg().toBlob(blob => {
+    if (!blob) return toast('No se pudo crear la imagen');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `organigrama-${today()}.png`; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('Imagen descargada');
+  }, 'image/png');
+}
+
 // Comparte la imagen (WhatsApp, etc.) o la descarga si el teléfono no puede compartir archivos
 export function shareOrg() {
   if (!M.deptTree().length) return toast('Primero agrega departamentos');
@@ -110,7 +124,7 @@ export function printOrg() {
   const gIds = new Set(gNode ? gNode.children.map(c => c.d.id) : []);
   const people = d => ({ heads: M.deptHeads(d), helpers: M.deptHelpers(d) });
   const row = (x, cls = '') => { const p = people(x.d); return `<tr class="${cls}"><td style="padding-left:${6 + x.depth * 14}px">${escH(x.d.name)}</td><td>${escH(p.heads.join(', ')) || '<i>—</i>'}</td><td>${escH(p.helpers.join(', '))}</td></tr>`; };
-  const rows = flat.filter(x => !gIds.has(x.d.id)).map(x => row(x, x.depth === 0 ? 'top' : x.depth === 1 ? 'lvl1' : '')).join('');
+  const rows = flat.filter(x => !gIds.has(x.d.id) && !M.isGroupBox(x.d)).map(x => row(x, x.depth === 0 ? 'top' : x.depth === 1 ? 'lvl1' : '')).join('');
   const gTable = gNode && gNode.children.length ? `<h2>Grupos</h2><table><tr><th>#</th><th>Superintendente</th><th>Auxiliar</th><th>Publicadores</th></tr>${gNode.children.map((c, i) => { const h = M.deptHeads(c.d); return `<tr><td>${escH(c.d.name.replace(/^grupo\s*/i, '') || i + 1)}</td><td>${escH(h[0] || '')}</td><td>${escH(h.slice(1).join(', '))}</td><td>${escH(M.deptHelpers(c.d).join(', '))}</td></tr>`; }).join('')}</table>` : '';
   const rost = M.ROSTERS.map(r => ({ r, l: M.roster(r.k) })).filter(x => x.l.length);
   const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Organigrama</title><style>

@@ -207,6 +207,7 @@ document.addEventListener('click', e => {
     case 'org-pick-all': ui.congre.picked = (store.all('depts') || []).map(d => d.id); return render();
     case 'org-del': { const n = S.deptRemoveMany(ui.congre.picked); ui.congre = { ...ui.congre, picking: false, picked: [] }; return n ? render() : null; }
     case 'org-share': return import('./orgimg.js').then(O => O.shareOrg());
+    case 'org-download': return import('./orgimg.js').then(O => O.downloadOrg());
     case 'org-print': return import('./orgimg.js').then(O => O.printOrg());
     case 'visit-new': return S.visitSheet(id, v);
     case 'helped-edit': return S.helpedSheet(id);

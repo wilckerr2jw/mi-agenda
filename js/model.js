@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '7.5';
+export const APP_VERSION = '7.6';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -643,6 +643,8 @@ export function roster(k) {
     .sort((a, b) => a.name.localeCompare(b.name, 'es'));
 }
 const splitNames = t => String(t || '').split(/\s*[,;\n]\s*/).map(x => x.trim()).filter(Boolean);
+// «Grupos para el servicio del campo» no es un departamento: los grupos pertenecen a la congregación y no llevan responsable
+export const isGroupBox = d => !!d && (d.sk === 'grupos' || /^grupos para el servicio/i.test(d.name || ''));
 export const deptHeadIds = d => (Array.isArray(d.headIds) ? d.headIds : d.headId ? [d.headId] : []);
 export const deptHeads = d => [...deptHeadIds(d).map(personName).filter(Boolean), ...splitNames(d.headNames ?? d.headName)];
 export const deptHelpers = d => [...(d.helperIds || []).map(id => { const n = personName(id); const r = d.helperRoles?.[id]; return n ? (r ? `${n} (${r})` : n) : ''; }).filter(Boolean), ...splitNames(d.helperNames)];

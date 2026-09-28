@@ -515,7 +515,7 @@ function orgNode(n, depth, o) {
   return `<li class="org-li d${Math.min(depth, 3)}"><div class="org-row">${tog}${main}
       <span class="org-ic">${ic(d.ic || 'flag', 'sm')}</span>
       <span class="grow"><strong>${esc(d.name)}</strong>
-        <span class="meta">${head ? `★ ${esc(head)}` : '<i>Sin responsable</i>'}</span>
+        <span class="meta">${M.isGroupBox(d) ? `Pertenecen a la congregación${children.length ? ` · ${children.length} grupos` : ''}` : head ? `★ ${esc(head)}` : '<i>Sin responsable</i>'}</span>
         ${helpers.length ? `<span class="meta">${esc(helpers.slice(0, 3).join(', '))}${helpers.length > 3 ? ` y ${helpers.length - 3} más` : ''}</span>` : ''}
         ${folded ? `<span class="meta fold-n">+${countAll(n)} debajo</span>` : ''}</span>
     ${o.pick ? '</label>' : '</button>'}${sortBtns}</div>${children.length && !folded ? `<ul class="org-ul">${children.map(c => orgNode(c, depth + 1, o)).join('')}</ul>` : ''}</li>`;
@@ -524,11 +524,10 @@ export function congregacion(ui) {
   const st = ui?.congre || {};
   const pick = st.picking ? new Set(st.picked || []) : null;
   const o = { pick, sort: !!st.sorting && !pick, fold: new Set(st.fold || []) };
-  const skipped = (M.profile().deptSkipped || []).length;
   const tree = M.deptTree();
   const all = data.depts || [];
   const empty_ = !all.length;
-  const noHead = all.filter(d => !M.deptHead(d)).length;
+  const noHead = all.filter(d => !M.deptHead(d) && !M.isGroupBox(d)).length;
   const c = M.profile().congre || {};
   const cTitle = [c.name, c.number ? `(${c.number})` : ''].filter(Boolean).join(' ');
   const congreCard = `<button class="card congre-card" data-a="congre-edit">
@@ -561,14 +560,14 @@ export function congregacion(ui) {
   <section><div class="sec-h"><h2>🏛 Organigrama</h2>${empty_ ? '' : `<span class="hint">${all.length} departamentos${noHead ? ` · ${noHead} sin responsable` : ''}</span>`}</div>
   ${empty_ ? empty('Arma el organigrama de tu congregación: quién atiende cada departamento y quiénes le ayudan.', `<div class="stack"><button class="btn primary" data-a="dept-suggest">Cargar departamentos sugeridos</button><button class="btn" data-a="dept-new">Empezar desde cero</button></div>`, 'users')
     : pick ? `<div class="org-tools pick-bar"><span class="grow"><b>${pick.size}</b> elegidos</span><button class="btn small ghost" data-a="org-pick-all">Todos</button><button class="btn small ghost" data-a="org-pick">Cancelar</button><button class="btn small danger" data-a="org-del" ${pick.size ? '' : 'disabled'}>Eliminar</button></div>
-      <p class="hint pad">Marca los departamentos que no aplican en tu congregación. Los que dependían de ellos suben un nivel. «Sugeridos» no los vuelve a traer.</p>
+      <p class="hint pad">Marca los departamentos que no aplican en tu congregación. Los que dependían de ellos suben un nivel.</p>
       <ul class="org-ul org-root">${tree.map(n => orgNode(n, 0, o)).join('')}</ul>`
-    : `<div class="org-tools"><button class="btn small" data-a="org-share">${ic('chat', 'sm')} Compartir imagen</button><button class="btn small ghost" data-a="org-print">🖨 Imprimir / PDF</button><button class="btn small ghost" data-a="dept-new">＋ Departamento</button><button class="btn small ghost" data-a="dept-suggest">Sugeridos</button><button class="btn small ghost" data-a="org-paste">📋 Pegar acuerdos</button><button class="btn small ghost" data-a="org-pick">Quitar varios</button><button class="btn small ${o.sort ? 'primary' : 'ghost'}" data-a="org-sort">${o.sort ? '✓ Listo' : '↕ Ordenar'}</button></div>
+    : `<div class="org-tools"><button class="btn small" data-a="org-share">${ic('chat', 'sm')} Compartir imagen</button><button class="btn small ghost" data-a="org-download">⬇ Descargar imagen</button><button class="btn small ghost" data-a="org-print">🖨 Imprimir / PDF</button><button class="btn small ghost" data-a="dept-new">＋ Departamento</button><button class="btn small ghost" data-a="org-paste">📋 Pegar acuerdos</button><button class="btn small ghost" data-a="org-pick">Quitar varios</button><button class="btn small ${o.sort ? 'primary' : 'ghost'}" data-a="org-sort">${o.sort ? '✓ Listo' : '↕ Ordenar'}</button></div>
       <div class="org-fold-bar"><button class="link" data-a="org-fold-all" data-v="open">Mostrar todos</button> · <button class="link" data-a="org-fold-all" data-v="close">Ocultar todos</button></div>
       ${o.sort ? '<p class="hint pad">↑ ↓ lo sube o baja entre los de su mismo nivel · → lo mete dentro del de arriba (por ejemplo, el auxiliar debajo del encargado) · ← lo saca un nivel.</p>' : ''}
       <ul class="org-ul org-root">${tree.map(n => orgNode(n, 0, o)).join('')}</ul>
       <p class="hint pad">Toca un departamento para poner a sus responsables y ayudantes, cambiarle el nombre, moverlo debajo de otro o eliminarlo. Con «Quitar varios» borras de una vez los que no aplican. La imagen lleva nombres: compártela solo con quien corresponda.</p>
-      ${skipped ? `<p class="hint pad">Quitaste ${skipped} ${skipped === 1 ? 'departamento sugerido' : 'departamentos sugeridos'}. <button class="link" data-a="dept-unskip">Volver a traerlos</button></p>` : ''}`}
+`}
   </section>`;
 }
 
