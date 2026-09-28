@@ -126,10 +126,17 @@ function download(name, text) {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
+// Recordar qué secciones de Congregación dejaste abiertas o cerradas
+document.addEventListener('toggle', e => {
+  const d = e.target;
+  if (!d.matches?.('details.csec')) return;
+  try { const m = JSON.parse(localStorage.getItem('miagenda.congreSecs') || '{}'); m[d.dataset.sec] = d.open; localStorage.setItem('miagenda.congreSecs', JSON.stringify(m)); } catch { /* sin almacenamiento */ }
+}, true);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-a]');
   if (!el) { if (e.target.classList?.contains('scrim')) S.closeOrBack(); return; }
   const { a, id, v } = el.dataset;
+  if (el.closest('summary')) e.preventDefault();   // un botón en el título de una sección no la pliega
   switch (a) {
     // navegación
     case 'nav': return go(v);

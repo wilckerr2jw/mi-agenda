@@ -1064,3 +1064,13 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 .cm-box, .cm-box summary .grow { min-width: 0; }
 .cm-box .link { white-space: normal; text-align: left; }
 .cm-box li, .cm-box p { overflow-wrap: anywhere; }
+
+/* ───── Secciones que se pliegan (Congregación) ───── */
+.csec > summary { list-style: none; cursor: pointer; }
+.csec > summary::-webkit-details-marker { display: none; }
+.csec > summary h2 { flex: 1; }
+.csec-chev { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); color: var(--ink-2); transition: transform .2s; font-size: 14px; }
+.csec:not([open]) .csec-chev { transform: rotate(-90deg); }
+.csec:not([open]) > summary { margin-bottom: 4px; }
+@media (prefers-reduced-motion: reduce) { .csec-chev { transition: none; } }
+.chips.wrap { flex-wrap: wrap; overflow: visible; }

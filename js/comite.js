@@ -1,4 +1,4 @@
-// Panel para la reunión del Comité de Servicio: lo pendiente de un vistazo
+// Panel para la reunión del Cuerpo de ancianos: lo pendiente de un vistazo
 // (acuerdos de la última reunión, tareas que supervisas, capacitaciones por revisar, pastoreo de tu grupo y asignaciones mecánicas).
 import { data } from './store.js';
 import * as M from './model.js';
@@ -38,19 +38,19 @@ export function comiteSection() {
     ? `<ul class="load-list">${c.reviews.map(d => `<li>${d.reviewAt < t ? '🔴' : '🎓'} <button class="link" data-a="dept" data-id="${d.id}">${esc(d.name)}</button> <span class="hint">· ${esc(fmtShort(d.reviewAt))}${d.reviewNote ? ` · ${esc(d.reviewNote)}` : ''}</span></li>`).join('')}</ul>`
     : '<p class="hint">Ninguna fecha de revisión cerca.</p>', c.reviews.length);
   const pas = block('Pastoreo de tu grupo pendiente', c.pastoreo.length
-    ? `<div class="chips">${c.pastoreo.slice(0, 20).map(p => `<button class="chip warn-chip" data-a="person" data-id="${p.id}">${esc(p.name)}</button>`).join('')}${c.pastoreo.length > 20 ? `<span class="hint">y ${c.pastoreo.length - 20} más</span>` : ''}</div>`
+    ? `<div class="chips wrap">${c.pastoreo.slice(0, 20).map(p => `<button class="chip warn-chip" data-a="person" data-id="${p.id}">${esc(p.name)}</button>`).join('')}${c.pastoreo.length > 20 ? `<span class="hint">y ${c.pastoreo.length - 20} más</span>` : ''}</div>`
     : '<p class="hint">✓ Al día.</p>', c.pastoreo.length);
   const mec = c.mec ? block('Varones bautizados sin asignación mecánica (3 meses)', c.mec.notUsed.length
-    ? `<div class="chips">${c.mec.notUsed.map(p => `<button class="chip warn-chip" data-a="person" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>`
+    ? `<div class="chips wrap">${c.mec.notUsed.map(p => `<button class="chip warn-chip" data-a="person" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>`
     : '<p class="hint">✓ Todos tienen alguna.</p>', c.mec.notUsed.length) : '';
-  return `<section><div class="sec-h"><h2>📋 Para el Comité de Servicio</h2>${nothing ? '' : '<button class="btn small ghost" data-a="comite-share">📤 Compartir resumen</button>'}</div>
-    ${nothing ? '<p class="hint pad">Cuando tengas reuniones con acuerdos y tareas que supervisas, aquí verás lo pendiente para la reunión del comité.</p>' : `<div class="stack">${agr}${sup}${rev}${pas}${mec}</div>`}</section>`;
+  return `<section><div class="sec-h"><h2>📋 Para el Cuerpo de ancianos</h2>${nothing ? '' : '<button class="btn small ghost" data-a="comite-share">📤 Compartir resumen</button>'}</div>
+    ${nothing ? '<p class="hint pad">Cuando tengas reuniones con acuerdos y tareas que supervisas, aquí verás lo pendiente para la reunión del cuerpo de ancianos.</p>' : `<div class="stack">${agr}${sup}${rev}${pas}${mec}</div>`}</section>`;
 }
 
-// Resumen en texto para compartir con los del comité (lleva nombres: solo con ellos)
+// Resumen en texto para compartir con los ancianos (lleva nombres: solo con ellos)
 export async function shareSummary() {
   const c = comiteData();
-  const lines = ['📋 *Pendientes para el Comité de Servicio*', `_${fmtShort(today())}_`, ''];
+  const lines = ['📋 *Pendientes para el Cuerpo de ancianos*', `_${fmtShort(today())}_`, ''];
   if (c.last) {
     lines.push(`*Acuerdos de ${c.last.title || 'la última reunión'} (${fmtShort(c.last.date)})*: ${c.done.length} de ${c.agreements.length} hechos`);
     c.pending.forEach(p => lines.push(`${p.late ? '🔴' : '•'} ${p.tk ? p.tk.title : p.a.title}${p.who.length ? ` — ${p.who.join(', ')}` : ''}${p.tk?.due ? ` (${p.late ? 'venció' : 'para'} el ${fmtShort(p.tk.due)})` : ''}`));

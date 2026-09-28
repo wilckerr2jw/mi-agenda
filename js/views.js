@@ -1,7 +1,7 @@
 // Vistas principales. Cada función recibe el estado de la interfaz (ui) y devuelve HTML.
 
 import { data, isCloud } from './store.js';
-import { mecaSection } from './mecas.js';
+import { mecaSection, isBaptizedMale } from './mecas.js';
 import { comiteSection } from './comite.js';
 import * as store from './store.js';
 import * as WC from './weekcal.js';
@@ -554,6 +554,14 @@ function orgChart(tree) {
     ${r.children.length ? `<div class="orgc-cols">${r.children.map(c => `<div class="orgc-col"><button class="orgc-head" data-a="dept" data-id="${c.d.id}"><b>${esc(c.d.name)}</b>${who(c.d)}</button>${sub(c, 2)}</div>`).join('')}</div>` : ''}
   </div>`).join('');
 }
+// Secciones de Congregación que se despliegan y ocultan (se recuerda cómo las dejaste)
+const secState = () => { try { return JSON.parse(localStorage.getItem('miagenda.congreSecs') || '{}'); } catch { return {}; } };
+function foldable(key, html) {
+  const m = String(html || '').match(/^\s*<section><div class="sec-h">([\s\S]*?)<\/div>([\s\S]*)<\/section>\s*$/);
+  if (!m) return html;
+  const open = secState()[key] !== false;
+  return `<section class="csec-wrap"><details class="csec" data-sec="${key}" ${open ? 'open' : ''}><summary class="sec-h">${m[1]}<span class="csec-chev" aria-hidden="true">▾</span></summary><div class="csec-b">${m[2]}</div></details></section>`;
+}
 export function congregacion(ui) {
   const st = ui?.congre || {};
   const pick = st.picking ? new Set(st.picked || []) : null;
@@ -576,24 +584,24 @@ export function congregacion(ui) {
     <p class="hint pad">Salen de tus Personas: pon «Anciano», «Siervo ministerial» o «Precursor regular» en su relación o en sus privilegios.</p></section>`;
   // Asignaciones por hermano (con filtro por grupo de Personas)
   const groups = [...data.groups].sort((a, b) => a.name.localeCompare(b.name, 'es'));
-  const gsel = st.lg && groups.some(g => g.id === st.lg) ? st.lg : '';
-  const pool = gsel ? data.people.filter(p => (p.groupIds || []).includes(gsel)) : data.people;
+  const gsel = st.lg === '__varones' || (st.lg && groups.some(g => g.id === st.lg)) ? st.lg : '';
+  const pool = gsel === '__varones' ? data.people.filter(isBaptizedMale) : gsel ? data.people.filter(p => (p.groupIds || []).includes(gsel)) : data.people;
   const loads = pool.map(p => ({ p, ...M.deptLoad(p.id) })).filter(x => gsel || x.total).sort((a, b) => b.total - a.total || a.p.name.localeCompare(b.p.name, 'es'));
   const withDept = loads.filter(x => x.total), without = loads.filter(x => !x.total);
   const loadHtml = all.length ? `<section><div class="sec-h"><h2>🧮 Asignaciones por hermano</h2></div>
-    ${groups.length ? `<div class="chips"><button class="chip" data-a="load-g" data-v="" aria-pressed="${!gsel}">Todos</button>${groups.map(g => `<button class="chip" data-a="load-g" data-v="${g.id}" aria-pressed="${gsel === g.id}">${esc(g.name)}</button>`).join('')}</div>` : ''}
+    ${groups.length || data.people.some(isBaptizedMale) ? `<div class="chips"><button class="chip" data-a="load-g" data-v="" aria-pressed="${!gsel}">Todos</button><button class="chip" data-a="load-g" data-v="__varones" aria-pressed="${gsel === '__varones'}">Varones bautizados</button>${groups.map(g => `<button class="chip" data-a="load-g" data-v="${g.id}" aria-pressed="${gsel === g.id}">${esc(g.name)}</button>`).join('')}</div>` : ''}
     ${withDept.length ? `<div class="stack">${withDept.map(x => `<details class="load-row"><summary><span class="load-n ${x.total >= 4 ? 'hi' : ''}">${x.total}</span><span class="grow"><b>${esc(x.p.name)}</b><small>${x.heads.length ? `★ responsable en ${x.heads.length}` : ''}${x.heads.length && x.helps.length ? ' · ' : ''}${x.helps.length ? `ayudante en ${x.helps.length}` : ''}</small></span></summary>
       <ul class="load-list">${x.heads.map(d => `<li>★ <button class="link" data-a="dept" data-id="${d.id}">${esc(d.name)}</button>${d.since?.[x.p.id] ? ` <span class="hint">desde ${esc(fmtShort(d.since[x.p.id]))}</span>` : ''}</li>`).join('')}${x.helps.map(d => `<li><button class="link" data-a="dept" data-id="${d.id}">${esc(d.name)}</button>${d.helperRoles?.[x.p.id] ? ` <span class="hint">(${esc(d.helperRoles[x.p.id])})</span>` : ''}${d.since?.[x.p.id] ? ` <span class="hint">desde ${esc(fmtShort(d.since[x.p.id]))}</span>` : ''}</li>`).join('')}</ul></details>`).join('')}</div>` : '<p class="hint pad">Nadie tiene departamentos todavía.</p>'}
-    ${gsel ? (without.length ? `<h3 class="sub-h">⚠️ Sin departamento (${without.length})</h3><div class="chips">${without.map(x => `<button class="chip warn-chip" data-a="person" data-id="${x.p.id}">${esc(x.p.name)}</button>`).join('')}</div>` : '<p class="hint pad">✓ Todos los de este grupo tienen al menos un departamento.</p>')
+    ${gsel ? (without.length ? `<h3 class="sub-h">⚠️ Sin departamento (${without.length})</h3><div class="chips wrap">${without.map(x => `<button class="chip warn-chip" data-a="person" data-id="${x.p.id}">${esc(x.p.name)}</button>`).join('')}</div>` : '<p class="hint pad">✓ Todos los de este grupo tienen al menos un departamento.</p>')
       : `<p class="hint pad">${groups.length ? 'Elige un grupo (por ejemplo, tus ancianos y siervos) para ver quién no tiene ningún departamento.' : 'Crea un grupo en Personas (por ejemplo, «Varones» o «Ancianos y siervos») para ver quién no tiene departamento.'}</p>`}
   </section>` : '';
   return `${head('Congregación', actions())}
   ${congreCard}
-  ${comiteSection()}
-  ${rosterHtml}
-  ${loadHtml}
-  ${mecaSection(st)}
-  <section><div class="sec-h"><h2>🏛 Organigrama</h2>${empty_ ? '' : `<span class="hint">${all.length} departamentos${noHead ? ` · ${noHead} sin responsable` : ''}</span>`}</div>
+  ${foldable('comite', comiteSection())}
+  ${foldable('nombramientos', rosterHtml)}
+  ${foldable('cargas', loadHtml)}
+  ${foldable('mecas', mecaSection(st))}
+  ${foldable('organigrama', `<section><div class="sec-h"><h2>🏛 Organigrama</h2>${empty_ ? '' : `<span class="hint">${all.length} departamentos${noHead ? ` · ${noHead} sin responsable` : ''}</span>`}</div>
   ${empty_ ? empty('Arma el organigrama de tu congregación: quién atiende cada departamento y quiénes le ayudan.', `<div class="stack"><button class="btn primary" data-a="dept-suggest">Cargar departamentos sugeridos</button><button class="btn" data-a="dept-new">Empezar desde cero</button></div>`, 'users')
     : pick ? `<div class="org-tools pick-bar"><span class="grow"><b>${pick.size}</b> elegidos</span><button class="btn small ghost" data-a="org-pick-all">Todos</button><button class="btn small ghost" data-a="org-pick">Cancelar</button><button class="btn small danger" data-a="org-del" ${pick.size ? '' : 'disabled'}>Eliminar</button></div>
       <p class="hint pad">Marca los departamentos que no aplican en tu congregación. Los que dependían de ellos suben un nivel.</p>
@@ -605,7 +613,7 @@ export function congregacion(ui) {
       ${st.view === 'arbol' && !o.sort ? `<div class="orgc">${orgChart(tree)}</div><p class="hint pad">Desliza de lado para ver todas las áreas.</p>` : `<ul class="org-ul org-root">${tree.map(n => orgNode(n, 0, o)).join('')}</ul>`}
       <p class="hint pad">Toca un departamento para poner a sus responsables y ayudantes, cambiarle el nombre, moverlo debajo de otro o eliminarlo. Con «Quitar varios» borras de una vez los que no aplican. La imagen lleva nombres: compártela solo con quien corresponda.</p>
 `}
-  </section>`;
+  </section>`)}`;
 }
 
 // ───────────── NOTAS Y REUNIONES ─────────────
