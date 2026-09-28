@@ -55,6 +55,14 @@ service cloud.firestore {
       allow delete: if signedIn() && request.auth.uid == resource.data.owner;
     }
 
+    // Buzón: el administrador deja un respaldo para otra cuenta; solo esa cuenta lo lee, lo importa y lo borra.
+    // El administrador no puede leer lo que dejó ni los datos de la otra cuenta.
+    match /inbox/{uid}/items/{id} {
+      allow create: if isAdmin() && request.resource.data.from == request.auth.uid
+        && request.resource.data.payload is string && request.resource.data.payload.size() < 900000;
+      allow read, delete: if isSelf(uid);
+    }
+
     // Directorio: cada usuario se anota con su correo (y nombre) para que el administrador lo encuentre
     match /directory/{uid} {
       allow read: if isSelf(uid) || isAdmin();

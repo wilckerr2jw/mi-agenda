@@ -2701,6 +2701,7 @@ export async function adminSheet() {
   if (!b) return;   // la hoja se cerró mientras cargaba
   const pending = users.filter(u => !u.type && u.uid !== account.user?.uid).length;
   b.innerHTML = `<p class="hint">Cuando alguien crea su cuenta queda <b>pendiente</b> hasta que le asignes un tipo de perfil. Tú no ves sus datos: solo su correo y el nombre que te envíe.</p>
+    <p class="hint">📤 <b>Enviarle un respaldo:</b> si alguien no puede abrir un archivo de respaldo en su teléfono, envíaselo desde aquí. Al abrir su app le aparece «Importar» y lo pasa con un toque. Tú no puedes ver sus datos.</p>
     ${pending ? `<p class="pad"><b>${pending}</b> ${pending === 1 ? 'cuenta pendiente' : 'cuentas pendientes'}.</p>` : ''}
     ${users.length ? `<div class="stack">${users.map(u => {
       const me = u.uid === account.user?.uid;
@@ -2709,8 +2710,46 @@ export async function adminSheet() {
         ${u.name ? `<span class="meta">${esc(u.email)}</span>` : ''}
         ${u.lastSeen ? `<span class="meta">Última vez: ${fmtShort(dateOf(u.lastSeen))}</span>` : ''}
         <select data-admin-uid="${esc(u.uid)}" aria-label="Tipo de perfil de ${esc(u.email)}">${typeOptions(u.type)}</select>
+        ${!me && u.type ? `<label class="btn small ghost file">📤 Enviarle un respaldo<input type="file" data-admin-send="${esc(u.uid)}" data-name="${esc(u.name || u.email || '')}" hidden></label>` : ''}
       </div>`;
     }).join('')}</div>` : '<p class="hint pad">Todavía no hay cuentas.</p>'}`;
+}
+
+// Enviar un respaldo al buzón de otra cuenta (ella lo importa desde su app)
+export async function adminSend(input) {
+  const f = input.files?.[0];
+  if (!f) return;
+  const txt = await f.text();
+  let parsed; try { parsed = JSON.parse(txt); } catch { return toast('Ese archivo no es un respaldo de la app'); }
+  const src = parsed.data || parsed;
+  const n = store.COLS.reduce((t, c) => t + (Array.isArray(src[c]) ? src[c].length : 0), 0);
+  if (!n) return toast('El respaldo no tiene elementos');
+  if (txt.length > 880000) return toast('El archivo es muy grande para enviarlo así');
+  sendPending = { uid: input.dataset.adminSend, name: input.dataset.name, txt };
+  input.value = '';
+  open({ title: 'Enviar respaldo', back: adminSheet, body: `<p>Se enviará a <b>${esc(sendPending.name)}</b> un respaldo con <b>${n}</b> elementos.</p><p class="hint">Cuando abra su app le aparecerá para revisarlo e importarlo con un toque. Tú no puedes ver sus datos.</p>`,
+    actions: '<button type="button" class="btn ghost" data-a="sheet-close">Cancelar</button><button type="button" class="btn primary" data-a="admin-send-go">Enviar</button>' });
+}
+let sendPending = null;
+export async function adminSendGo() {
+  if (!sendPending) return;
+  const { uid, name, txt } = sendPending;
+  try { await store.admin.sendData(uid, txt, M.profile().myName || ''); close(); toast(`Enviado. Cuando ${name.split(' ')[0]} abra la app, le saldrá «Importar»`); }
+  catch (e) { console.error(e); toast('No se pudo enviar. Revisa tu conexión'); }
+  sendPending = null;
+}
+
+// Al abrir la app: si el administrador te dejó datos, se ofrecen para importar
+let inboxItem = null;
+export async function inboxCheck() {
+  const items = await store.inbox.list();
+  if (!items.length) return;
+  inboxItem = items[0];
+  importPreview(inboxItem.payload, { title: `📥 Datos para ti${inboxItem.fromName ? ` de ${inboxItem.fromName}` : ''}`, intro: 'El administrador te envió estos datos para que los tengas en tu app. Revisa y toca Importar.', btn: 'Importar' });
+}
+export async function inboxDiscard() {
+  if (inboxItem) { try { await store.inbox.remove(inboxItem.id); } catch { /* se intenta la próxima vez */ } }
+  inboxItem = null; importPending = null; close(); toast('Listo: no se importó nada');
 }
 
 export function adminSetType(uid, type, select) {
@@ -2724,7 +2763,7 @@ export function adminSetType(uid, type, select) {
 // ───────────── Restaurar respaldo (con confirmación) ─────────────
 
 let importPending = null;
-export function importPreview(txt) {
+export function importPreview(txt, opts = {}) {
   let parsed;
   try { parsed = JSON.parse(txt); } catch { importPending = null; return toast('El archivo no es un respaldo válido'); }
   const src = parsed.data || parsed;
@@ -2738,16 +2777,17 @@ export function importPreview(txt) {
   if (!total) { importPending = null; return toast('El respaldo no tiene elementos'); }
   const replace = counts.reduce((n, [c, l]) => n + l.filter(x => store.get(c, x.id)).length, 0);
   importPending = txt;
-  const names = { notes: 'notas', events: 'eventos', tasks: 'tareas', people: 'personas', groups: 'grupos', meetings: 'reuniones', entries: 'registros de tiempo', profile: 'perfil', weeks: 'semanas con objetivos', depts: 'departamentos' };
+  const names = { notes: 'notas', events: 'eventos', tasks: 'tareas', people: 'personas', groups: 'grupos', meetings: 'reuniones', entries: 'registros de tiempo', profile: 'perfil', weeks: 'semanas con objetivos', depts: 'departamentos', mecas: 'arreglos de asignaciones', visitas: 'visitas del superintendente' };
   open({
-    title: 'Restaurar respaldo', back: settings,
-    body: `<p>El archivo trae <b>${total}</b> elementos:</p>
+    title: opts.title || 'Restaurar respaldo', back: opts.title ? null : settings,
+    body: `${opts.intro ? `<p class="hint">${esc(opts.intro)}</p>` : ''}<p>${opts.title ? 'Trae' : 'El archivo trae'} <b>${total}</b> elementos:</p>
       <ul class="steps">${counts.filter(([, l]) => l.length).map(([c, l]) => `<li>${l.length} ${names[c]}</li>`).join('')}</ul>
       ${assign.length ? `<p class="hint pad">🏛 Y pone responsables o ayudantes en ${assign.length} departamentos del organigrama (${esc(assign.slice(0, 4).map(x => x.dept).join(', '))}${assign.length > 4 ? '…' : ''}). Se suman a los que ya tengan; si falta un departamento o una persona, se crea.</p>` : ''}
       ${nRemove ? `<p class="err pad">Y se quitarán ${nRemove}: ${removes.filter(([, l]) => l.length).map(([c, l]) => `${l.length} ${names[c]}`).join(', ')}.</p>` : ''}
       ${dupPeople ? `<p class="hint pad">${dupPeople} ${dupPeople === 1 ? 'persona ya estaba' : 'personas ya estaban'} en tu lista con el mismo nombre: no se duplican.</p>` : ''}
       ${replace ? `<p class="err pad">${replace} ya existen y se reemplazarán por la versión del respaldo.</p>` : '<p class="hint pad">Nada de lo que tienes ahora se reemplaza.</p>'}`,
-    actions: `<button type="button" class="btn ghost" data-a="sheet-close">Cancelar</button><button type="button" class="btn primary" data-a="import-confirm">Restaurar</button>`,
+    actions: opts.title ? `<button type="button" class="btn ghost" data-a="inbox-discard">No importar</button><button type="button" class="btn primary" data-a="import-confirm">${esc(opts.btn || 'Importar')}</button>`
+      : `<button type="button" class="btn ghost" data-a="sheet-close">Cancelar</button><button type="button" class="btn primary" data-a="import-confirm">Restaurar</button>`,
   });
 }
 export function importConfirm() {
@@ -2755,7 +2795,8 @@ export function importConfirm() {
   try {
     const n = store.importAll(importPending);
     const a = applyAssign(JSON.parse(importPending).assign);
-    close(); toast(`${n} elementos restaurados${a ? ` · ${a} departamentos actualizados` : ''}`);
+    close(); toast(`${n} elementos ${inboxItem ? 'importados' : 'restaurados'}${a ? ` · ${a} departamentos actualizados` : ''}`);
+    if (inboxItem) { store.inbox.remove(inboxItem.id).catch(() => {}); inboxItem = null; }
   }
   catch { toast('El archivo no es un respaldo válido'); }
   importPending = null;

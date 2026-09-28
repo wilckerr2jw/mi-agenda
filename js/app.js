@@ -221,6 +221,8 @@ document.addEventListener('click', e => {
     case 'dept-send-share': return S.deptSendShare(id, v);
     case 'load-g': ui.congre.lg = v; return render();
     case 'comite-share': return Cm.shareSummary();
+    case 'inbox-discard': return S.inboxDiscard();
+    case 'admin-send-go': return S.adminSendGo();
     case 'visita-new': return Vi.newVisit();
     case 'visita-create': return Vi.createVisit();
     case 'visita-open': return Vi.openVisit(id);
@@ -424,6 +426,7 @@ document.addEventListener('change', e => {
     if (t.id === 'repeat') return;
   }
   if (t.id === 'meca-file') return Mc.fileChosen(t);
+  if (t.dataset?.adminSend) return S.adminSend(t);
   if (t.dataset?.visitStart) return Vi.startChanged(t);
   if (t.id === 'auto-heads') {   // comité / cuerpo de ancianos: se llena solo o a mano
     const hb = document.getElementById('heads-box'), hl = document.getElementById('auto-heads-list');
@@ -708,7 +711,7 @@ async function boot() {
   });
   store.onData(() => { if (!$('#app').hidden) render(); });
   let offered = false;   // una vez al abrir: si quedó un formulario sin guardar, se ofrece recuperarlo
-  store.onData(() => { if (!offered && !$('#app').hidden) { offered = true; setTimeout(() => Bor.offer(S), 1200); } });
+  store.onData(() => { if (!offered && !$('#app').hidden) { offered = true; setTimeout(() => Bor.offer(S), 1200); setTimeout(() => S.inboxCheck(), 2500); } });
   // «✓ Ya lo hice» desde un aviso: marca la rutina en cuanto se cargan los datos
   store.onData(applyPendingDone);
   store.onData(() => Nat.schedule());

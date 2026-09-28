@@ -1,8 +1,6 @@
 {
-  "version": "8.4",
+  "version": "8.5",
   "notes": [
-    "Visita del superintendente de circuito: la lista de lo que hay que entregar, con responsables y fechas",
-    "Las reuniones de la congregación se ponen solas en tu agenda",
-    "Guardar respaldo en Google Drive, con recordatorio semanal"
+    "El administrador puede enviar un respaldo a otra cuenta: se importa con un toque, sin abrir archivos"
   ]
 }

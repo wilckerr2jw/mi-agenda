@@ -420,10 +420,24 @@ export const admin = {
     return dir.docs.map(d => ({ uid: d.id, email: '', name: '', lastSeen: '', ...d.data(), type: types[d.id] || '' }))
       .sort((a, b) => (a.type ? 1 : 0) - (b.type ? 1 : 0) || (b.lastSeen || '').localeCompare(a.lastSeen || ''));
   },
+  // Buzón: deja un respaldo (JSON) para que la otra cuenta lo importe con un toque desde su app
+  sendData(uid, payload, note = '') {
+    const { fs, db } = fb;
+    return fs.setDoc(fs.doc(fs.collection(db, 'inbox', uid, 'items')), { from: account.user.uid, fromName: String(note || '').slice(0, 80), payload, at: new Date().toISOString() });
+  },
   // type vacío = quitar el acceso (la cuenta vuelve a quedar pendiente)
   setType(uid, type) {
     const { fs, db } = fb;
     const ref = fs.doc(db, 'access', uid);
     return type ? fs.setDoc(ref, { type, updatedAt: new Date().toISOString(), by: account.user.uid }) : fs.deleteDoc(ref);
   },
+};
+
+// Datos que el administrador te dejó para importar (buzón)
+export const inbox = {
+  async list() {
+    if (!isCloud || !account.user) return [];
+    try { const snap = await fb.fs.getDocs(fb.fs.collection(fb.db, 'inbox', account.user.uid, 'items')); return snap.docs.map(d => ({ id: d.id, ...d.data() })); } catch { return []; }
+  },
+  remove(id) { return fb.fs.deleteDoc(fb.fs.doc(fb.db, 'inbox', account.user.uid, 'items', id)); },
 };
