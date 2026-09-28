@@ -1094,6 +1094,8 @@ export function congreSheet() {
       ${meetPick('midweek', 'Reunión de entre semana', c, [1, 2, 3, 4, 5])}
       ${meetPick('weekend', 'Reunión del fin de semana', c, [6, 0])}
       ${fld('Dirección del Salón', `<input id="addr" name="address" maxlength="120" value="${esc(c.address || '')}">`, 'addr')}
+      <label class="check"><input type="checkbox" name="autoMeetings" ${c.autoMeetings === false ? '' : 'checked'}> 📅 Poner estas reuniones en mi agenda cada semana</label>
+      <p class="hint">Si cambias el día o la hora, tu agenda se actualiza sola (se usan tus eventos de reunión si ya los tienes).</p>
     </form>`,
     actions: '<button type="submit" form="f" class="btn primary">Guardar</button>',
   });
@@ -1116,13 +1118,31 @@ function meetPick(k, label, c, days) {
     <input type="time" name="${k}Time" value="${esc(t)}" aria-label="Hora de la ${label.toLowerCase()}"></div></div>`;
 }
 const meetText = (d, t) => (d !== '' && d != null ? WDAYS[Number(d)] : '') + (t ? ` ${fmtTime(t)}` : '');
+// Las reuniones de la congregación como eventos semanales de la agenda (sin duplicar los que ya tenías)
+function syncMeetings(c) {
+  const DEF = { midweek: { t: 'Reunión de entre semana', re: /entre\s*semana|vida y ministerio/i }, weekend: { t: 'Reunión del fin de semana', re: /fin de semana|p[uú]blica|atalaya/i } };
+  let n = 0;
+  Object.entries(DEF).forEach(([k, d]) => {
+    const day = c[`${k}Day`], time = c[`${k}Time`];
+    if (day === '' || day == null || !time) return;
+    const ev = data.events.find(e => e.congreAuto === k)
+      || data.events.find(e => !e.sharedId && e.repeat === 'weekly' && d.re.test(e.title || '') && (e.category === 'reunion' || !e.category));
+    let date = ev?.date || today();   // se corre al día de la semana elegido (sin perder el historial del evento)
+    while (new Date(`${date}T12:00:00`).getDay() !== Number(day)) date = addDays(date, 1);
+    const next = { ...(ev || { id: uid(), title: d.t, category: 'reunion', notes: '', companionId: '' }), date, time, repeat: 'weekly', congreAuto: k, place: ev?.place || c.address || '' };
+    if (!ev || ev.date !== next.date || ev.time !== next.time || ev.congreAuto !== k || ev.repeat !== 'weekly' || (!ev.place && next.place)) { store.upsert('events', next); n++; }
+  });
+  if (n) setTimeout(() => toast('Tu agenda ya tiene las reuniones con el día y la hora nuevos'), 900);
+}
 function saveCongre(r) {
   const cur = M.profile();
   const congre = { ...(cur.congre || {}), name: r.name || '', number: r.number || '', circuit: r.circuit || '', address: r.address || '',
     midweekDay: r.midweekDay ?? '', midweekTime: r.midweekTime || '', weekendDay: r.weekendDay ?? '', weekendTime: r.weekendTime || '' };
   congre.midweek = meetText(congre.midweekDay, congre.midweekTime).trim();
   congre.weekend = meetText(congre.weekendDay, congre.weekendTime).trim();
+  congre.autoMeetings = !!r.autoMeetings;
   store.upsert('profile', { ...cur, id: 'me', congre }, { explicit: true });
+  if (congre.autoMeetings) syncMeetings(congre);
   toast('Datos guardados');
   close();
 }
@@ -2430,9 +2450,10 @@ function settingsSection(id) {
       <div class="stack pad">${M.MODULES.filter(m => M.moduleAllowed(m.id)).map(m => `<label class="check"><input type="checkbox" data-a="toggle-module" data-v="${m.id}" ${M.isModuleVisible(m.id) ? 'checked' : ''}> ${esc(m.n)}</label>`).join('')}</div>
       ${typesSettingsHtml()}
       ${(M.profile().sharedHidden || []).length ? `<h3 class="sub-h">Eventos compartidos</h3><p class="hint">Quitaste ${M.profile().sharedHidden.length} de tu agenda.</p><div class="stack pad"><button class="btn" data-a="shared-unhide">Volver a mostrarlos</button></div>` : ''}`,
-    datos: () => `<p class="hint">Haz un respaldo de vez en cuando: guarda una copia de todo en un archivo.</p>
+    datos: () => `<p class="hint">Haz un respaldo de vez en cuando: guarda una copia de todo en un archivo. En el teléfono, «Guardar en Google Drive» abre Compartir: elige <b>Drive</b> y toca Guardar.${(() => { try { const d = localStorage.getItem('miagenda.ultimoRespaldo'); return d ? ` Tu último respaldo desde este teléfono: <b>${esc(fmtShort(d))}</b>.` : ''; } catch { return ''; } })()}</p>
       <div class="stack">
-        <button class="btn primary" data-a="export">Descargar respaldo</button>
+        <button class="btn primary" data-a="backup-drive">☁️ Guardar respaldo en Google Drive</button>
+        <button class="btn" data-a="export">Descargar respaldo</button>
         <label class="btn file">Restaurar respaldo<input type="file" id="import-file" hidden></label>
         <button class="btn" data-a="keep">Importar notas de Google Keep</button>
       </div>

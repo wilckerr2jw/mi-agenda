@@ -1,8 +1,8 @@
 {
-  "version": "8.3",
+  "version": "8.4",
   "notes": [
-    "Datos de la congregación: elige el día y la hora de cada reunión",
-    "Si la app se recarga antes de guardar un formulario, puedes recuperarlo",
-    "Los datos de la congregación ya no se borran al actualizar"
+    "Visita del superintendente de circuito: la lista de lo que hay que entregar, con responsables y fechas",
+    "Las reuniones de la congregación se ponen solas en tu agenda",
+    "Guardar respaldo en Google Drive, con recordatorio semanal"
   ]
 }

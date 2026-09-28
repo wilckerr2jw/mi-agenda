@@ -13,6 +13,7 @@ import * as Nat from './native.js';
 import * as Mc from './mecas.js';
 import * as Cm from './comite.js';
 import * as Bor from './borrador.js';
+import * as Vi from './visita.js';
 import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays, uid, fmtShort } from './util.js';
 
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
@@ -119,6 +120,17 @@ function saveFold(list) {
   render();
 }
 
+const markBackup = () => { try { localStorage.setItem('miagenda.ultimoRespaldo', today()); } catch { /* sin almacenamiento */ } };
+// Respaldo a Google Drive: en el teléfono se abre «Compartir» (elige Drive → Guardar); en la computadora se descarga
+async function backupToDrive() {
+  const file = new File([store.exportAll()], `mi-agenda-respaldo-${today()}.json`, { type: 'application/json' });
+  try {
+    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: 'Respaldo de Mi Agenda' }); markBackup(); toast('Listo. Si elegiste Drive, tu respaldo quedó en tu cuenta de Google'); render(); return; }
+  } catch (e) { if (e?.name === 'AbortError') return; }
+  download(file.name, await file.text()); markBackup();
+  toast('Respaldo descargado: súbelo a tu Google Drive (drive.google.com → Nuevo → Subir archivo)', '', null, 9000);
+  render();
+}
 function download(name, text) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
@@ -209,6 +221,13 @@ document.addEventListener('click', e => {
     case 'dept-send-share': return S.deptSendShare(id, v);
     case 'load-g': ui.congre.lg = v; return render();
     case 'comite-share': return Cm.shareSummary();
+    case 'visita-new': return Vi.newVisit();
+    case 'visita-create': return Vi.createVisit();
+    case 'visita-open': return Vi.openVisit(id);
+    case 'visita-check': return Vi.check(el);
+    case 'visita-ans': return Vi.answer(el);
+    case 'visita-na': return Vi.toggleNa(el);
+    case 'visita-ask': return Vi.ask(id, v);
     case 'dictate': return import('./voz.js').then(Vz => Vz.dictate(el));
     case 'ics-export': return import('./ics.js').then(I => I.exportIcs());
     case 'meca-import': return Mc.importSheet();
@@ -335,7 +354,8 @@ document.addEventListener('click', e => {
       }[v]?.());
     // datos
     case 'delete': return el.dataset.col === 'depts' ? S.deptRemove(id) : S.removeWithUndo(el.dataset.col, id);
-    case 'export': return download(`mi-agenda-${today()}.json`, store.exportAll());
+    case 'export': markBackup(); return download(`mi-agenda-${today()}.json`, store.exportAll());
+    case 'backup-drive': return backupToDrive();
     case 'signout': S.close(); return store.account.signOut();
   }
 });
@@ -345,6 +365,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'q') { ui[ui.route].q = e.target.value; refreshList(); }
   else if (e.target.id === 'cat-name') S.catNameInput(e.target.value);
   else if (e.target.id === 'meca-text') Mc.textEdited(e.target);
+  else if (e.target.dataset?.visitNote || e.target.dataset?.visitNotes) Vi.noteInput(e.target);
   else if (e.target.id === 'set-q') S.settingsFilter(e.target.value);
   else if (e.target.dataset?.agreements) S.refreshAgreements();
   else if (e.target.classList?.contains('pp-q')) S.pickerFilter(e.target);
@@ -403,6 +424,7 @@ document.addEventListener('change', e => {
     if (t.id === 'repeat') return;
   }
   if (t.id === 'meca-file') return Mc.fileChosen(t);
+  if (t.dataset?.visitStart) return Vi.startChanged(t);
   if (t.id === 'auto-heads') {   // comité / cuerpo de ancianos: se llena solo o a mano
     const hb = document.getElementById('heads-box'), hl = document.getElementById('auto-heads-list');
     if (hb) hb.hidden = t.checked; if (hl) hl.hidden = !t.checked; return;

@@ -5,6 +5,7 @@
 import { data } from './store.js';
 import * as store from './store.js';
 import * as M from './model.js';
+import { visitNotice } from './visita.js';
 import { today, addDays, fmtTime, toast } from './util.js';
 
 const C = window.Capacitor;
@@ -31,6 +32,7 @@ let timer = 0;
 const hash = s => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h) % 2000000000 + 1; };
 const toMin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
 const at = (iso, min) => { const d = new Date(`${iso}T00:00:00`); d.setMinutes(min); return d; };
+const diffDaysISO = (a, b) => Math.round((Date.parse(`${a}T12:00:00`) - Date.parse(`${b}T12:00:00`)) / 864e5);
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
 
 export async function init(h) {
@@ -123,6 +125,7 @@ function planFor(iso, p) {
     if (p.tasks && late) lines.push(`⏰ ${plural(late, 'tarea atrasada', 'tareas atrasadas')}`);
     if (p.events && a.events.length) lines.push(`📅 ${plural(a.events.length, 'compromiso', 'compromisos')} hoy`);
     if (p.junta) a.meetings.forEach(m => lines.push(`🗓 Hoy: ${p.details ? m.title : 'reunión'}${m.time ? ` a las ${fmtTime(m.time)}` : ''}`));
+    if (M.isModuleVisible('congregacion')) { const vn = visitNotice(iso); if (vn && (vn.days <= 14 || vn.next)) lines.push(`🧳 Visita del superintendente de circuito ${vn.days > 0 ? `en ${vn.days} días` : 'esta semana'}${vn.pend ? `: faltan ${vn.pend}` : ' ✓'}${vn.next ? ` · ${vn.next.it.t.split(' (')[0]} ${vn.next.date < iso ? 'venció el' : 'antes del'} ${vn.next.date.slice(8)}/${vn.next.date.slice(5, 7)}` : ''}`); }
     if (M.isModuleVisible('congregacion')) { const rv = M.reviewsDue(iso, 0); if (rv.length) lines.push(`🎓 Toca revisar la capacitación: ${rv.slice(0, 3).map(d => d.name).join(', ')}${rv.length > 3 ? '…' : ''}`); }
     if (p.assign) M.assignmentsToPrepare(iso).forEach(({ e, inDays }) => lines.push(`🎤 ${inDays === 0 ? 'Hoy' : inDays === 1 ? 'Mañana' : `En ${inDays} días`}: ${e.asg || 'tu asignación'}${p.details && e.title && e.title !== e.asg ? ` · ${e.title}` : ''}${inDays ? ' (prepárala)' : ''}`));
     if (p.follow && new Date(`${iso}T12:00:00`).getDay() === 1) {
@@ -172,6 +175,11 @@ function planFor(iso, p) {
   if (p.tomorrow) {
     const tm = M.agendaFor(addDays(iso, 1)).events.filter(e => e.time).sort((x, y) => x.time.localeCompare(y.time));
     if (tm.length) add(21 * 60 + 30, 'tm', `🌙 Mañana: ${plural(tm.length, 'evento', 'eventos')}; el primero, ${tm[0].title} a las ${fmtTime(tm[0].time)}.`, 'general', { kind: 'tomorrow' });
+  }
+  // Domingo en la noche: si hace más de una semana que no guardas un respaldo, te lo recuerda
+  if (p.backup !== false && new Date(`${iso}T12:00:00`).getDay() === 0) {
+    let last = ''; try { last = localStorage.getItem('miagenda.ultimoRespaldo') || ''; } catch { /* sin almacenamiento */ }
+    if (!last || diffDaysISO(iso, last) >= 7) add(20 * 60, 'bk', '☁️ Guarda tu respaldo semanal en Google Drive: Ajustes → Mis datos → Guardar respaldo en Google Drive.', 'general', { kind: 'backup' });
   }
   // Registro de la noche (importante, siempre activo si usas Mi Informe)
   if (M.isModuleVisible('informe') && !(M.profile().noActivityDays || []).includes(iso)) {

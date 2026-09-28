@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '8.3';
+export const APP_VERSION = '8.4';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -661,6 +661,9 @@ const rawHeadIds = d => (Array.isArray(d?.headIds) ? d.headIds : d?.headId ? [d.
 // El Comité de Servicio y el Cuerpo de ancianos se llenan solos con los de los otros departamentos
 const findDept = (sk, re) => (data.depts || []).find(x => x.sk === sk) || (data.depts || []).find(x => re.test(x.name || ''));
 const COMITE_PARTS = [['coord', /^coordinador del cuerpo/i, 'Coordinador'], ['secre', /^secretario$/i, 'Secretario'], ['serv', /^superintendente de servicio$/i, 'Sup. de servicio']];
+// Departamento por su clave del organigrama (coord, secre, serv…) y quiénes lo atienden
+export const deptByKey = k => findDept(k, ({ coord: /^coordinador del cuerpo/i, secre: /^secretario$/i, serv: /^superintendente de servicio$/i })[k] || /^$/);
+export const headsOf = k => { const d = deptByKey(k); return d ? rawHeadIds(d).map(person).filter(Boolean) : []; };
 export const isComite = d => !!d && (d.sk === 'comite' || /^comit[eé] de servicio/i.test(d.name || ''));
 export const isCuerpo = d => !!d && (d.sk === 'cuerpo' || /^cuerpo de ancianos$/i.test(d.name || ''));
 export const canAutoHeads = d => isComite(d) || isCuerpo(d);

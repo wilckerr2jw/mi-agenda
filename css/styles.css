@@ -1074,3 +1074,24 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 .csec:not([open]) > summary { margin-bottom: 4px; }
 @media (prefers-reduced-motion: reduce) { .csec-chev { transition: none; } }
 .chips.wrap { flex-wrap: wrap; overflow: visible; }
+
+/* ───── Visita del superintendente de circuito ───── */
+.visit-card { display: flex; gap: 10px; align-items: center; width: 100%; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
+.visit-card .grow { display: grid; gap: 5px; min-width: 0; }
+.visit-bar { display: block; height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.visit-bar i { display: block; height: 100%; background: var(--primary); border-radius: 99px; }
+.visit-groups { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
+.visit-groups .ok { color: var(--primary); font-weight: 700; }
+.warn-t { color: var(--warn); }
+.visit-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.visit-it { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--surface); display: grid; gap: 6px; }
+.visit-it.done { background: color-mix(in srgb, var(--primary) 7%, var(--surface)); }
+.visit-it.done .grow { color: var(--ink-2); }
+.visit-it.no { border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+.visit-row { display: flex; gap: 10px; align-items: flex-start; }
+.visit-row input[type=checkbox] { width: 22px; height: 22px; flex: none; margin-top: 1px; accent-color: var(--primary); }
+.visit-row .grow { flex: 1; min-width: 0; line-height: 1.35; }
+.visit-note { width: 100%; font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.seg.tiny { margin: 0; padding: 3px; flex: none; grid-auto-columns: auto; }
+.seg.tiny button { padding: 5px 9px; font-size: 13px; }
+.seg.tiny button[aria-pressed="true"][data-v="no"] { color: var(--warn); }
