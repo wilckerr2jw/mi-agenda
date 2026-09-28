@@ -1,8 +1,8 @@
 {
-  "version": "8.2",
+  "version": "8.3",
   "notes": [
-    "Avisos de las tareas del día sin hora y de las atrasadas",
-    "La app de Android programa los avisos de toda la semana",
-    "Ajustes → Avisos: ver los avisos programados"
+    "Datos de la congregación: elige el día y la hora de cada reunión",
+    "Si la app se recarga antes de guardar un formulario, puedes recuperarlo",
+    "Los datos de la congregación ya no se borran al actualizar"
   ]
 }

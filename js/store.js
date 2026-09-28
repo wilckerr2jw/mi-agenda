@@ -43,6 +43,8 @@ function protectProfile(item) {
   if (!cur) return item;
   const out = { ...item, createdAt: cur.createdAt || item.createdAt };
   PROTECT.forEach(k => { if (isEmpty(out[k]) && !isEmpty(cur[k])) out[k] = cur[k]; });
+  // Los datos de la congregación, campo por campo (solo se vacían desde su propio formulario)
+  if (out.congre && cur.congre && typeof out.congre === 'object') { const c = { ...out.congre }; Object.keys(cur.congre).forEach(k => { if (isEmpty(c[k]) && !isEmpty(cur.congre[k])) c[k] = cur.congre[k]; }); out.congre = c; }
   return out;
 }
 function write(col, item, opts = {}) {

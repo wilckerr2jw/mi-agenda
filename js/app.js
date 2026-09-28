@@ -12,6 +12,7 @@ import * as WC from './weekcal.js';
 import * as Nat from './native.js';
 import * as Mc from './mecas.js';
 import * as Cm from './comite.js';
+import * as Bor from './borrador.js';
 import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays, uid, fmtShort } from './util.js';
 
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
@@ -340,6 +341,7 @@ document.addEventListener('click', e => {
 });
 
 document.addEventListener('input', e => {
+  if (e.target.form?.id === 'f') Bor.track(e.target.form);   // borrador por si la app se recarga antes de guardar
   if (e.target.id === 'q') { ui[ui.route].q = e.target.value; refreshList(); }
   else if (e.target.id === 'cat-name') S.catNameInput(e.target.value);
   else if (e.target.id === 'meca-text') Mc.textEdited(e.target);
@@ -371,6 +373,7 @@ document.addEventListener('keydown', e => {
 });
 
 document.addEventListener('change', e => {
+  if (e.target.form?.id === 'f') Bor.track(e.target.form);
   const t = e.target;
   if (t.id === 'tareas-person') { ui.tareas.p = t.value; return render(); }
   if (t.id === 'tareas-meeting') { ui.tareas.m = t.value; return render(); }
@@ -682,6 +685,8 @@ async function boot() {
       : 'No se pudo guardar. Se reintentará cuando haya conexión.');
   });
   store.onData(() => { if (!$('#app').hidden) render(); });
+  let offered = false;   // una vez al abrir: si quedó un formulario sin guardar, se ofrece recuperarlo
+  store.onData(() => { if (!offered && !$('#app').hidden) { offered = true; setTimeout(() => Bor.offer(S), 1200); } });
   // «✓ Ya lo hice» desde un aviso: marca la rutina en cuanto se cargan los datos
   store.onData(applyPendingDone);
   store.onData(() => Nat.schedule());

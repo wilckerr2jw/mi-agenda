@@ -8,6 +8,7 @@ import * as Theme from './theme.js';
 import { readKeep } from './keep.js';
 import { goalBlock } from './views.js';
 import { micButton, stopDictation } from './voz.js';
+import * as Bor from './borrador.js';
 import { guideGroups, guideAudience } from './guide.js';
 import * as A from './agenda.js';
 import * as Lock from './lock.js';
@@ -40,6 +41,7 @@ export function open({ title, body, actions = '', back = null, focus = null }) {
 
 export function close(fromPop = false) {
   stopDictation();
+  Bor.clear();   // cerraste o guardaste: ya no hace falta el borrador
   root.innerHTML = '';
   document.body.classList.remove('lock');
   backFn = null;
@@ -1089,15 +1091,38 @@ export function congreSheet() {
       <div class="two">${fld('Nombre', `<input id="cname" name="name" maxlength="60" value="${esc(c.name || '')}" placeholder="Ej. Central">`, 'cname')}
         ${fld('Número', `<input id="cnum" name="number" maxlength="12" inputmode="numeric" value="${esc(c.number || '')}">`, 'cnum')}</div>
       ${fld('Circuito', `<input id="circ" name="circuit" maxlength="60" value="${esc(c.circuit || '')}">`, 'circ')}
-      ${fld('Reunión de entre semana', `<input id="midweek" name="midweek" maxlength="60" value="${esc(c.midweek || '')}" placeholder="Ej. Miércoles 6:30 p. m.">`, 'midweek')}
-      ${fld('Reunión del fin de semana', `<input id="weekend" name="weekend" maxlength="60" value="${esc(c.weekend || '')}" placeholder="Ej. Domingo 11:15 a. m.">`, 'weekend')}
+      ${meetPick('midweek', 'Reunión de entre semana', c, [1, 2, 3, 4, 5])}
+      ${meetPick('weekend', 'Reunión del fin de semana', c, [6, 0])}
       ${fld('Dirección del Salón', `<input id="addr" name="address" maxlength="120" value="${esc(c.address || '')}">`, 'addr')}
     </form>`,
     actions: '<button type="submit" form="f" class="btn primary">Guardar</button>',
   });
 }
+// Día y hora de cada reunión (se guarda también el texto «Miércoles 6:30 p. m.» para el organigrama y la imagen)
+const WDAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+function parseMeet(txt) {   // lee lo que se había escrito a mano: «Miércoles 6:30 p. m.»
+  const n = norm(txt || '');
+  const d = WDAYS.findIndex(w => n.includes(norm(w).slice(0, 3)));
+  const m = n.match(/(\d{1,2})(?::(\d{2}))?\s*(a|p)?/);
+  let t = '';
+  if (m) { let h = Number(m[1]) % 12; if (m[3] === 'p' || (!m[3] && h < 7)) h += 12; t = `${String(h).padStart(2, '0')}:${m[2] || '00'}`; }
+  return { d: d >= 0 ? String(d) : '', t };
+}
+function meetPick(k, label, c, days) {
+  const old = parseMeet(c[k]);
+  const d = c[`${k}Day`] ?? old.d, t = c[`${k}Time`] || old.t;
+  return `<div class="f"><span class="lbl">${label}</span><div class="two">
+    <select name="${k}Day" aria-label="Día de la ${label.toLowerCase()}"><option value="">Día…</option>${days.map(i => `<option value="${i}" ${String(d) === String(i) ? 'selected' : ''}>${WDAYS[i]}</option>`).join('')}<option disabled>──</option>${[0, 1, 2, 3, 4, 5, 6].filter(i => !days.includes(i)).map(i => `<option value="${i}" ${String(d) === String(i) ? 'selected' : ''}>${WDAYS[i]}</option>`).join('')}</select>
+    <input type="time" name="${k}Time" value="${esc(t)}" aria-label="Hora de la ${label.toLowerCase()}"></div></div>`;
+}
+const meetText = (d, t) => (d !== '' && d != null ? WDAYS[Number(d)] : '') + (t ? ` ${fmtTime(t)}` : '');
 function saveCongre(r) {
-  store.patchProfile({ congre: { name: r.name || '', number: r.number || '', circuit: r.circuit || '', midweek: r.midweek || '', weekend: r.weekend || '', address: r.address || '' } });
+  const cur = M.profile();
+  const congre = { ...(cur.congre || {}), name: r.name || '', number: r.number || '', circuit: r.circuit || '', address: r.address || '',
+    midweekDay: r.midweekDay ?? '', midweekTime: r.midweekTime || '', weekendDay: r.weekendDay ?? '', weekendTime: r.weekendTime || '' };
+  congre.midweek = meetText(congre.midweekDay, congre.midweekTime).trim();
+  congre.weekend = meetText(congre.weekendDay, congre.weekendTime).trim();
+  store.upsert('profile', { ...cur, id: 'me', congre }, { explicit: true });
   toast('Datos guardados');
   close();
 }
