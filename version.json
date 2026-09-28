@@ -1,7 +1,6 @@
 {
-  "version": "7.0",
+  "version": "7.1",
   "notes": [
-    "Tu foto y tu perfil ya no se borran al actualizar",
-    "Reuniones: busca a los participantes escribiendo su nombre y márcalos"
+    "Reuniones: si la nota tiene una sección «Tareas:», solo esas líneas se toman como acuerdos"
   ]
 }

@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '7.0';
+export const APP_VERSION = '7.1';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -885,8 +885,18 @@ function makeTitle(text, subject) {
 // Acuerdos encontrados en una reunión: a quién atender, responsables, si te toca a ti, fecha y si ya tienen tarea
 export function parseAgreements(m) {
   const lines = String(m.notes || '').split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
-  const bulleted = lines.filter(l => BULLET.test(l));
-  const source = bulleted.length ? bulleted : lines.filter(l => l.split(/\s+/).length >= 3);   // sin viñetas: cada línea con sentido
+  // Si la nota tiene una sección «Tareas:» o «Acuerdos:», solo cuenta lo que está debajo (el resto es contexto, como el organigrama)
+  const isHead = l => /^(tareas?|acuerdos?|pendientes?|por hacer|asignaciones)\b[^:]{0,30}:?\s*$/i.test(l);
+  const isCaps = l => l.length > 6 && /[A-ZÁÉÍÓÚÑ]/.test(l) && l === l.toUpperCase();
+  const hi = lines.map(isHead).lastIndexOf(true);
+  let source;
+  if (hi >= 0) {
+    const after = lines.slice(hi + 1); const end = after.findIndex(l => isCaps(l) || isHead(l));
+    source = (end >= 0 ? after.slice(0, end) : after).filter(l => l.split(/\s+/).length >= 2);
+  } else {
+    const bulleted = lines.filter(l => BULLET.test(l));
+    source = bulleted.length ? bulleted : lines.filter(l => l.split(/\s+/).length >= 3);   // sin viñetas: cada línea con sentido
+  }
   const base = m.date || today();
   const tasks = data.tasks.filter(t => t.meetingId === m.id);
   return source.map(l => {
