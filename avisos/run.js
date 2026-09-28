@@ -23,7 +23,7 @@ const db = getFirestore();
 const log = { info: (...a) => console.log(...a), warn: (...a) => console.warn(...a), error: (...a) => console.error(...a) };
 
 const DEFAULTS = { hour: 7, tasks: true, events: true, junta: true, supervise: true, shared: true, updates: true, weekly: true, details: false,
-  before: 10, logAt: 1230, soon: true, routine: true, streak: true, taskTime: true, meetingSoon: true, partner: true, tomorrow: true, report: true, assign: true, follow: true };
+  before: 10, logAt: 1230, soon: true, routine: true, streak: true, taskTime: true, taskDay: true, taskHour: 9, meetingSoon: true, partner: true, tomorrow: true, report: true, assign: true, follow: true };
 const CATCH_UP_HOURS = 3;          // si una hora falla, lo intenta en las 3 siguientes
 const SUPERVISE_DAYS = 7;
 
@@ -364,6 +364,15 @@ async function buildPlan(uid, p, now) {
     docs(await user.collection('tasks').where('due', '==', today).get())
       .filter(t => t.status !== 'hecha' && isMine(t) && toMin(t.dueTime) != null)
       .forEach(t => add(toMin(t.dueTime) - before, `tk:${t.id}:${today}`, p.details ? `📋 A las ${fmtTime(t.dueTime)}: ${t.title}` : `📋 Tienes una tarea a las ${fmtTime(t.dueTime)}`, 'task'));
+  }
+  // Tareas del día sin hora y las atrasadas: un aviso a media mañana
+  if (p.taskDay) {
+    const open = docs(await user.collection('tasks').where('due', '<=', today).get()).filter(t => t.status !== 'hecha' && isMine(t));
+    const dayT = open.filter(t => t.due === today && toMin(t.dueTime) == null), late = open.filter(t => t.due < today);
+    const hr = (Number(p.taskHour) || 9) * 60;
+    const list = ts => (p.details ? `: ${ts.slice(0, 4).map(t => t.title).join(' · ')}${ts.length > 4 ? '…' : ''}` : '');
+    if (dayT.length) add(hr, `td:${today}`, dayT.length === 1 ? `📋 Hoy vence: ${p.details ? dayT[0].title : 'una tarea'}` : `📋 Hoy vencen ${dayT.length} tareas${list(dayT)}`, 'task');
+    if (late.length) add(hr + 1, `tl:${today}`, `⏰ ${plural(late.length, 'tarea atrasada', 'tareas atrasadas')}${list(late) || '. Toca para verlas.'}`, 'task');
   }
   if (p.meetingSoon) {
     docs(await user.collection('meetings').where('date', '==', today).get()).filter(m => toMin(m.time) != null).forEach(m => {

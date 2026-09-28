@@ -267,6 +267,8 @@ document.addEventListener('click', e => {
     case 'sound-play': return N.playSound(v);
     case 'apk-update': return Nat.openDownload();
     case 'nat-exact': return Nat.askExact().then(() => S.settings());
+    case 'nat-pending': return S.showPending();
+    case 'nat-exact-hoy': return Nat.askExact().then(render);
     case 'nat-test': return Nat.test().then(ok => toast(ok ? 'En 5 segundos te llega un aviso de prueba' : 'No se pudo programar la prueba'));
     case 'shared-unhide': store.upsert('profile', { ...M.profile(), id: 'me', sharedHidden: [] }); return S.settings();
     case 'ag-deadline-off': return S.agendaSetDeadline('');
@@ -385,6 +387,7 @@ document.addEventListener('change', e => {
   if (t.id === 'notif-toggle') return S.notifToggle(t.checked, t);
   if (t.id === 'notif-hour') { N.setPref('hour', Number(t.value)); return; }
   if (t.id === 'notif-before') { N.setPref('before', Number(t.value)); return; }
+  if (t.id === 'notif-taskhour') { N.setPref('taskHour', Number(t.value)); return; }
   if (t.id === 'notif-logat') { N.setPref('logAt', Number(t.value)); return; }
   if (t.name === 'notif-sound') { N.setPref('sound', t.value); N.playSound(t.value); return; }
   if (t.matches?.('input[data-a="notif-pref"]')) { N.setPref(t.dataset.v, t.checked); if (t.dataset.v === 'details') S.settings(); return; }

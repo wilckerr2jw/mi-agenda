@@ -2452,13 +2452,28 @@ function nativeNotifHtml() {
       <p class="hint pick-h"><b>Durante el día</b></p>
       ${opt('soon', 'Antes de cada evento')}
       <label class="mini-f"><span>¿Cuánto antes?</span><select id="notif-before">${[5, 10, 15, 30, 60].map(n => `<option value="${n}" ${n === Number(p.before) ? 'selected' : ''}>${n < 60 ? `${n} min` : '1 hora'}</option>`).join('')}</select></label>
-      ${opt('taskTime', 'Tareas con hora')}${opt('meetingSoon', 'Reuniones: 1 hora antes')}${opt('routine', 'Rutina sin marcar')}${opt('streak', 'Racha en peligro (9:15 p. m.)')}${opt('tomorrow', 'Por la noche: lo que tienes mañana')}
+      ${opt('taskTime', 'Tareas con hora')}${opt('taskDay', 'Tareas del día sin hora y atrasadas')}
+      <label class="mini-f"><span>Hora del aviso de tareas</span><select id="notif-taskhour">${[7, 8, 9, 10, 12, 14, 16, 18].map(h => `<option value="${h}" ${h === Number(p.taskHour || 9) ? 'selected' : ''}>${hh(h)}</option>`).join('')}</select></label>
+      ${opt('meetingSoon', 'Reuniones: 1 hora antes')}${opt('routine', 'Rutina sin marcar')}${opt('streak', 'Racha en peligro (9:15 p. m.)')}${opt('tomorrow', 'Por la noche: lo que tienes mañana')}
       ${opt('details', 'Mostrar los títulos de tareas y reuniones')}
       <p class="hint pick-h"><b>🔊 Sonidos</b></p>
       <p class="hint">Cada tipo trae su sonido: Suave (eventos), Campanita (rutinas), Alerta (registro de la noche) y Amanecer (resúmenes). Para cambiar alguno: Ajustes del teléfono → Aplicaciones → Mi Agenda → Notificaciones → elige la categoría → Sonido.</p>
       <button type="button" class="btn" data-a="nat-test">Probar un aviso (llega en 5 segundos)</button>
+      <button type="button" class="btn ghost" data-a="nat-pending">🔔 Ver los avisos programados</button><div id="nat-pending"></div>
       ${Nat.state.push ? '<button type="button" class="btn ghost" data-a="notif-test">Probar un aviso desde el servidor (llega en menos de 5 min)</button>' : ''}
     </div>`;
+}
+
+// Lista de los próximos avisos que el teléfono tiene programados
+export async function showPending() {
+  const box = document.getElementById('nat-pending');
+  if (!box) return;
+  box.innerHTML = '<p class="hint">Revisando…</p>';
+  const r = await Nat.pendingSummary();
+  if (!r) { box.innerHTML = '<p class="hint warn">No se pudo revisar en este teléfono.</p>'; return; }
+  const f = d => `${d.toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })} ${d.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })}`;
+  box.innerHTML = r.n ? `<p class="hint ok">✓ ${r.n} avisos programados para los próximos 7 días.</p><ul class="load-list">${r.next.map(x => `<li><b>${esc(f(x.at))}</b> · ${esc(x.body.split('\n')[0])}</li>`).join('')}</ul>`
+    : '<p class="hint warn">No hay avisos programados. Revisa que los avisos estén permitidos y abre la app una vez.</p>';
 }
 
 // Avisos en el teléfono (solo aparece si la app está en la nube y tiene la clave de avisos)
@@ -2491,6 +2506,8 @@ function notifSettingsHtml() {
         ${opt('soon', 'Antes de cada evento')}
         <label class="mini-f"><span>¿Cuánto antes?</span><select id="notif-before">${[5, 10, 15, 30, 60].map(n => `<option value="${n}" ${n === Number(p.before) ? 'selected' : ''}>${n < 60 ? `${n} min` : '1 hora'}</option>`).join('')}</select></label>
         ${opt('taskTime', 'Tareas con hora (a la misma anticipación)')}
+        ${opt('taskDay', 'Tareas del día sin hora y atrasadas')}
+        <label class="mini-f"><span>Hora del aviso de tareas</span><select id="notif-taskhour">${[7, 8, 9, 10, 12, 14, 16, 18].map(h => `<option value="${h}" ${h === Number(p.taskHour || 9) ? 'selected' : ''}>${hh(h)}</option>`).join('')}</select></label>
         ${opt('meetingSoon', 'Reuniones: 1 hora antes, con su agenda')}
         ${opt('routine', 'Rutina sin marcar («aún no marcaste la lectura de hoy»)')}
         ${opt('streak', 'Racha en peligro (9:15 p. m.)')}

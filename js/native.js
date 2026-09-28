@@ -74,6 +74,16 @@ export async function askExact() {
   handlers.changed();
 }
 
+// Cuántos avisos hay programados y cuáles son los próximos (para revisar en Ajustes)
+export async function pendingSummary() {
+  const LN = plug('LocalNotifications');
+  if (!LN) return null;
+  try {
+    const r = await LN.getPending();
+    const list = (r.notifications || []).filter(n => n.schedule?.at).map(n => ({ at: new Date(n.schedule.at), body: n.body || n.title || '' })).sort((a, b) => a.at - b.at);
+    return { n: list.length, next: list.slice(0, 8) };
+  } catch { return null; }
+}
 export async function test() {
   const LN = plug('LocalNotifications');
   if (!LN) return false;
@@ -89,7 +99,7 @@ export function schedule() {
 }
 
 function prefs() {
-  return { hour: 7, tasks: true, events: true, junta: true, before: 10, logAt: 1230, soon: true, routine: true, streak: true, taskTime: true, meetingSoon: true, tomorrow: true, report: true, details: false, ...(M.profile().notif || {}) };
+  return { hour: 7, tasks: true, events: true, junta: true, before: 10, logAt: 1230, soon: true, routine: true, streak: true, taskTime: true, taskDay: true, taskHour: 9, meetingSoon: true, tomorrow: true, report: true, details: false, ...(M.profile().notif || {}) };
 }
 
 function planFor(iso, p) {
@@ -144,6 +154,17 @@ function planFor(iso, p) {
   });
   if (p.taskTime) a.tasks.filter(t => M.isMineTask(t) && toMin(t.dueTime) != null)
     .forEach(t => add(toMin(t.dueTime) - before, `tk:${t.id}`, p.details ? `📋 A las ${fmtTime(t.dueTime)}: ${t.title}` : `📋 Tienes una tarea a las ${fmtTime(t.dueTime)}`, 'general', { kind: 'task' }));
+  // Tareas del día sin hora (y las atrasadas): un aviso a media mañana con sus títulos
+  if (p.taskDay) {
+    const mine = data.tasks.filter(t => t.status !== 'hecha' && M.isMineTask(t));
+    const dayT = mine.filter(t => t.due === iso && toMin(t.dueTime) == null);
+    const late = iso === today() ? mine.filter(t => t.due && t.due < iso) : [];
+    const name = t => (p.details ? t.title : 'una tarea');
+    const hr = (Number(p.taskHour) || 9) * 60;
+    if (dayT.length === 1) add(hr, `td:${dayT[0].id}`, `📋 Hoy vence: ${name(dayT[0])}`, 'general', { kind: 'task' });
+    else if (dayT.length > 1) add(hr, 'td', `📋 Hoy vencen ${dayT.length} tareas${p.details ? `: ${dayT.slice(0, 4).map(t => t.title).join(' · ')}${dayT.length > 4 ? '…' : ''}` : ''}`, 'general', { kind: 'task' });
+    if (late.length) add(hr + 1, 'tl', `⏰ ${plural(late.length, 'tarea atrasada', 'tareas atrasadas')}${p.details ? `: ${late.slice(0, 4).map(t => t.title).join(' · ')}${late.length > 4 ? '…' : ''}` : '. Toca para verlas.'}`, 'general', { kind: 'task' });
+  }
   if (p.meetingSoon) a.meetings.filter(m => toMin(m.time) != null).forEach(m => {
     const n = (m.agenda || []).length;
     add(toMin(m.time) - 60, `mt:${m.id}`, `🗓 En 1 hora: ${p.details ? m.title : 'reunión'} (${fmtTime(m.time)})${n ? ` · agenda de ${plural(n, 'punto', 'puntos')}` : ''}${n && !m.agendaSentAt ? ' · aún no la enviaste' : ''}`, 'general', { kind: 'meeting' });
@@ -223,7 +244,9 @@ async function doSchedule() {
   try {
     const p = prefs();
     const t = today();
-    const list = [...planFor(t, p), ...planFor(addDays(t, 1), p)].slice(0, 60);
+    // Una semana por delante (así llegan aunque no abras la app en varios días); Android admite hasta 500
+    const list = Array.from({ length: 7 }, (_, i) => planFor(addDays(t, i), p)).flat()
+      .sort((x, y) => x.schedule.at - y.schedule.at).slice(0, 200);
     const pending = await LN.getPending();
     const old = (pending.notifications || []).filter(n => n.id !== 1 && n.id !== 3);
     if (old.length) await LN.cancel({ notifications: old.map(n => ({ id: n.id })) });

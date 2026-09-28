@@ -1,8 +1,8 @@
 {
-  "version": "8.1",
+  "version": "8.2",
   "notes": [
-    "Congregación: cada sección se despliega y se oculta",
-    "El panel ahora es «Para el Cuerpo de ancianos»",
-    "Asignaciones por hermano: filtro «Varones bautizados»"
+    "Avisos de las tareas del día sin hora y de las atrasadas",
+    "La app de Android programa los avisos de toda la semana",
+    "Ajustes → Avisos: ver los avisos programados"
   ]
 }

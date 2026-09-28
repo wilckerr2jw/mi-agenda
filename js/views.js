@@ -197,6 +197,7 @@ export function hoy() {
     ${actions()}
   </header>
   ${Nat.state.update ? `<button class="log-now apk-up" data-a="apk-update">📲 <span><b>Hay una actualización de la app</b><small>Versión ${esc(Nat.state.update.name)}. Toca para descargarla e instalarla.</small></span></button>` : ''}
+  ${Nat.isNative && Nat.state.exact && Nat.state.exact !== 'granted' ? `<button class="log-now" data-a="nat-exact-hoy">🔔 <span><b>Permite los avisos exactos</b><small>Sin este permiso, Android puede atrasar los avisos de tus eventos y tareas. Toca para activarlo.</small></span></button>` : ''}
   ${logToday ? `<button class="log-now" data-a="qa" data-v="time">📝 <span><b>Registra tu actividad de hoy</b><small>Aún no guardaste horas ni cursos. Toca aquí para anotarlos.</small></span></button>` : ''}
   ${juntaHoy ? `<button class="btn primary junta-now" data-a="junta-start" data-id="${juntaHoy.id}">▶ Iniciar la junta de hoy<small>${esc(juntaHoy.title)}${juntaHoy.time ? ` · ${fmtTime(juntaHoy.time)}` : ''}</small></button>` : ''}
   ${nowCard(entries, t)}
