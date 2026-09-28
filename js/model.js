@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '6.7';
+export const APP_VERSION = '6.8';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -465,7 +465,17 @@ export function pastoreoStatus(p, t = today()) {
   return { last, days, late: days == null || days > pastoreoMonths() * 30 };
 }
 export const studentsLate = (t = today()) => data.people.filter(isStudent).filter(p => studyStatus(p, t).late);
-export const pastoreoLate = (t = today()) => (canShepherd() ? data.people.filter(isShepherdable).filter(p => pastoreoStatus(p, t).late) : []);
+// A quién pastoreo: por omisión, los de mi grupo (los grupos de Personas donde estoy yo) y los siervos ministeriales.
+// Cada anciano atiende su propio grupo. profile.pastoreoScope = 'all' muestra a toda la congregación.
+export const isMinisterial = p => [...String(p.role || '').split(','), ...(p.privileges || [])].some(x => /^\s*siervo ministerial/i.test(x));
+export function myGroupIds() { const me = data.people.find(p => p.isMe); return me?.groupIds || []; }
+export function pastoreoPool() {
+  const all = data.people.filter(isShepherdable);
+  const mine = myGroupIds();
+  if (profile().pastoreoScope === 'all' || !mine.length) return all;
+  return all.filter(p => isMinisterial(p) || (p.groupIds || []).some(g => mine.includes(g)));
+}
+export const pastoreoLate = (t = today()) => (canShepherd() ? pastoreoPool().filter(p => pastoreoStatus(p, t).late) : []);
 
 // ───────────── Congregación: organigrama de departamentos ─────────────
 // depts/{id} = { name, ic, parentId, order, headIds, headNames, helperIds, helperNames, notes, info }

@@ -367,6 +367,7 @@ document.addEventListener('change', e => {
     return;
   }
   if (t.matches?.('input[data-a="org-pick-item"]')) { const cur = new Set(ui.congre.picked || []); t.checked ? cur.add(t.value) : cur.delete(t.value); ui.congre.picked = [...cur]; return render(); }
+  if (t.id === 'pastoreo-scope') { store.patchProfile({ pastoreoScope: t.value }); return render(); }
   if (t.id === 'pastoreo-months') { store.patchProfile({ pastoreoMonths: Number(t.value) || 6 }); return render(); }
   if (t.id === 'repeat' && t.form?.dataset.form === 'event') { const box = document.getElementById('repeat-days'); if (box) box.hidden = t.value !== 'days'; return; }
   if (t.matches?.('select[data-otro]')) {   // «✏️ Nuevo tipo…» muestra el campo de texto

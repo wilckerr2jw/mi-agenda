@@ -133,7 +133,10 @@ async function buildMessage(uid, p, now) {
     if (lateS) lines.push(`📖 ${plural(lateS, 'curso bíblico espera', 'cursos bíblicos esperan')} tu visita`);
     if (type === 'anciano') {
       const months = Number(pr.pastoreoMonths) || 6;
-      const lateP = people.filter(x => !x.isMe && !student(x) && !/interesad|estudiante|familiar/i.test(x.role || ''))
+      const me = people.find(x => x.isMe), mine = me?.groupIds || [];
+      const ministerial = x => [...String(x.role || '').split(','), ...(x.privileges || [])].some(r => /^\s*siervo ministerial/i.test(r));
+      const inScope = x => pr.pastoreoScope === 'all' || !mine.length || ministerial(x) || (x.groupIds || []).some(g => mine.includes(g));
+      const lateP = people.filter(x => !x.isMe && !student(x) && !/interesad|estudiante|familiar/i.test(x.role || '') && inScope(x))
         .filter(x => { const l = last(x, 'pastoreo'); return !l || diffDays(today, l) > months * 30; }).length;
       if (lateP) lines.push(`🐑 ${plural(lateP, 'hermano', 'hermanos')} sin visita de pastoreo en ${months} meses`);
     }

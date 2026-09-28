@@ -487,10 +487,13 @@ function seguimiento(st) {
   if (M.canShepherd()) {
     const groups = [...data.groups].sort((a, b) => a.name.localeCompare(b.name, 'es'));
     const g = st.g && groups.some(x => x.id === st.g) ? st.g : '';
-    const sheep = data.people.filter(M.isShepherdable).filter(p => !g || (p.groupIds || []).includes(g)).sort(byNeed(M.pastoreoStatus));
+    const sheep = M.pastoreoPool().filter(p => !g || (p.groupIds || []).includes(g)).sort(byNeed(M.pastoreoStatus));
+    const scope = M.profile().pastoreoScope === 'all' ? 'all' : 'mine';
     const lateP = sheep.filter(p => M.pastoreoStatus(p).late).length;
     html += `<section><div class="sec-h"><h2>🐑 Pastoreo</h2><span class="hint">${lateP ? `${lateP} sin visita reciente` : 'al día'}</span></div>
-      <div class="pad follow-opts"><label class="mini-f"><span>Avisar si pasan más de</span><select id="pastoreo-months">${[3, 4, 6, 9, 12].map(n => `<option value="${n}" ${n === M.pastoreoMonths() ? 'selected' : ''}>${n} meses</option>`).join('')}</select></label></div>
+      <div class="pad follow-opts"><label class="mini-f"><span>A quiénes veo</span><select id="pastoreo-scope"><option value="mine" ${scope === 'mine' ? 'selected' : ''}>Mi grupo y los siervos ministeriales</option><option value="all" ${scope === 'all' ? 'selected' : ''}>Toda la congregación</option></select></label>
+        ${scope === 'mine' && !M.myGroupIds().length ? '<p class="hint">Para ver solo tu grupo, agrega tu ficha («Tú») al grupo que atiendes en Personas → Grupos.</p>' : ''}
+        <label class="mini-f"><span>Avisar si pasan más de</span><select id="pastoreo-months">${[3, 4, 6, 9, 12].map(n => `<option value="${n}" ${n === M.pastoreoMonths() ? 'selected' : ''}>${n} meses</option>`).join('')}</select></label></div>
       ${groups.length ? `<div class="chips"><button class="chip" data-a="pfilter" data-v="" aria-pressed="${!g}">Todos</button>${groups.map(x => `<button class="chip" data-a="pfilter" data-v="${x.id}" aria-pressed="${g === x.id}">${esc(x.name)}</button>`).join('')}</div>` : ''}
       ${sheep.length ? `<div class="stack">${sheep.map(p => { const s = M.pastoreoStatus(p); return followRow(p, s, `${p.role ? `${esc(p.role)} · ` : ''}visita de pastoreo ${agoText(s.days)}`); }).join('')}</div>`
         : '<p class="hint pad">No hay hermanos en esta lista. Agrega personas en la pestaña Personas.</p>'}</section>`;
