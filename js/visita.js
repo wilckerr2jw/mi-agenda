@@ -109,8 +109,9 @@ export async function createVisit() {
 export async function openVisit(id) {
   const v = store.get('visitas', id);
   if (!v) return;
-  const { open } = await S();
+  const { open, personPick: pick } = await S();
   const p = progress(v), t = today();
+  const pastPool = () => [...data.people].filter(pp => M.isShepherdable(pp)).sort((a, b) => a.name.localeCompare(b.name, 'es'));
   const row = it => {
     const x = v.items?.[it.k] || {};
     const due = it.due != null ? addDays(v.start, it.due) : '';
@@ -119,12 +120,21 @@ export async function openVisit(id) {
       : `<input type="checkbox" data-a="visita-check" data-id="${v.id}" data-k="${it.k}" ${x.done ? 'checked' : ''} aria-label="Listo">`;
     return `<li class="visit-it ${isDone(v, it) ? 'done' : ''} ${x.ans === 'no' ? 'no' : ''}">
       <div class="visit-row">${it.q ? '' : ctl}<span class="grow">${esc(it.t)}${due ? ` <span class="hint ${!isDone(v, it) && due < t ? 'warn-t' : ''}">· antes del ${esc(fmtShort(due))}</span>` : ''}${it.opt ? ' <button type="button" class="link sm" data-a="visita-na" data-id="' + v.id + '" data-k="' + it.k + '">' + (x.na ? 'Sí aplica' : 'No aplica') + '</button>' : ''}</span>${it.q ? ctl : ''}</div>
-      <input class="visit-note" data-visit-note="${v.id}" data-k="${it.k}" maxlength="200" value="${esc(x.note || '')}" placeholder="Nota (opcional)">
+      ${it.k === 'temas' ? `<textarea class="visit-note" data-visit-note="${v.id}" data-k="${it.k}" rows="3" maxlength="800" placeholder="Un tema por línea">${esc(x.note || '')}</textarea>
+        <button type="button" class="btn small ghost" data-a="visita-meeting" data-id="${v.id}">${v.meetingId && store.get('meetings', v.meetingId) ? '🗓 Abrir la reunión con el superintendente' : '🗓 Crear la reunión con estos temas'}</button>`
+      : it.k === 'pastoreo' ? `${pick ? pick('visitPast', pastPool(), x.ids || [], null, 'checkbox', { lazy: true }) : ''}
+        <input class="visit-note" data-visit-note="${v.id}" data-k="${it.k}" maxlength="200" value="${esc(x.note || '')}" placeholder="Quién lo acompaña (opcional)">
+        ${(x.ids || []).length ? `<button type="button" class="btn small ghost" data-a="visita-past-log" data-id="${v.id}">${x.logged ? `✓ Anotadas el ${esc(fmtShort(x.logged))} · volver a anotar` : `✓ Anotar estas ${x.ids.length} visitas en su seguimiento`}</button>` : ''}`
+      : `<input class="visit-note" data-visit-note="${v.id}" data-k="${it.k}" maxlength="200" value="${esc(x.note || '')}" placeholder="Nota (opcional)">`}
     </li>`;
   };
+  const prev = previousVisit(v);
+  const prevLeft = prev ? VISIT_ITEMS.filter(it => !isDone(prev, it) || prev.items?.[it.k]?.ans === 'no') : [];
   open({ title: `Visita del ${fmtShort(v.start)}`, back: null, body: `
     <div class="f"><label for="visit-start-e">Semana de la visita (martes)</label><input id="visit-start-e" type="date" data-visit-start="${v.id}" value="${esc(v.start)}"></div>
     <p class="hint">${p.done} de ${p.total} listos. Se guarda solo al marcar.</p>
+    ${prev && prevLeft.length ? `<details class="load-row visit-prev"><summary><span class="load-n hi">${prevLeft.length}</span><span class="grow"><b>De la visita anterior (${esc(fmtShort(prev.start))})</b><small>Lo que quedó pendiente o con «No»</small></span></summary>
+      <ul class="load-list">${prevLeft.map(it => `<li>${prev.items?.[it.k]?.ans === 'no' ? '⚠️ No:' : '⚪'} ${esc(it.t)}${prev.items?.[it.k]?.note ? ` <span class="hint">· ${esc(prev.items[it.k].note)}</span>` : ''}</li>`).join('')}</ul></details>` : ''}
     ${Object.entries(GROUPS).map(([g, x]) => {
       const people = who(g);
       const pend = VISIT_ITEMS.filter(it => it.g === g && !isDone(v, it)).length;
@@ -181,4 +191,50 @@ export function visitNotice(t = today()) {
   const soonDl = dl.find(x => diffDays(x.date, t) <= 7);
   if (d > 30 && !soonDl) return null;
   return { v, days: d, pend: p.total - p.done, next: soonDl };
+}
+
+// La visita anterior a esta (para ver lo que quedó pendiente)
+export function previousVisit(v) {
+  return [...(data.visitas || [])].filter(x => x.id !== v.id && (x.start || '') < (v.start || '')).sort((a, b) => b.start.localeCompare(a.start))[0] || null;
+}
+// Hermanos que recibirán visita de pastoreo con el superintendente (se guarda al marcar)
+export function pastPicked(el) {
+  const f = el.closest('.visit-it');
+  const id = f?.querySelector('[data-visit-note]')?.dataset.visitNote;
+  if (!id) return;
+  const ids = [...f.querySelectorAll('input[name="visitPast"]:checked')].map(i => i.value);
+  setItem(id, 'pastoreo', { ids, done: ids.length ? true : !!store.get('visitas', id)?.items?.pastoreo?.done });
+}
+// Anota la visita de pastoreo en el seguimiento de cada hermano marcado
+export async function logPastoreo(id) {
+  const v = store.get('visitas', id);
+  const x = v?.items?.pastoreo || {};
+  if (!v || !(x.ids || []).length) return;
+  const S2 = await S();
+  const t = today();
+  const date = t >= v.start && t <= addDays(v.start, 6) ? t : v.start;
+  let n = 0;
+  x.ids.forEach(pid => {
+    const person = store.get('people', pid);
+    if (!person) return;
+    if ((person.visits || []).some(vv => vv.kind === 'pastoreo' && vv.date === date && /superintendente de circuito/i.test(vv.note || ''))) return;
+    S2.addVisit(person, { date, kind: 'pastoreo', note: `Con el superintendente de circuito${x.note ? ` y ${x.note}` : ''}`, withIds: [] });
+    n++;
+  });
+  setItem(id, 'pastoreo', { logged: date, done: true });
+  toast(n ? `Anotadas ${n} visitas de pastoreo (${fmtShort(date)})` : 'Ya estaban anotadas');
+  openVisit(id);
+}
+// Crea (o abre) la reunión de los ancianos con el superintendente, con los temas como puntos de la agenda
+export async function meetingFromTopics(id) {
+  const v = store.get('visitas', id);
+  if (!v) return;
+  const S2 = await S();
+  if (v.meetingId && store.get('meetings', v.meetingId)) return S2.meetingSheet(v.meetingId, () => openVisit(id));
+  const topics = String(v.items?.temas?.note || '').split(/\r?\n|;/).map(x => x.replace(/^\s*[-•*\d.)]+\s*/, '').trim()).filter(Boolean);
+  const m = store.upsert('meetings', { id: uid(), title: 'Reunión de ancianos con el superintendente de circuito', date: v.start, time: '', place: '', attendees: '', attendeeIds: [], attendeeGroupIds: [], topics: '', notes: '',
+    agenda: topics.map(t2 => ({ id: uid(), t: t2, kind: 'informar', min: 10 })), agendaMax: 0, prayers: {} });
+  store.upsert('visitas', { ...store.get('visitas', id), meetingId: m.id });
+  toast(topics.length ? `Reunión creada con ${topics.length} temas` : 'Reunión creada: agrega los temas en su agenda');
+  S2.meetingSheet(m.id, () => openVisit(id));
 }

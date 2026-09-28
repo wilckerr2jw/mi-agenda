@@ -1,6 +1,11 @@
 {
-  "version": "8.5",
+  "version": "9.0",
   "notes": [
-    "El administrador puede enviar un respaldo a otra cuenta: se importa con un toque, sin abrir archivos"
+    "Tu ficha «soy yo» protegida: nombre, foto, relación y privilegios no se borran con las actualizaciones",
+    "Mi perfil muestra tus responsabilidades de Congregación",
+    "Visita del superintendente: crear la reunión con los temas, anotar el pastoreo y ver lo pendiente de la visita anterior",
+    "Asignaciones mecánicas: ancianos opcionales",
+    "Enviar una nota a otra cuenta",
+    "Hoy: los avisos se agrupan cuando son muchos"
   ]
 }

@@ -47,12 +47,23 @@ function protectProfile(item) {
   if (out.congre && cur.congre && typeof out.congre === 'object') { const c = { ...out.congre }; Object.keys(cur.congre).forEach(k => { if (isEmpty(c[k]) && !isEmpty(cur.congre[k])) c[k] = cur.congre[k]; }); out.congre = c; }
   return out;
 }
+// Tu ficha «soy yo» en Personas: su nombre, foto, relación y privilegios no se vacían por accidente
+// (solo cambian cuando editas la ficha tú mismo)
+const PROTECT_ME = ['name', 'photo', 'role', 'privileges', 'aliases', 'isMe'];
+function protectMe(item) {
+  const cur = data.people.find(p => p.id === item.id);
+  if (!cur || !cur.isMe) return item;
+  const out = { ...item };
+  PROTECT_ME.forEach(k => { if (isEmpty(out[k]) && !isEmpty(cur[k])) out[k] = cur[k]; });
+  return out;
+}
 function write(col, item, opts = {}) {
   if (col === 'events' && item.sharedId) return sharedWrite(item);
   // Protección: nunca se guarda el perfil antes de haberlo recibido de la nube
   // (si no, un perfil vacío borraría tu rol, tus metas y tus ajustes)
   if (col === 'profile' && isCloud && !profileLoaded) { console.warn('Perfil aún no cargado: no se guarda'); return; }
   if (col === 'profile' && !opts.explicit) item = protectProfile(item);
+  if (col === 'people' && !opts.explicit) item = protectMe(item);
   const i = data[col].findIndex(x => x.id === item.id);
   if (i >= 0) data[col][i] = item; else data[col].push(item);
   notify();

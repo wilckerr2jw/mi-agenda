@@ -1095,3 +1095,10 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 .seg.tiny { margin: 0; padding: 3px; flex: none; grid-auto-columns: auto; }
 .seg.tiny button { padding: 5px 9px; font-size: 13px; }
 .seg.tiny button[aria-pressed="true"][data-v="no"] { color: var(--warn); }
+.card.mini.row-card { display: flex; align-items: center; gap: 10px; } .card.mini.row-card .grow { display: grid; gap: 2px; min-width: 0; } .card.mini.row-card > .btn { flex: none; }
+.notice-group { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); padding: 10px 14px; margin: 4px 0 12px; }
+.notice-group > summary { display: flex; justify-content: space-between; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
+.notice-group > summary::-webkit-details-marker { display: none; }
+.notice-group[open] > summary { margin-bottom: 10px; }
+.notice-group .log-now { margin: 0; }
+.visit-prev { margin: 8px 0; }

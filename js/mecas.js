@@ -213,12 +213,12 @@ export function parseMecas(lines) {
 
 // ───── Seguimiento: quién se usa y quién no ─────
 export const isBaptizedMale = p => (p.privileges || []).some(x => /^var[oó]n bautizado/i.test(x)) || M.isElder(p) || M.isMinisterial(p);
-export function mecaStats(months = 3) {
+export function mecaStats(months = 3, { elders = false } = {}) {
   const from = addDays(today(), -Math.round(months * 30.4));
   const rows = (data.mecas || []).flatMap(x => (x.rows || []).map(r => ({ ...r, imp: x.id }))).filter(r => r.d && r.d >= from);
   const by = {};
   rows.forEach(r => { const b = by[r.pid] = by[r.pid] || { pid: r.pid, n: 0, roles: {}, last: '' }; b.n++; b.roles[r.r] = (b.roles[r.r] || 0) + 1; if (r.d > b.last) b.last = r.d; });
-  const eligible = data.people.filter(p => isBaptizedMale(p) && !p.mecaOff);
+  const eligible = data.people.filter(p => isBaptizedMale(p) && !p.mecaOff && (elders || !M.isElder(p)));   // los ancianos solo si lo eliges
   const used = Object.values(by).map(b => ({ ...b, p: M.person(b.pid) })).filter(b => b.p).sort((a, b) => b.n - a.n || a.p.name.localeCompare(b.p.name, 'es'));
   const notUsed = eligible.filter(p => !by[p.id]).sort((a, b) => a.name.localeCompare(b.name, 'es'));
   const avg = used.length ? used.reduce((t, b) => t + b.n, 0) / used.length : 0;
@@ -234,7 +234,7 @@ export function mecaDept() {
 // ───── Sección en Congregación ─────
 export function mecaSection(st = {}) {
   const months = st.mm || 3;
-  const s = mecaStats(months);
+  const s = mecaStats(months, { elders: !!st.me });
   const imports = [...(data.mecas || [])].sort((a, b) => (b.to || '').localeCompare(a.to || ''));
   const d = mecaDept();
   const head = d ? M.deptHeads(d).join(', ') : '';
@@ -242,12 +242,12 @@ export function mecaSection(st = {}) {
   return `<section><div class="sec-h"><h2>🎛 Asignaciones mecánicas</h2>${head ? `<span class="hint">★ ${esc(head)}</span>` : ''}</div>
     <div class="org-tools"><button class="btn small" data-a="meca-import">📥 Importar arreglo (foto o PDF)</button><button class="btn small ghost" data-a="meca-bapt">✔ Varones bautizados (${s.eligible.length + s.off.length})</button>${s.notUsed.length ? `<button class="btn small ghost" data-a="meca-suggest">💬 Sugerir al encargado</button>` : ''}</div>
     ${!imports.length ? `<p class="hint pad">Importa el arreglo que hizo el hermano encargado (foto o PDF) y aquí verás quiénes se están usando y quiénes no, entre los varones bautizados. La foto se lee en tu teléfono: no se envía a nadie.</p>` : `
-    <div class="chips">${chip(1, 'Último mes')}${chip(3, '3 meses')}${chip(6, '6 meses')}${chip(12, '1 año')}</div>
-    <div class="meca-kpis"><div><b>${s.used.length}</b><span>se usan</span></div><div class="${s.notUsed.length ? 'warn' : ''}"><b>${s.notUsed.length}</b><span>sin asignación</span></div><div><b>${s.eligible.length}</b><span>varones bautizados</span></div></div>
+    <div class="chips">${chip(1, 'Último mes')}${chip(3, '3 meses')}${chip(6, '6 meses')}${chip(12, '1 año')}<button class="chip" data-a="meca-elders" aria-pressed="${!!st.me}">${st.me ? '✓ ' : ''}Incluir ancianos</button></div>
+    <div class="meca-kpis"><div><b>${s.used.length}</b><span>se usan</span></div><div class="${s.notUsed.length ? 'warn' : ''}"><b>${s.notUsed.length}</b><span>sin asignación</span></div><div><b>${s.eligible.length}</b><span>${st.me ? 'varones bautizados' : 'varones (sin ancianos)'}</span></div></div>
     ${s.notUsed.length ? `<h3 class="sub-h">⚠️ No se están usando (${s.notUsed.length})</h3><div class="chips wrap">${s.notUsed.map(p => `<button class="chip warn-chip" data-a="person" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>` : (s.eligible.length ? '<p class="hint pad">✓ Todos los varones bautizados tienen alguna asignación en este tiempo.</p>' : '')}
     ${s.heavy.length ? `<h3 class="sub-h">🔁 Los que más se repiten</h3><div class="chips wrap">${s.heavy.map(b => `<button class="chip" data-a="person" data-id="${b.pid}">${esc(b.p.name)} · ${b.n}</button>`).join('')}</div>` : ''}
     ${s.used.length ? `<details class="load-row"><summary><span class="grow"><b>Cuántas veces tuvo cada uno</b><small>desde el ${esc(fmtShort(s.from))}</small></span></summary><ul class="load-list">${s.used.map(b => `<li><b>${b.n}</b> · ${esc(b.p.name)} <span class="hint">${esc(Object.entries(b.roles).map(([r, c]) => `${r}${c > 1 ? ` ×${c}` : ''}`).join(', '))} · última: ${esc(fmtShort(b.last))}</span></li>`).join('')}</ul></details>` : ''}
-    <h3 class="sub-h">Arreglos importados</h3><div class="stack">${imports.map(x => `<div class="card mini"><span class="grow"><strong>${esc(x.title || 'Arreglo')}</strong><span class="meta">${x.from ? `${esc(fmtShort(x.from))} – ${esc(fmtShort(x.to))} · ` : ''}${(x.rows || []).length} asignaciones</span></span><button class="btn small ghost" data-a="meca-view" data-id="${x.id}">Ver</button></div>`).join('')}</div>`}
+    <h3 class="sub-h">Arreglos importados</h3><div class="stack">${imports.map(x => `<div class="card mini row-card"><span class="grow"><strong>${esc(x.title || 'Arreglo')}</strong><span class="meta">${x.from ? `${esc(fmtShort(x.from))} – ${esc(fmtShort(x.to))} · ` : ''}${(x.rows || []).length} asignaciones</span></span><button class="btn small ghost" data-a="meca-view" data-id="${x.id}">Ver</button></div>`).join('')}</div>`}
     ${!s.eligible.length && !s.off.length ? '<p class="hint pad">Marca en «✔ Varones bautizados» a quiénes se les puede asignar. Los ancianos y siervos ministeriales ya cuentan.</p>' : ''}
   </section>`;
 }

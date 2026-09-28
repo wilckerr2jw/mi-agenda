@@ -222,6 +222,8 @@ document.addEventListener('click', e => {
     case 'load-g': ui.congre.lg = v; return render();
     case 'comite-share': return Cm.shareSummary();
     case 'inbox-discard': return S.inboxDiscard();
+    case 'send-note': return S.sendNoteSheet(id);
+    case 'send-note-go': return S.sendNoteGo(id, v, el.dataset.name);
     case 'admin-send-go': return S.adminSendGo();
     case 'visita-new': return Vi.newVisit();
     case 'visita-create': return Vi.createVisit();
@@ -230,6 +232,8 @@ document.addEventListener('click', e => {
     case 'visita-ans': return Vi.answer(el);
     case 'visita-na': return Vi.toggleNa(el);
     case 'visita-ask': return Vi.ask(id, v);
+    case 'visita-meeting': return Vi.meetingFromTopics(id);
+    case 'visita-past-log': return Vi.logPastoreo(id);
     case 'dictate': return import('./voz.js').then(Vz => Vz.dictate(el));
     case 'ics-export': return import('./ics.js').then(I => I.exportIcs());
     case 'meca-import': return Mc.importSheet();
@@ -240,6 +244,7 @@ document.addEventListener('click', e => {
     case 'meca-bapt-save': return Mc.baptSave().then(render);
     case 'meca-suggest': return Mc.suggest(ui.congre.mm || 3);
     case 'meca-months': ui.congre.mm = Number(v) || 3; return render();
+    case 'meca-elders': ui.congre.me = !ui.congre.me; return render();
     case 'meca-add-person': return Mc.addPerson(el.dataset.name);
     case 'dept-unskip': S.deptRestoreSkipped(); return setTimeout(render, 50);
     case 'org-pick': ui.congre = { ...ui.congre, picking: !ui.congre.picking, picked: [], sorting: false }; return render();
@@ -428,6 +433,7 @@ document.addEventListener('change', e => {
   if (t.id === 'meca-file') return Mc.fileChosen(t);
   if (t.dataset?.adminSend) return S.adminSend(t);
   if (t.dataset?.visitStart) return Vi.startChanged(t);
+  if (t.name === 'visitPast') return Vi.pastPicked(t);
   if (t.id === 'auto-heads') {   // comité / cuerpo de ancianos: se llena solo o a mano
     const hb = document.getElementById('heads-box'), hl = document.getElementById('auto-heads-list');
     if (hb) hb.hidden = t.checked; if (hl) hl.hidden = !t.checked; return;

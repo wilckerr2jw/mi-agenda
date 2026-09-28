@@ -645,7 +645,7 @@ function savePerson(id, r, form) {
   }
   const isMe = r.isMe === 'on';
   if (isMe) {   // solo una persona puede estar marcada como «tú»
-    data.people.filter(p => p.isMe && p.id !== id).forEach(p => store.upsert('people', { ...p, isMe: false }));
+    data.people.filter(p => p.isMe && p.id !== id).forEach(p => store.upsert('people', { ...p, isMe: false }, { explicit: true }));
   }
   // lastContact no se toca: se actualiza solo al anotar seguimientos en sus tareas
   const groupLeftAt = M.updateGroupMembership(prev.groupIds || [], gids, prev.groupLeftAt);
@@ -654,7 +654,7 @@ function savePerson(id, r, form) {
   const known = [...M.PRIVILEGES, ...M.savedTypes('privileges')].map(norm);
   const fresh = privileges.filter(x => !known.includes(norm(x)));
   if (fresh.length) store.upsert('profile', { ...M.profile(), id: 'me', customPrivileges: [...M.savedTypes('privileges'), ...fresh] });
-  const saved = store.upsert('people', { ...prev, id: id || uid(), name: r.name, role: r.role, phone: r.phone, address: r.address, notes: r.notes, groupIds: gids, groupLeftAt, isMe, photo: r.photo, aliases: r.aliases || '', privileges });
+  const saved = store.upsert('people', { ...prev, id: id || uid(), name: r.name, role: r.role, phone: r.phone, address: r.address, notes: r.notes, groupIds: gids, groupLeftAt, isMe, photo: r.photo, aliases: r.aliases || '', privileges }, { explicit: true });
   if (backFn) closeOrBack(); else personDetail(saved.id);   // al crear, se muestra su ficha
 }
 
@@ -779,7 +779,7 @@ function saveHelped(pid, r) {
 }
 
 // Guarda una visita en la ficha (y actualiza «último contacto»)
-function addVisit(p, v) {
+export function addVisit(p, v) {
   const visits = [{ id: uid(), ...v }, ...(p.visits || [])].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 200);
   const extra = {};
   if (v.kind === 'estudio') extra.study = { every: 7, ...(p.study || {}), active: true, ...(v.lesson ? { lesson: v.lesson } : {}) };
@@ -1281,7 +1281,8 @@ export function noteSheet(id, back) {
       <label class="check"><input type="checkbox" name="pinned" ${v.pinned ? 'checked' : ''}> Fijar arriba</label>
       ${data.meetings.length ? fld('Vincular a una reunión', meetingsSelect, 'meetingId') : ''}
       ${fld('Vincular a una persona', peopleSelect('personId', v.personId, 'Nadie'), 'personId')}
-    </form>`,
+    </form>
+    ${n && isCloud && session.isAdmin ? `<button type="button" class="btn ghost pad-top" data-a="send-note" data-id="${n.id}">📤 Enviar esta nota a otra cuenta</button>` : ''}`,
     actions: foot('notes', n?.id),
   });
 }
@@ -1315,8 +1316,15 @@ export function profileSheet() {
   const v = M.profile();
   catDraft = v.customCats ? v.customCats.map(c => ({ ...c })) : [];
   catEditIdx = -1; catIconManual = false;
-  const roles = M.profileRoles(v);
+  // Tus nombramientos salen de tu ficha «soy yo» en Personas y de Congregación (una sola fuente)
+  const meP = data.people.find(p => p.isMe);
+  const fromMe = meP ? [...String(meP.role || '').split(','), ...(meP.privileges || [])].map(x => x.trim()).filter(x => M.PUBLISHER_ROLES.some(r => norm(r) === norm(x))).map(x => M.PUBLISHER_ROLES.find(r => norm(r) === norm(x))) : [];
+  // …y los cargos que atiendes en el organigrama (coordinador, secretario, superintendente de servicio)
+  const fromOrg = meP ? [['coord', 'Coordinador del cuerpo de ancianos'], ['secre', 'Secretario'], ['serv', 'Superintendente de servicio']].filter(([k]) => M.headsOf(k).some(pp => pp.id === meP.id)).map(x => x[1]) : [];
+  const roles = [...new Set([...M.profileRoles(v), ...fromMe, ...fromOrg])];
   const extra = roles.filter(r => !M.PUBLISHER_ROLES.includes(r)).join(', ');
+  const myDepts = meP ? M.deptsOfPerson(meP.id) : [];
+  const otherPriv = meP ? (meP.privileges || []).filter(x => !M.PUBLISHER_ROLES.some(r => norm(r) === norm(x)) && !/^var[oó]n bautizado/i.test(x)) : [];
   const typeInfo = isCloud && M.PROFILE_TYPES[session.type] ? M.PROFILE_TYPES[session.type].n : '';
   open({
     title: 'Mi perfil',
@@ -1332,6 +1340,10 @@ export function profileSheet() {
         <div class="checklist">${M.PUBLISHER_ROLES.map(r => `<label class="check"><input type="checkbox" name="roles" value="${esc(r)}" ${roles.includes(r) ? 'checked' : ''}> <span>${esc(r)}</span></label>`).join('')}</div>
         <input id="roleOtro" name="roleOtro" maxlength="80" value="${esc(extra)}" placeholder="Otro (escríbelo; separa varios con coma)" aria-label="Otro servicio">
       </div>
+      ${meP && (myDepts.length || otherPriv.length) ? `<div class="f"><span class="lbl">🏛 En Congregación</span>
+        <div class="chips wrap">${myDepts.map(x => `<button type="button" class="chip" data-a="dept" data-id="${x.d.id}">${x.head ? '★ ' : ''}${esc(x.d.name)}</button>`).join('')}${otherPriv.map(x => `<span class="chip static">${esc(x)}</span>`).join('')}</div>
+        <p class="hint">Salen solos del organigrama y de tu ficha en Personas. Para cambiarlos, hazlo allá: aquí se actualizan.</p></div>` : ''}
+      ${!meP ? '<p class="hint">Marca tu ficha en Personas con «Soy yo» para que aquí salgan tus responsabilidades de Congregación.</p>' : ''}
       <label class="check"><input type="checkbox" id="goalEnabled" name="goalEnabled" ${v.goalEnabled ? 'checked' : ''}> Meta personal</label>
       <div class="two">
         ${fld('Meta mensual (h)', `<input id="goalMonthly" name="goalMonthly" type="number" min="0" inputmode="numeric" value="${esc(v.goalMonthly ?? '')}">`, 'goalMonthly')}
@@ -1422,6 +1434,16 @@ function saveProfile(r, form) {
   const checked = new FormData(form).getAll('roles');
   const typed = String(r.roleOtro || '').split(',').map(x => x.trim()).filter(Boolean);
   const roles = [...new Set([...checked, ...typed])];
+  // Los nombramientos también quedan en tu ficha «soy yo» (así Congregación y Mi perfil dicen lo mismo)
+  const meP = data.people.find(p => p.isMe);
+  if (meP) {
+    const isPriv = x => M.PRIVILEGES.some(pp => norm(pp) === norm(x));
+    const managed = M.PUBLISHER_ROLES.filter(isPriv);
+    const keep = (meP.privileges || []).filter(x => !managed.some(m => norm(m) === norm(x)));
+    const privileges = [...keep, ...checked.filter(isPriv)];
+    const role = !meP.role && checked.includes('Anciano') ? 'Anciano' : meP.role;
+    if (JSON.stringify(privileges) !== JSON.stringify(meP.privileges || []) || role !== meP.role) store.upsert('people', { ...meP, privileges, role, name: meP.name || r.myName }, { explicit: true });
+  }
   store.upsert('profile', { ...M.profile(), id: 'me', myName: r.myName || '', myAliases: r.myAliases || '', roles, role: roles.join(', '), photo: r.photo, goalEnabled: r.goalEnabled === 'on', goalMonthly: r.goalMonthly, goalAnnual: r.goalAnnual, customCats }, { explicit: true });
   closeOrBack();
 }
@@ -2737,6 +2759,27 @@ export async function adminSendGo() {
   try { await store.admin.sendData(uid, txt, M.profile().myName || ''); close(); toast(`Enviado. Cuando ${name.split(' ')[0]} abra la app, le saldrá «Importar»`); }
   catch (e) { console.error(e); toast('No se pudo enviar. Revisa tu conexión'); }
   sendPending = null;
+}
+
+// Enviar una nota a otra cuenta (le llega para importarla con un toque; sin archivos)
+export async function sendNoteSheet(id) {
+  const n = store.get('notes', id);
+  if (!n) return;
+  open({ title: 'Enviar nota', back: () => noteSheet(id), body: '<p class="hint pad">Cargando cuentas…</p>' });
+  let users = [];
+  try { users = (await store.admin.listUsers()).filter(u => u.type && u.uid !== account.user?.uid); } catch { /* sin conexión */ }
+  const b = root.querySelector('.sheet-b');
+  if (!b) return;
+  b.innerHTML = users.length ? `<p class="hint">Se le envía una copia de «${esc(n.title || 'la nota')}» (sin la reunión ni la persona vinculadas). Le aparece para importarla al abrir su app.</p>
+    <div class="stack">${users.map(u => `<button type="button" class="btn" data-a="send-note-go" data-id="${n.id}" data-v="${esc(u.uid)}" data-name="${esc(u.name || u.email || '')}">📤 ${esc(u.name || u.email)}</button>`).join('')}</div>`
+    : '<p class="hint pad">No hay otras cuentas con acceso.</p>';
+}
+export async function sendNoteGo(id, uidTo, name) {
+  const n = store.get('notes', id);
+  if (!n) return;
+  const copy = { id: uid(), title: n.title || '', body: n.body || '', tag: n.tag || '', date: n.date || today(), pinned: false };
+  try { await store.admin.sendData(uidTo, JSON.stringify({ app: 'mi-agenda', data: { notes: [copy] } }), M.profile().myName || ''); close(); toast(`Nota enviada a ${String(name).split(' ')[0]}`); }
+  catch (e) { console.error(e); toast('No se pudo enviar. Revisa tu conexión'); }
 }
 
 // Al abrir la app: si el administrador te dejó datos, se ofrecen para importar

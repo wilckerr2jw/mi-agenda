@@ -133,6 +133,12 @@ function followNotice() {
   return `<button class="log-now follow-now" data-a="seguimiento">📖 <span><b>Seguimiento</b><small>${parts.join(' y ')}. Toca para verlos.</small></span></button>`;
 }
 
+// Avisos de Hoy: si hay 3 o más, se agrupan en una sola tarjeta que se despliega (Hoy queda más limpio)
+function noticeGroup(list) {
+  const items = list.filter(Boolean);
+  if (items.length < 3) return items.join('');
+  return `<details class="notice-group"><summary><span>🔔 <b>${items.length} avisos</b></span><span class="hint">Toca para verlos</span></summary><div class="stack">${items.join('')}</div></details>`;
+}
 // Tarjeta grande con lo que está pasando ahora o lo que sigue hoy
 function nowCard(entries, t) {
   const d = new Date(), now = d.getHours() * 60 + d.getMinutes();
@@ -197,10 +203,12 @@ export function hoy() {
     </div>
     ${actions()}
   </header>
-  ${Nat.state.update ? `<button class="log-now apk-up" data-a="apk-update">📲 <span><b>Hay una actualización de la app</b><small>Versión ${esc(Nat.state.update.name)}. Toca para descargarla e instalarla.</small></span></button>` : ''}
-  ${Nat.isNative && Nat.state.exact && Nat.state.exact !== 'granted' ? `<button class="log-now" data-a="nat-exact-hoy">🔔 <span><b>Permite los avisos exactos</b><small>Sin este permiso, Android puede atrasar los avisos de tus eventos y tareas. Toca para activarlo.</small></span></button>` : ''}
-  ${(() => { const vn = M.isModuleVisible('congregacion') ? visitNotice() : null; return vn ? `<button class="log-now visit-now" data-a="visita-open" data-id="${vn.v.id}">🧳 <span><b>Visita del superintendente de circuito ${vn.days > 1 ? `en ${vn.days} días` : vn.days === 1 ? 'mañana' : vn.days === 0 ? 'hoy' : 'esta semana'}</b><small>${vn.pend ? `Faltan ${vn.pend} cosas por tener listas` : '✓ Todo listo'}${vn.next ? ` · ${esc(vn.next.it.t.split(' (')[0])} ${vn.next.date < today() ? 'venció el' : 'antes del'} ${esc(fmtShort(vn.next.date))}` : ''}</small></span></button>` : ''; })()}
-  ${(() => { let last = ''; try { last = localStorage.getItem('miagenda.ultimoRespaldo') || ''; } catch { return ''; } const old = !last || (Date.parse(t) - Date.parse(last)) / 864e5 >= 14; return old && d.getDay() === 0 ? `<button class="log-now" data-a="backup-drive">☁️ <span><b>Guarda tu respaldo en Google Drive</b><small>${last ? `El último fue el ${esc(fmtShort(last))}.` : 'Todavía no has guardado uno desde este teléfono.'} Toca para guardarlo.</small></span></button>` : ''; })()}
+  ${noticeGroup([
+    Nat.state.update ? `<button class="log-now apk-up" data-a="apk-update">📲 <span><b>Hay una actualización de la app</b><small>Versión ${esc(Nat.state.update.name)}. Toca para descargarla e instalarla.</small></span></button>` : '',
+    Nat.isNative && Nat.state.exact && Nat.state.exact !== 'granted' ? `<button class="log-now" data-a="nat-exact-hoy">🔔 <span><b>Permite los avisos exactos</b><small>Sin este permiso, Android puede atrasar los avisos de tus eventos y tareas. Toca para activarlo.</small></span></button>` : '',
+    (() => { const vn = M.isModuleVisible('congregacion') ? visitNotice() : null; return vn ? `<button class="log-now visit-now" data-a="visita-open" data-id="${vn.v.id}">🧳 <span><b>Visita del superintendente de circuito ${vn.days > 1 ? `en ${vn.days} días` : vn.days === 1 ? 'mañana' : vn.days === 0 ? 'hoy' : 'esta semana'}</b><small>${vn.pend ? `Faltan ${vn.pend} cosas por tener listas` : '✓ Todo listo'}${vn.next ? ` · ${esc(vn.next.it.t.split(' (')[0])} ${vn.next.date < today() ? 'venció el' : 'antes del'} ${esc(fmtShort(vn.next.date))}` : ''}</small></span></button>` : ''; })(),
+    (() => { let last = ''; try { last = localStorage.getItem('miagenda.ultimoRespaldo') || ''; } catch { return ''; } const old = !last || (Date.parse(t) - Date.parse(last)) / 864e5 >= 14; return old && d.getDay() === 0 ? `<button class="log-now" data-a="backup-drive">☁️ <span><b>Guarda tu respaldo en Google Drive</b><small>${last ? `El último fue el ${esc(fmtShort(last))}.` : 'Todavía no has guardado uno desde este teléfono.'} Toca para guardarlo.</small></span></button>` : ''; })()
+  ])}
   ${logToday ? `<button class="log-now" data-a="qa" data-v="time">📝 <span><b>Registra tu actividad de hoy</b><small>Aún no guardaste horas ni cursos. Toca aquí para anotarlos.</small></span></button>` : ''}
   ${juntaHoy ? `<button class="btn primary junta-now" data-a="junta-start" data-id="${juntaHoy.id}">▶ Iniciar la junta de hoy<small>${esc(juntaHoy.title)}${juntaHoy.time ? ` · ${fmtTime(juntaHoy.time)}` : ''}</small></button>` : ''}
   ${nowCard(entries, t)}

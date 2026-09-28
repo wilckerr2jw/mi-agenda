@@ -1,4 +1,5 @@
 
+    <li><b>📤 Enviar una nota a otra cuenta:</b> abre la nota y toca «Enviar esta nota a otra cuenta». A la otra persona le aparece para importarla.</li>
     <li><b>📤 Enviarle un respaldo:</b> si alguien no puede abrir un archivo de respaldo en su teléfono (muchos teléfonos no abren archivos .json), envíaselo desde Administrar usuarios. Al abrir su app le aparece «📥 Datos para ti» y lo importa con un toque. Tú no puedes ver sus datos.</li><!doctype html>
 <html lang="es">
 <head>
@@ -140,7 +141,7 @@ footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
     <a class="btn primary" href="./">Abrir la app</a>
     <a class="btn" href="#empezar">Empezar por aquí</a>
   </div>
-  <p class="ver">Versión de la app <b id="guia-version">8.5</b> · Guía actualizada el <span id="guia-fecha">28 de septiembre de 2026</span></p>
+  <p class="ver">Versión de la app <b id="guia-version">9.0</b> · Guía actualizada el <span id="guia-fecha">28 de septiembre de 2026</span></p>
 </header>
 
 <div class="toc"><nav aria-label="Secciones de la guía">
@@ -220,6 +221,7 @@ footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
   <p class="lead">Lo primero que ves al abrir: tu día de un vistazo.</p>
   <ul class="dots">
     <li><b>Ahora / A continuación:</b> una tarjeta grande con lo que está pasando en este momento o lo próximo de hoy (con la hora, el lugar y cuánto falta).</li>
+    <li><b>Avisos agrupados:</b> cuando hay 3 o más avisos (actualización, visita del superintendente, respaldo…), se juntan en una tarjeta «🔔 N avisos» que se despliega.</li>
     <li><b>Saludo y tarjetas:</b> arriba ves tu nombre y unas tarjetas con lo de hoy: compromisos, tareas, tu meta del mes (con 🐢 🦉 🐇) y la próxima reunión. Toca una para ir directo.</li>
     <li><b>▶ Iniciar la junta de hoy:</b> aparece cuando hoy hay una reunión con agenda; abre el <b>Modo junta</b> (ver sección 7).</li>
     <li><b>Agenda de hoy:</b> tus eventos y reuniones ordenados por hora, con el color de su tipo.</li>
@@ -347,6 +349,9 @@ footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
     <li>Marca cada cosa cuando esté lista y agrega una nota si hace falta. Las fechas límite salen solas: el S-62 al menos un mes antes y todo lo demás a más tardar el martes de la visita.</li>
     <li><b class="ui">📤 Pedirle lo que falta por WhatsApp</b> arma el mensaje para el secretario o el superintendente de servicio con lo que todavía no está.</li>
     <li>Las preguntas del final (Sí / No / N/A) las llena el superintendente de circuito; tú las vas revisando para que todo esté al día. Las que marques «No» salen resaltadas.</li>
+    <li>En «Temas para la agenda de la reunión con los ancianos» escribe un tema por línea y toca <b class="ui">🗓 Crear la reunión con estos temas</b>: se crea la reunión con su agenda lista para el Modo junta.</li>
+    <li>En «Hermanos que recibirán visita de pastoreo» búscalos con la 🔍 y márcalos; en la semana de la visita, <b class="ui">✓ Anotar estas visitas</b> las registra en el seguimiento de cada uno («con el superintendente de circuito»).</li>
+    <li>Arriba verás <b>lo que quedó pendiente o con «No» en la visita anterior</b>, para no repetirlo.</li>
     <li>Desde un mes antes, en Hoy y en el resumen de la mañana te recuerda cuántas cosas faltan y la próxima fecha límite.</li>
   </ul>
   <h3>🎛 Asignaciones mecánicas</h3>
@@ -354,6 +359,7 @@ footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
     <li><b class="ui">📥 Importar arreglo:</b> toma una foto clara del programa que hizo el hermano encargado o elige el PDF. La app lo lee en tu teléfono (no se envía a nadie), reconoce las fechas, las asignaciones (acomodadores, audio, video, micrófonos, plataforma, Zoom) y a los hermanos. Revisa lo que encontró: si algún nombre se leyó mal, corrígelo en «Ver y corregir el texto leído» o agrégalo a Personas. Si una fecha no sale, escribe el mes en la primera línea («Octubre 2026»).</li>
     <li><b class="ui">✔ Varones bautizados:</b> marca a quiénes se les puede asignar. Los ancianos y siervos ministeriales ya cuentan. En «No disponibles por ahora» pon a los que no pueden (salud, trabajo, viaje).</li>
     <li>Con los arreglos importados ves <b>quiénes no se están usando</b>, <b>los que más se repiten</b> y cuántas veces tuvo cada uno (último mes, 3 meses, 6 meses o 1 año).</li>
+    <li>Por omisión no se cuentan los ancianos; toca <b class="ui">Incluir ancianos</b> si también quieres verlos.</li>
     <li><b class="ui">💬 Sugerir al encargado</b> arma un mensaje amable para el responsable de «Asignaciones mecánicas» con los hermanos que conviene tomar en cuenta en el próximo arreglo.</li>
   </ul>
 </section>
@@ -531,6 +537,7 @@ footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
   <ul class="dots">
     <li><b>Apariencia:</b> Automático (según el teléfono), Claro u Oscuro; el <b>color de la app</b> (verde, azul, vino, morado o terracota) y el <b>tamaño de letra</b> (Normal, Grande o Muy grande).</li>
     <li><b>Avisos:</b> antes de cada evento, tareas con hora y, a la hora que elijas (9:00 a. m. si no cambias nada), las <b>tareas del día sin hora y las atrasadas</b>. Activa «Mostrar los títulos…» para ver de qué se trata cada una. En la app de Android los avisos se programan para toda la semana; con <b class="ui">🔔 Ver los avisos programados</b> revisas cuáles vienen. Si en Hoy te sale «Permite los avisos exactos», actívalo: sin ese permiso Android puede atrasarlos.</li>
+    <li><b>Mi perfil y Congregación dicen lo mismo:</b> en Mi perfil ves tus responsabilidades del organigrama y tus nombramientos, tomados de tu ficha «soy yo» en Personas. Lo que marques en «Sirvo como…» también queda en esa ficha. Tu ficha «soy yo» está protegida: con las actualizaciones no se borran su nombre, foto, relación ni privilegios.</li>
     <li><b>Nada se pierde sin guardar:</b> mientras llenas un formulario (evento, tarea, reunión, nota, persona, departamento o datos de la congregación), la app guarda un borrador en tu teléfono. Si se recarga o se actualiza antes de tocar «Guardar», al volver te sale <b class="ui">Recuperar</b>.</li>
     <li><b>Accesos rápidos:</b> elige qué botones aparecen en Hoy.</li>
     <li><b>Recorrido por la app:</b> repite el paseo guiado.</li>
