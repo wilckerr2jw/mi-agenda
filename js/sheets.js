@@ -2178,6 +2178,7 @@ function agreementsHtml(m) {
           ${a.subjectName ? `<span class="nw">${ic('users', 'sm')}${esc(a.subjectName)}</span>${a.subjectKnown ? '' : `<button type="button" class="link sm" data-a="agree-person" data-name="${esc(a.subjectName)}">Agregar a Personas</button>`}` : ''}
           ${a.due ? `<span class="nw">${ic('calendar', 'sm')}${fmtShort(a.due)}</span>` : ''}
         </span>
+        ${(a.details || []).map(d => `<span class="meta">• ${esc(d)}</span>`).join('')}
         ${a.responsibles.length ? `<span class="meta">Responsables: ${esc(a.responsibles.join(', '))}</span>` : ''}
         <span class="tag ${a.mine ? 'mine' : 'sup'}">${a.mine ? '👉 Te toca a ti' : '👁 Supervisas'}</span>
       </span>
@@ -2214,7 +2215,7 @@ export function agreementTask(meetingId, i) {
   const m = store.get('meetings', meetingId);
   const a = m && M.parseAgreements(m)[Number(i)];
   if (!a) return;
-  const notes = [a.text, a.responsibles.length ? `Responsables: ${a.responsibles.join(', ')}` : ''].filter(Boolean).join('\n\n');
+  const notes = [a.text, ...(a.details || []).map(d => `• ${d}`), a.responsibles.length ? `Responsables: ${a.responsibles.join(', ')}` : ''].filter(Boolean).join('\n\n');
   taskSheet(null, { title: a.title, personId: a.personId, due: a.due, kind: a.kind, notes, meetingId, fromAgreement: a.key, responsibles: a.responsibles, mine: a.mine, subjectName: a.subjectKnown ? '' : a.subjectName }, () => meetingSheet(meetingId));
 }
 

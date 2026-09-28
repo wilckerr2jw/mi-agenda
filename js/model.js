@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '7.4';
+export const APP_VERSION = '7.5';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -951,7 +951,8 @@ function makeTitle(text, subject) {
 
 // Acuerdos encontrados en una reunión: a quién atender, responsables, si te toca a ti, fecha y si ya tienen tarea
 export function parseAgreements(m) {
-  const lines = String(m.notes || '').split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const raw = String(m.notes || '').split(/\r?\n/).filter(l => l.trim());
+  const lines = raw.map(l => l.replace(/\s+/g, ' ').trim());
   // Si la nota tiene una sección «Tareas:» o «Acuerdos:», solo cuenta lo que está debajo (el resto es contexto, como el organigrama)
   const isHead = l => /^(tareas?|acuerdos?|pendientes?|por hacer|asignaciones)\b[^:]{0,30}:?\s*$/i.test(l);
   const isCaps = l => l.length > 6 && /[A-ZÁÉÍÓÚÑ]/.test(l) && l === l.toUpperCase();
@@ -959,14 +960,24 @@ export function parseAgreements(m) {
   let source;
   if (hi >= 0) {
     const after = lines.slice(hi + 1); const end = after.findIndex(l => isCaps(l) || isHead(l));
-    source = (end >= 0 ? after.slice(0, end) : after).filter(l => l.split(/\s+/).length >= 2);
+    const sec = (end >= 0 ? after.slice(0, end) : after).map((l, j) => ({ l, r: raw[hi + 1 + j] }));
+    // Una línea con guion o sangría debajo de un acuerdo es un detalle de ese acuerdo (si los demás no llevan guion)
+    const SUB = /^\s*[-•*·–—]\s*/;
+    const isSub = x => SUB.test(x.r) || /^\s/.test(x.r);
+    const hasPlain = sec.some(x => !isSub(x));
+    source = [];
+    sec.forEach(x => {
+      if (hasPlain && isSub(x) && source.length) { const d = x.l.replace(SUB, '').trim(); if (d) source[source.length - 1].details.push(d); return; }
+      const line = x.l.replace(SUB, '').trim();
+      if (line.split(/\s+/).length >= 2) source.push({ line, details: [] });
+    });
   } else {
     const bulleted = lines.filter(l => BULLET.test(l));
-    source = bulleted.length ? bulleted : lines.filter(l => l.split(/\s+/).length >= 3);   // sin viñetas: cada línea con sentido
+    source = (bulleted.length ? bulleted : lines.filter(l => l.split(/\s+/).length >= 3)).map(line => ({ line, details: [] }));   // sin viñetas: cada línea con sentido
   }
   const base = m.date || today();
   const tasks = data.tasks.filter(t => t.meetingId === m.id);
-  return source.map(l => {
+  return source.map(({ line: l, details }) => {
     const text = l.replace(BULLET, '').replace(/^acuerdo\s*:\s*/i, '').trim();
     const key = agreementKey(text);
     const tail = tailNames(text);
@@ -980,7 +991,7 @@ export function parseAgreements(m) {
     const cap = x => x.charAt(0).toUpperCase() + x.slice(1);
     const title = tail ? shorten(tail.head, 70) : lead.length ? shorten(cap(subj.body), 70) : makeTitle(subj.body, subjectName);
     return {
-      text, key, title, due: findDate(text, base), kind: guessKind(title),
+      text, key, title, details, due: findDate(text, base), kind: guessKind(title),
       subjectName, personId: subjHit && !subjHit.isMe ? subjHit.id : '', subjectKnown: !!(subjHit && !subjHit.isMe),
       personName: subjectName,
       responsibles: responsibles.map(r => r.name),
