@@ -1,8 +1,7 @@
 {
-  "version": "6.5",
+  "version": "6.6",
   "notes": [
-    "Al iniciar sesión, el ojito te deja ver la contraseña que escribes",
-    "Organigrama: busca al hermano con la lupa escribiendo su nombre",
-    "Ayudantes opcionales por departamento, cada uno con su función"
+    "Congregación: en cuántos departamentos está cada hermano y quién del grupo no tiene ninguno",
+    "El organigrama ya no aparece a publicadores ni precursores"
   ]
 }

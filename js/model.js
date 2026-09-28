@@ -3,14 +3,14 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '6.5';
+export const APP_VERSION = '6.6';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
 export const PROFILE_TYPES = {
-  publicador: { n: 'Publicador',                   hideEventCats: ['ancianos', 'pastoreo'], hideServCats: ['pastoreo'] },
-  precursor:  { n: 'Precursor',                    hideEventCats: ['ancianos', 'pastoreo'], hideServCats: ['pastoreo'], goal: true },
-  anciano:    { n: 'Anciano / Siervo ministerial', hideEventCats: [],                      hideServCats: [] },
+  publicador: { n: 'Publicador',                   hideEventCats: ['ancianos', 'pastoreo'], hideServCats: ['pastoreo'], hideModules: ['congregacion'] },
+  precursor:  { n: 'Precursor',                    hideEventCats: ['ancianos', 'pastoreo'], hideServCats: ['pastoreo'], hideModules: ['congregacion'], goal: true },
+  anciano:    { n: 'Anciano / Siervo ministerial', hideEventCats: [],                      hideServCats: [], hideModules: [] },
 };
 // Sin tipo asignado (modo local, administrador sin tipo o reglas antiguas) se ve todo.
 export const profileType = () => (PROFILE_TYPES[session.type] ? session.type : 'anciano');
@@ -258,8 +258,17 @@ export const quickActions = () => {
   return QUICK_ACTIONS.filter(q => chosen.includes(q.id) && (!q.mod || isModuleVisible(q.mod)));
 };
 
-export const isModuleVisible = id => !(profile().hiddenModules || []).includes(id);
+// Secciones que el tipo de perfil no usa (p. ej. el organigrama solo es para ancianos y siervos)
+export const moduleAllowed = id => !(profileTypeInfo().hideModules || []).includes(id);
+export const isModuleVisible = id => moduleAllowed(id) && !(profile().hiddenModules || []).includes(id);
 export const visibleModules = () => MODULES.filter(m => isModuleVisible(m.id));
+
+// ───── Asignaciones por hermano: en cuántos departamentos está cada uno ─────
+export function deptLoad(pid) {
+  const heads = [], helps = [];
+  (data.depts || []).forEach(d => { if (deptHeadIds(d).includes(pid)) heads.push(d); else if ((d.helperIds || []).includes(pid)) helps.push(d); });
+  return { heads, helps, total: heads.length + helps.length };
+}
 
 
 // ───────────── Ritmo de la meta mensual ─────────────

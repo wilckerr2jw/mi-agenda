@@ -187,6 +187,7 @@ document.addEventListener('click', e => {
     case 'dept-new': return S.deptSheet(null, { parentId: id || '' });
     case 'dept-suggest': S.deptLoadSuggested(); return render();
     case 'congre-edit': return S.congreSheet();
+    case 'load-g': ui.congre.lg = v; return render();
     case 'dept-unskip': S.deptRestoreSkipped(); return setTimeout(render, 50);
     case 'org-pick': ui.congre = { ...ui.congre, picking: !ui.congre.picking, picked: [], sorting: false }; return render();
     case 'org-sort': ui.congre = { ...ui.congre, sorting: !ui.congre.sorting, picking: false }; return render();

@@ -528,9 +528,23 @@ export function congregacion(ui) {
     <div class="roster">${rosters.map(r => `<details class="roster-box"><summary><b>${r.list.length}</b> ${esc(r.n)}</summary>
       ${r.list.length ? `<div class="chips">${r.list.map(p => `<button class="chip" data-a="person" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>` : '<p class="hint">Nadie todavía.</p>'}</details>`).join('')}</div>
     <p class="hint pad">Salen de tus Personas: pon «Anciano», «Siervo ministerial» o «Precursor regular» en su relación o en sus privilegios.</p></section>`;
+  // Asignaciones por hermano (con filtro por grupo de Personas)
+  const groups = [...data.groups].sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  const gsel = st.lg && groups.some(g => g.id === st.lg) ? st.lg : '';
+  const pool = gsel ? data.people.filter(p => (p.groupIds || []).includes(gsel)) : data.people;
+  const loads = pool.map(p => ({ p, ...M.deptLoad(p.id) })).filter(x => gsel || x.total).sort((a, b) => b.total - a.total || a.p.name.localeCompare(b.p.name, 'es'));
+  const withDept = loads.filter(x => x.total), without = loads.filter(x => !x.total);
+  const loadHtml = all.length ? `<section><div class="sec-h"><h2>🧮 Asignaciones por hermano</h2></div>
+    ${groups.length ? `<div class="chips"><button class="chip" data-a="load-g" data-v="" aria-pressed="${!gsel}">Todos</button>${groups.map(g => `<button class="chip" data-a="load-g" data-v="${g.id}" aria-pressed="${gsel === g.id}">${esc(g.name)}</button>`).join('')}</div>` : ''}
+    ${withDept.length ? `<div class="stack">${withDept.map(x => `<details class="load-row"><summary><span class="load-n ${x.total >= 4 ? 'hi' : ''}">${x.total}</span><span class="grow"><b>${esc(x.p.name)}</b><small>${x.heads.length ? `★ responsable en ${x.heads.length}` : ''}${x.heads.length && x.helps.length ? ' · ' : ''}${x.helps.length ? `ayudante en ${x.helps.length}` : ''}</small></span></summary>
+      <ul class="load-list">${x.heads.map(d => `<li>★ <button class="link" data-a="dept" data-id="${d.id}">${esc(d.name)}</button></li>`).join('')}${x.helps.map(d => `<li><button class="link" data-a="dept" data-id="${d.id}">${esc(d.name)}</button>${d.helperRoles?.[x.p.id] ? ` <span class="hint">(${esc(d.helperRoles[x.p.id])})</span>` : ''}</li>`).join('')}</ul></details>`).join('')}</div>` : '<p class="hint pad">Nadie tiene departamentos todavía.</p>'}
+    ${gsel ? (without.length ? `<h3 class="sub-h">⚠️ Sin departamento (${without.length})</h3><div class="chips">${without.map(x => `<button class="chip warn-chip" data-a="person" data-id="${x.p.id}">${esc(x.p.name)}</button>`).join('')}</div>` : '<p class="hint pad">✓ Todos los de este grupo tienen al menos un departamento.</p>')
+      : `<p class="hint pad">${groups.length ? 'Elige un grupo (por ejemplo, tus ancianos y siervos) para ver quién no tiene ningún departamento.' : 'Crea un grupo en Personas (por ejemplo, «Varones» o «Ancianos y siervos») para ver quién no tiene departamento.'}</p>`}
+  </section>` : '';
   return `${head('Congregación', actions())}
   ${congreCard}
   ${rosterHtml}
+  ${loadHtml}
   <section><div class="sec-h"><h2>🏛 Organigrama</h2>${empty_ ? '' : `<span class="hint">${all.length} departamentos${noHead ? ` · ${noHead} sin responsable` : ''}</span>`}</div>
   ${empty_ ? empty('Arma el organigrama de tu congregación: quién atiende cada departamento y quiénes le ayudan.', `<div class="stack"><button class="btn primary" data-a="dept-suggest">Cargar departamentos sugeridos</button><button class="btn" data-a="dept-new">Empezar desde cero</button></div>`, 'users')
     : pick ? `<div class="org-tools pick-bar"><span class="grow"><b>${pick.size}</b> elegidos</span><button class="btn small ghost" data-a="org-pick-all">Todos</button><button class="btn small ghost" data-a="org-pick">Cancelar</button><button class="btn small danger" data-a="org-del" ${pick.size ? '' : 'disabled'}>Eliminar</button></div>

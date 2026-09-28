@@ -2183,7 +2183,7 @@ function settingsSection(id) {
       <div class="stack pad">${M.QUICK_ACTIONS.filter(q => !q.mod || M.isModuleVisible(q.mod)).map(q => `<label class="check"><input type="checkbox" data-a="toggle-quick" data-v="${q.id}" ${M.quickActions().some(x => x.id === q.id) ? 'checked' : ''}> ${esc(q.n)}</label>`).join('')}</div>
       <h3 class="sub-h">Secciones visibles</h3>
       <p class="hint">Apaga las que no uses; siempre puedes volver a activarlas aquí. «Hoy» siempre está disponible.</p>
-      <div class="stack pad">${M.MODULES.map(m => `<label class="check"><input type="checkbox" data-a="toggle-module" data-v="${m.id}" ${M.isModuleVisible(m.id) ? 'checked' : ''}> ${esc(m.n)}</label>`).join('')}</div>
+      <div class="stack pad">${M.MODULES.filter(m => M.moduleAllowed(m.id)).map(m => `<label class="check"><input type="checkbox" data-a="toggle-module" data-v="${m.id}" ${M.isModuleVisible(m.id) ? 'checked' : ''}> ${esc(m.n)}</label>`).join('')}</div>
       ${typesSettingsHtml()}
       ${(M.profile().sharedHidden || []).length ? `<h3 class="sub-h">Eventos compartidos</h3><p class="hint">Quitaste ${M.profile().sharedHidden.length} de tu agenda.</p><div class="stack pad"><button class="btn" data-a="shared-unhide">Volver a mostrarlos</button></div>` : ''}`,
     datos: () => `<p class="hint">Haz un respaldo de vez en cuando: guarda una copia de todo en un archivo.</p>

@@ -985,3 +985,14 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 .psel-row[hidden] { display: none; }
 .psel-role { flex: 1 1 100%; margin: 4px 0 2px 30px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); font: inherit; font-size: 13px; background: var(--bg); color: var(--ink); }
 .psel-row input[type=checkbox]:not(:checked) ~ .psel-role { display: none; }
+
+/* Asignaciones por hermano (v6.6) */
+.load-row { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 8px 12px; }
+.load-row summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
+.load-row summary::-webkit-details-marker { display: none; }
+.load-row summary b { display: block; }
+.load-row summary small { display: block; color: var(--ink-2); font-size: 12.5px; }
+.load-n { flex: none; width: 34px; height: 34px; border-radius: 17px; display: grid; place-items: center; font-weight: 800; background: var(--primary-soft); color: var(--primary); }
+.load-n.hi { background: color-mix(in srgb, var(--warn) 20%, var(--surface)); color: var(--warn); }
+.load-list { margin: 8px 0 2px 44px; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 14px; }
+.warn-chip { border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
