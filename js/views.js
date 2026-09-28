@@ -779,8 +779,8 @@ export function weekCard(v) {
 // ───────────── MI INFORME ─────────────
 
 // Gráfica del año de servicio: horas por mes, promedio y (si hay) la meta del mes
-function yearChart(v) {
-  const y = M.yearSummary();
+function yearChart(v, sy = M.serviceYearStart()) {
+  const y = M.yearSummary(false, sy);
   if (!y.total) return '';
   const goal = v.goalEnabled && Number(v.goalMonthly) > 0 ? Number(v.goalMonthly) * 60 : 0;
   const max = Math.max(goal, ...y.months.map(m => m.minutes), 60) * 1.12;
@@ -795,24 +795,88 @@ function yearChart(v) {
       <text class="yl" x="${(x + w / 2).toFixed(1)}" y="${H - 7}">${esc(m.name.slice(0, 3))}</text></g>`;
   }).join('');
   const line = (m, cls, label) => `<line class="${cls}" x1="0" x2="${W}" y1="${yOf(m).toFixed(1)}" y2="${yOf(m).toFixed(1)}"/><text class="${cls}-t" x="${W - 2}" y="${(yOf(m) - 3).toFixed(1)}">${label}</text>`;
-  return `<div class="card year-card"><div class="sec-h"><h2>Tu año de servicio</h2></div>
+  const isCur = sy === M.serviceYearStart();
+  return `<div class="card year-card"><div class="sec-h"><h2>${isCur ? 'Tu año de servicio' : `Año de servicio ${sy}–${sy + 1}`}</h2></div>
     <svg class="year-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Horas por mes del año de servicio">
       ${goal ? line(goal, 'yg', `meta ${Math.round(goal / 60)} h`) : ''}${y.avg ? line(y.avg, 'ya', `promedio ${M.fmtHM(y.avg)}`) : ''}${bars}</svg>
     <div class="year-stats">
       <span><b>${M.fmtHM(y.avg)}</b><small>promedio al mes</small></span>
       ${y.best ? `<span><b>${esc(cap(y.best.name))}</b><small>mejor mes · ${M.fmtHM(y.best.minutes)} h</small></span>` : ''}
-      <span><b>${Math.round(y.projection / 60)} h</b><small>si sigues así, al final del año</small></span>
+      ${isCur ? `<span><b>${Math.round(y.projection / 60)} h</b><small>si sigues así, al final del año</small></span>` : `<span><b>${M.fmtHM(y.total)} h</b><small>total del año</small></span>`}
     </div></div>`;
 }
 
-export function informe() {
-  const months = M.serviceYearMonths();
-  const start = M.serviceYearStart();
+// ───── Estadísticas del mes (horas por día, por día de la semana, avance a la meta y por tipo) ─────
+const WD_ORDER = [1, 2, 3, 4, 5, 6, 0], WD_N = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+function statsCard(mid, v) {
+  const st = M.monthStats(mid);
+  const total = st.perDay.reduce((a, b) => a + b, 0);
+  const allCat = Object.values(st.perCat).reduce((a, b) => a + b, 0);
+  if (!allCat) return `<div class="card stats-card"><div class="sec-h"><h2>📊 Estadísticas</h2>${monthPick(mid)}</div><p class="hint">No hay registros en este mes.</p></div>`;
+  const [y, m] = mid.split('-').map(Number);
+  const W = 336, H = 130, top = 10, bottom = 18;
+  // 1) Horas por día, con el mes anterior de fondo
+  const maxD = Math.max(60, ...st.perDay, ...st.prev);
+  const bw = W / st.days, yOf = x => top + (H - top - bottom) * (1 - x / maxD);
+  const dayBars = st.perDay.map((min, i) => {
+    const x = i * bw, pv = st.prev[i] || 0;
+    const ph = (H - bottom) - yOf(pv), h = (H - bottom) - yOf(min);
+    return `<g>${pv ? `<rect class="sb-prev" x="${(x + bw * 0.08).toFixed(1)}" y="${yOf(pv).toFixed(1)}" width="${(bw * 0.84).toFixed(1)}" height="${ph.toFixed(1)}" rx="2"/>` : ''}
+      ${min ? `<rect class="sb" x="${(x + bw * 0.22).toFixed(1)}" y="${yOf(min).toFixed(1)}" width="${(bw * 0.56).toFixed(1)}" height="${h.toFixed(1)}" rx="2"/>` : ''}
+      <rect class="hit" x="${x.toFixed(1)}" y="0" width="${bw.toFixed(1)}" height="${H}"><title>${i + 1}: ${M.fmtHM(min)} h${pv ? ` · mes anterior ${M.fmtHM(pv)} h` : ''}</title></rect>
+      ${(i + 1) % 5 === 0 || i === 0 ? `<text class="sl" x="${(x + bw / 2).toFixed(1)}" y="${H - 5}">${i + 1}</text>` : ''}</g>`;
+  }).join('');
+  // 2) Por día de la semana
+  const maxW = Math.max(60, ...st.perWd), ww = W / 7, yW = x => top + 12 + (H - top - 12 - bottom) * (1 - x / maxW);
+  const wdBars = WD_ORDER.map((d, i) => { const min = st.perWd[d], x = i * ww + ww * 0.22, w = ww * 0.56, hh = (H - bottom) - yW(min);
+    return `<g>${min ? `<rect class="sb" x="${x.toFixed(1)}" y="${yW(min).toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}" rx="4"><title>${WD_N[d]}: ${M.fmtHM(min)} h</title></rect><text class="sv" x="${(x + w / 2).toFixed(1)}" y="${(yW(min) - 3).toFixed(1)}">${M.fmtHM(min)}</text>` : ''}<text class="sl" x="${(x + w / 2).toFixed(1)}" y="${H - 5}">${WD_N[d]}</text></g>`; }).join('');
+  // 3) Avance hacia la meta del mes (acumulado contra el ritmo necesario)
+  const goal = v.goalEnabled && Number(v.goalMonthly) > 0 ? Number(v.goalMonthly) * 60 : 0;
+  const t = today(), curMid = t.slice(0, 7);
+  const lastDay = mid === curMid ? Number(t.slice(8, 10)) : mid < curMid ? st.days : 0;
+  let acc = 0; const cum = st.perDay.map(x => (acc += x));
+  const maxC = Math.max(goal, acc, 60) * 1.08, xC = i => (i / (st.days - 1)) * W, yC = x => top + (H - top - bottom) * (1 - x / maxC);
+  const path = cum.slice(0, lastDay).map((c, i) => `${i ? 'L' : 'M'}${xC(i).toFixed(1)},${yC(c).toFixed(1)}`).join(' ');
+  const behind = goal && lastDay ? cum[lastDay - 1] < goal * lastDay / st.days : false;
+  const goalSvg = goal ? `<svg class="stats-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Avance hacia la meta del mes">
+      <line class="sp" x1="0" y1="${yC(0)}" x2="${W}" y2="${yC(goal)}"/><text class="spt" x="${W - 2}" y="${(yC(goal) - 4).toFixed(1)}">meta ${goal / 60} h</text>
+      ${path ? `<path class="sc ${behind ? 'behind' : ''}" d="${path}"/>` : ''}
+      ${lastDay ? `<circle class="sc-dot ${behind ? 'behind' : ''}" cx="${xC(lastDay - 1).toFixed(1)}" cy="${yC(cum[lastDay - 1]).toFixed(1)}" r="4"><title>Día ${lastDay}: ${M.fmtHM(cum[lastDay - 1])} h (el ritmo pedía ${M.fmtHM(goal * lastDay / st.days)} h)</title></circle>` : ''}
+      <text class="sl" x="2" y="${H - 5}" style="text-anchor:start">1</text><text class="sl" x="${W - 2}" y="${H - 5}" style="text-anchor:end">${st.days}</text></svg>
+    <p class="hint">${lastDay ? (behind ? `Vas ${M.fmtHM(goal * lastDay / st.days - cum[lastDay - 1])} h por debajo del ritmo para tu meta.` : `Vas al ritmo o por encima para tu meta de ${goal / 60} h.`) : ''} La línea punteada es el ritmo necesario.</p>` : '';
+  // 4) Por tipo de actividad (incluye tiempo de crédito)
+  const cats = Object.entries(st.perCat).filter(([, x]) => x).sort((a, b) => b[1] - a[1]);
+  let off = 0;
+  const seg = cats.map(([k, x]) => { const c = M.catServicioOf(k); const w = x / allCat * 100; const r = `<i style="left:${off}%;width:${w}%;--c:${c.c}" title="${esc(c.n)}: ${M.fmtHM(x)} h"></i>`; off += w; return r; }).join('');
+  return `<div class="card stats-card"><div class="sec-h"><h2>📊 Estadísticas</h2>${monthPick(mid)}</div>
+    <h3 class="sub-h">Horas por día <span class="hint">· ${M.fmtHM(total)} h</span></h3>
+    <svg class="stats-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Horas por día del mes">${dayBars}</svg>
+    <div class="stats-legend"><span><i class="k-cur"></i>${esc(fmtMonth(y, m))}</span><span><i class="k-prev"></i>${esc(fmtMonth(Number(st.prevId.slice(0, 4)), Number(st.prevId.slice(5))))}</span></div>
+    <h3 class="sub-h">Por día de la semana</h3>
+    <svg class="stats-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Horas por día de la semana">${wdBars}</svg>
+    ${goalSvg ? `<h3 class="sub-h">Avance hacia la meta</h3>${goalSvg}` : ''}
+    <h3 class="sub-h">Por tipo de actividad</h3>
+    <div class="stats-stack" role="img" aria-label="Horas por tipo">${seg}</div>
+    <ul class="stats-cats">${cats.map(([k, x]) => { const c = M.catServicioOf(k); return `<li><i style="--c:${c.c}"></i><span class="grow">${esc(c.n)}${c.credito ? ' <span class="hint">(crédito)</span>' : ''}</span><b>${M.fmtHM(x)} h</b></li>`; }).join('')}</ul>
+  </div>`;
+}
+function monthPick(mid) {
+  const sy = M.serviceYearStart(`${mid}-15`);
+  return `<select id="stats-month" aria-label="Mes de las estadísticas">${M.serviceYearMonths(sy).map(mo => `<option value="${mo.id}" ${mo.id === mid ? 'selected' : ''}>${esc(cap(mo.name))} ${mo.year}</option>`).join('')}</select>`;
+}
+
+export function informe(ui = {}) {
+  const st = ui.informe || {};
+  const years = M.serviceYearsWithData();
+  const curStart = M.serviceYearStart();
+  const start = years.includes(st.sy) ? st.sy : curStart;
+  const isCur = start === curStart;
+  const months = M.serviceYearMonths(start);
   const v = M.profile();
   const cur = today().slice(0, 7);
   const curTotals = M.monthTotals(cur);
   const goal = goalBlock(cur, v);
-  const year = M.yearTotals();
+  const year = M.yearTotals(false, start);
   const annual = Number(v.goalAnnual);
   const annualGoal = v.goalEnabled && annual > 0
     ? `<div class="goal-wrap"><div class="goal-top"><span>Meta del año de servicio</span><span><b>${M.fmtHM(year.minutes)}</b> / ${annual} h</span></div>
@@ -820,17 +884,24 @@ export function informe() {
         <p class="hint">${year.minutes / 60 >= annual ? '¡Meta del año alcanzada!' : `Te faltan ${M.fmtHM(annual * 60 - year.minutes)} h`}</p></div>` : '';
   const pioneerHint = (M.profileTypeInfo().goal || M.profileRoles(v).some(r => /precursor/i.test(r))) && !(v.goalEnabled && Number(v.goalMonthly) > 0)
     ? `<div class="notice">${ic('flag', 'sm')}<p>Activa tu meta mensual para ver cómo vas: 🐢 lento, 🦉 al ras o 🐇 adelantado. <button class="link" data-a="profile">Activar mi meta</button></p></div>` : '';
+  const iy = years.indexOf(start);
+  const syNav = years.length > 1 ? `<div class="sy-nav"><button class="icon-btn" data-a="sy-move" data-v="${years[iy - 1] ?? ''}" ${iy > 0 ? '' : 'disabled'} aria-label="Año de servicio anterior">${ic('left')}</button>
+    <b>Año de servicio ${start}–${start + 1}</b><button class="icon-btn" data-a="sy-move" data-v="${years[iy + 1] ?? ''}" ${iy < years.length - 1 ? '' : 'disabled'} aria-label="Año de servicio siguiente">${ic('right')}</button></div>` : '';
+  const sm = st.sm && months.some(mo => mo.id === st.sm) ? st.sm : isCur ? cur : months[months.length - 1].id;
   return `${head(`Informe ${start}–${start + 1}`, actions())}
+  ${syNav}
+  ${!isCur ? `<p class="notice">${ic('clock', 'sm')} Estás viendo un año anterior. <button class="link" data-a="sy-move" data-v="${curStart}">Volver al año actual</button></p>` : ''}
   <div class="report-head">
     <span class="av-wrap">${avatarHtml(v.photo, ic('clock'), 'big')}${paceBadge(v)}</span>
     <div><strong>${M.roleText(v) ? esc(M.roleText(v)) : 'Sin rol indicado'}</strong><p class="role">Toca para editar tu perfil y tus metas</p></div>
   </div>
   <button type="button" class="btn ghost pad" data-a="profile">Editar mi perfil</button>
-  ${pioneerHint}
-  ${goal}
-  ${weekCard(v)}
+  ${isCur ? pioneerHint : ''}
+  ${isCur ? goal : ''}
+  ${isCur ? weekCard(v) : ''}
   ${annualGoal}
-  ${yearChart(v)}
+  ${yearChart(v, start)}
+  ${statsCard(sm, v)}
   <p class="hint pad">Año de servicio: septiembre a agosto. Toca un mes para ver el detalle o registrar tiempo.</p>
   <div class="stack">${months.map(mo => {
     const t = M.monthTotals(mo.id);

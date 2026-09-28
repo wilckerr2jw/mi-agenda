@@ -23,6 +23,7 @@ const ui = {
   tareas: { f: 'activas', p: '', m: '' },
   personas: { q: '', seg: 'personas', g: '', pv: '' },
   notas: { seg: 'notas', q: '', tag: '' },
+  informe: { sy: 0, sm: '' },
   congre: { view: (() => { try { return localStorage.getItem('miagenda.orgVista') || 'lista'; } catch { return 'lista'; } })(), picking: false, picked: [], sorting: false, fold: (() => { try { return JSON.parse(localStorage.getItem('miagenda.orgPlegados') || '[]'); } catch { return []; } })() },
 };
 const ROUTES = ['hoy', 'agenda', 'tareas', 'personas', 'notas', 'informe', 'congregacion'];
@@ -245,6 +246,7 @@ document.addEventListener('click', e => {
     case 'meca-suggest': return Mc.suggest(ui.congre.mm || 3);
     case 'meca-months': ui.congre.mm = Number(v) || 3; return render();
     case 'meca-elders': ui.congre.me = !ui.congre.me; return render();
+    case 'sy-move': if (v) { ui.informe.sy = Number(v); ui.informe.sm = ''; } return render();
     case 'meca-add-person': return Mc.addPerson(el.dataset.name);
     case 'dept-unskip': S.deptRestoreSkipped(); return setTimeout(render, 50);
     case 'org-pick': ui.congre = { ...ui.congre, picking: !ui.congre.picking, picked: [], sorting: false }; return render();
@@ -433,6 +435,7 @@ document.addEventListener('change', e => {
   if (t.id === 'meca-file') return Mc.fileChosen(t);
   if (t.dataset?.adminSend) return S.adminSend(t);
   if (t.dataset?.visitStart) return Vi.startChanged(t);
+  if (t.id === 'stats-month') { ui.informe.sm = t.value; return render(); }
   if (t.name === 'visitPast') return Vi.pastPicked(t);
   if (t.id === 'auto-heads') {   // comité / cuerpo de ancianos: se llena solo o a mano
     const hb = document.getElementById('heads-box'), hl = document.getElementById('auto-heads-list');

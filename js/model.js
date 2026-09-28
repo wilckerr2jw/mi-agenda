@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '9.0';
+export const APP_VERSION = '9.1';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -372,8 +372,8 @@ export function monthTotals(mid, withCredit = false) {
 }
 
 // Suma del año de servicio completo, para la meta anual
-export function yearTotals(withCredit = false) {
-  return serviceYearMonths().reduce((acc, mo) => {
+export function yearTotals(withCredit = false, startYear = serviceYearStart()) {
+  return serviceYearMonths(startYear).reduce((acc, mo) => {
     const t = monthTotals(mo.id, withCredit);
     return { minutes: acc.minutes + t.minutes, studies: acc.studies + t.studies };
   }, { minutes: 0, studies: 0 });
@@ -706,10 +706,35 @@ export const reviewsDue = (t = today(), ahead = 3) => (data.depts || []).filter(
 export const deptsOfPerson = pid => (data.depts || []).filter(d => deptHeadIds(d).includes(pid) || (d.helperIds || []).includes(pid))
   .map(d => ({ d, head: deptHeadIds(d).includes(pid) })).sort((a, b) => (b.head ? 1 : 0) - (a.head ? 1 : 0) || byOrder(a.d, b.d));
 
+// Años de servicio con registros (para poder ver los anteriores)
+export function serviceYearsWithData() {
+  const ys = new Set(data.entries.map(e => e.date && serviceYearStart(e.date)).filter(Boolean));
+  ys.add(serviceYearStart());
+  return [...ys].sort((a, b) => a - b);
+}
+// Estadísticas de un mes: horas por día, por día de la semana, por tipo y avance hacia la meta
+export function monthStats(mid) {
+  const [y, m] = mid.split('-').map(Number);
+  const days = new Date(y, m, 0).getDate();
+  const perDay = Array(days).fill(0), perWd = Array(7).fill(0), perCat = {};
+  entriesForMonth(mid).forEach(e => {
+    const d = Number(String(e.date).slice(8, 10)); const min = Number(e.minutes) || 0;
+    const cat = catServicioOf(e.category);
+    perCat[e.category] = (perCat[e.category] || 0) + min;
+    if (cat.credito) return;
+    if (d >= 1 && d <= days) perDay[d - 1] += min;
+    perWd[new Date(y, m - 1, d).getDay()] += min;
+  });
+  const pm = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+  const prevDays = new Date(pm.slice(0, 4), Number(pm.slice(5)), 0).getDate();
+  const prev = Array(prevDays).fill(0);
+  entriesForMonth(pm).forEach(e => { if (catServicioOf(e.category).credito) return; const d = Number(String(e.date).slice(8, 10)); if (d >= 1 && d <= prevDays) prev[d - 1] += Number(e.minutes) || 0; });
+  return { days, perDay, perWd, perCat, prev, prevId: pm };
+}
 // ───────────── Resumen del año de servicio (para la gráfica) ─────────────
-export function yearSummary(withCredit = false) {
+export function yearSummary(withCredit = false, startYear = serviceYearStart()) {
   const t = today(), cur = t.slice(0, 7);
-  const months = serviceYearMonths().map(mo => ({ ...mo, minutes: monthTotals(mo.id, withCredit).minutes, past: mo.id < cur, current: mo.id === cur }));
+  const months = serviceYearMonths(startYear).map(mo => ({ ...mo, minutes: monthTotals(mo.id, withCredit).minutes, past: mo.id < cur, current: mo.id === cur }));
   const counted = months.filter(m => m.past || (m.current && m.minutes > 0));
   const total = months.reduce((s, m) => s + m.minutes, 0);
   const avg = counted.length ? counted.reduce((s, m) => s + m.minutes, 0) / counted.length : 0;
