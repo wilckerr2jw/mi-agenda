@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '7.6';
+export const APP_VERSION = '7.7';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -17,12 +17,24 @@ export const profileType = () => (PROFILE_TYPES[session.type] ? session.type : '
 export const profileTypeInfo = () => PROFILE_TYPES[profileType()];
 
 // Tipos de evento (el color identifica la categoría en el calendario)
+// Qué campos del evento tienen sentido según su tipo (los tipos propios muestran todo)
+export function eventFields(cat) {
+  const known = cat in CATEGORIAS;
+  return {
+    theme: !known || ['familia', 'estudio', 'asignacion'].includes(cat),
+    themeLabel: cat === 'familia' ? 'Tema para la adoración en familia' : cat === 'estudio' ? 'Qué vas a estudiar' : cat === 'asignacion' ? 'Tema o referencia' : 'Tema sugerido',
+    themePh: cat === 'familia' ? 'Ej. Proverbios 3 o un video de JW Broadcasting' : cat === 'estudio' ? 'Ej. La Atalaya de esta semana' : cat === 'asignacion' ? 'Ej. «Cómo mantener el gozo» (w24.05)' : 'Opcional',
+    companion: !known || ['predicacion', 'pastoreo', 'asignacion', 'personal'].includes(cat),
+    companionLabel: cat === 'asignacion' ? 'Ayudante' : 'Persona que me acompaña',
+  };
+}
 export const CATEGORIAS = {
   reunion:     { n: 'Reunión de congregación', c: 'var(--c-reunion)' },
   predicacion: { n: 'Predicación',             c: 'var(--c-predicacion)' },
   pastoreo:    { n: 'Pastoreo',                c: 'var(--c-pastoreo)' },
   ancianos:    { n: 'Cuerpo de ancianos',      c: 'var(--c-ancianos)' },
   estudio:     { n: 'Estudio y preparación',   c: 'var(--c-estudio)' },
+  familia:     { n: 'Adoración en familia',    c: 'var(--c-x1)' },
   personal:    { n: 'Personal',                c: 'var(--c-personal)' },
   asignacion:  { n: 'Mi asignación',           c: 'var(--c-asignacion)' },
 };
@@ -645,8 +657,32 @@ export function roster(k) {
 const splitNames = t => String(t || '').split(/\s*[,;\n]\s*/).map(x => x.trim()).filter(Boolean);
 // «Grupos para el servicio del campo» no es un departamento: los grupos pertenecen a la congregación y no llevan responsable
 export const isGroupBox = d => !!d && (d.sk === 'grupos' || /^grupos para el servicio/i.test(d.name || ''));
-export const deptHeadIds = d => (Array.isArray(d.headIds) ? d.headIds : d.headId ? [d.headId] : []);
-export const deptHeads = d => [...deptHeadIds(d).map(personName).filter(Boolean), ...splitNames(d.headNames ?? d.headName)];
+const rawHeadIds = d => (Array.isArray(d?.headIds) ? d.headIds : d?.headId ? [d.headId] : []);
+// El Comité de Servicio y el Cuerpo de ancianos se llenan solos con los de los otros departamentos
+const findDept = (sk, re) => (data.depts || []).find(x => x.sk === sk) || (data.depts || []).find(x => re.test(x.name || ''));
+const COMITE_PARTS = [['coord', /^coordinador del cuerpo/i, 'Coordinador'], ['secre', /^secretario$/i, 'Secretario'], ['serv', /^superintendente de servicio$/i, 'Sup. de servicio']];
+export const isComite = d => !!d && (d.sk === 'comite' || /^comit[eé] de servicio/i.test(d.name || ''));
+export const isCuerpo = d => !!d && (d.sk === 'cuerpo' || /^cuerpo de ancianos$/i.test(d.name || ''));
+export const canAutoHeads = d => isComite(d) || isCuerpo(d);
+export const autoHeads = d => canAutoHeads(d) && d.autoHeads !== false;
+function derivedHeadIds(d) {
+  const ids = [];
+  const add = id => { if (id && !ids.includes(id)) ids.push(id); };
+  if (isComite(d)) COMITE_PARTS.forEach(([k, re]) => rawHeadIds(findDept(k, re)).forEach(add));
+  else if (isCuerpo(d)) { rawHeadIds(findDept('coord', COMITE_PARTS[0][1])).forEach(add); roster('anc').forEach(p => add(p.id)); }
+  return ids;
+}
+export const deptHeadIds = d => { if (autoHeads(d)) { const ids = derivedHeadIds(d); if (ids.length) return ids; } return rawHeadIds(d); };
+// Qué es cada uno dentro del comité o del cuerpo («Coordinador», «Secretario»…)
+export function headRole(d, pid) {
+  if (!autoHeads(d)) return '';
+  if (isComite(d)) return COMITE_PARTS.filter(([k, re]) => rawHeadIds(findDept(k, re)).includes(pid)).map(x => x[2]).join(' y ');
+  return rawHeadIds(findDept('coord', COMITE_PARTS[0][1])).includes(pid) ? 'Coordinador' : '';
+}
+export const deptHeadsLabeled = d => autoHeads(d) && derivedHeadIds(d).length
+  ? deptHeadIds(d).map(id => { const n = personName(id), r = headRole(d, id); return n ? (r ? `${n} (${r})` : n) : ''; }).filter(Boolean)
+  : deptHeads(d);
+export const deptHeads = d => [...deptHeadIds(d).map(personName).filter(Boolean), ...(autoHeads(d) && derivedHeadIds(d).length ? [] : splitNames(d.headNames ?? d.headName))];
 export const deptHelpers = d => [...(d.helperIds || []).map(id => { const n = personName(id); const r = d.helperRoles?.[id]; return n ? (r ? `${n} (${r})` : n) : ''; }).filter(Boolean), ...splitNames(d.helperNames)];
 export const deptHead = d => deptHeads(d).join(', ');
 // Historial: quién entró o salió de un departamento y desde cuándo está cada uno

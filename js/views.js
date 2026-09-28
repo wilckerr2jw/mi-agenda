@@ -506,7 +506,7 @@ function seguimiento(st) {
 const countAll = n => n.children.reduce((t, c) => t + 1 + countAll(c), 0);
 function orgNode(n, depth, o) {
   const { d, children } = n;
-  const head = M.deptHead(d), helpers = M.deptHelpers(d);
+  const head = M.deptHeadsLabeled(d).join(', '), helpers = M.deptHelpers(d);
   const folded = o.fold.has(d.id) && children.length;
   const main = o.pick ? `<label class="org-node picking ${o.pick.has(d.id) ? 'on' : ''}"><input type="checkbox" data-a="org-pick-item" value="${d.id}" ${o.pick.has(d.id) ? 'checked' : ''} aria-label="Elegir ${esc(d.name)}">`
     : `<button class="org-node" data-a="dept" data-id="${d.id}">`;

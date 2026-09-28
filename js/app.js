@@ -373,6 +373,10 @@ document.addEventListener('change', e => {
     if (h) { h.hidden = !r; h.textContent = r ? `${M.repeatLabel(r, t.form.due?.value)}. Al marcarla como hecha se crea la siguiente.` : ''; }
     if (t.id === 'repeat') return;
   }
+  if (t.id === 'auto-heads') {   // comité / cuerpo de ancianos: se llena solo o a mano
+    const hb = document.getElementById('heads-box'), hl = document.getElementById('auto-heads-list');
+    if (hb) hb.hidden = t.checked; if (hl) hl.hidden = !t.checked; return;
+  }
   if (t.id === 'kind' && t.form?.dataset.form === 'visit') { const box = document.getElementById('visit-lesson'); if (box) box.hidden = t.value !== 'estudio'; const w = document.getElementById('visit-with'); if (w) w.hidden = t.value !== 'pastoreo'; return; }
   if (t.id === 'has-helpers') { const b = document.getElementById('helpers-box'); if (b) b.hidden = !t.checked; return; }
   if (t.matches?.('.psel[data-psel="headIds"] input[type=checkbox]')) {   // quien es responsable no sale en ayudantes
@@ -390,7 +394,11 @@ document.addEventListener('change', e => {
       const isAncianos = t.value === 'ancianos';
       const single = document.getElementById('companion-single');
       const group = document.getElementById('companion-group');
-      if (single) single.hidden = isAncianos;
+      const EF = M.eventFields(t.value);   // cada tipo muestra solo los campos que le sirven
+      const tb = document.getElementById('theme-box');
+      if (tb) { tb.hidden = !EF.theme && !t.form.theme.value; const l = document.getElementById('theme-lbl'); if (l) l.innerHTML = `${esc(EF.themeLabel)} <span class="hint">(opcional)</span>`; t.form.theme.placeholder = EF.themePh; }
+      const cl = document.getElementById('companion-lbl'); if (cl) cl.textContent = EF.companionLabel;
+      if (single) single.hidden = isAncianos || (!EF.companion && !t.form.companionId?.value);
       if (group) group.hidden = !isAncianos;
       const asg = document.getElementById('asg-box');
       if (asg) asg.hidden = t.value !== 'asignacion';

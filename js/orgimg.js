@@ -27,7 +27,7 @@ export function drawOrg(title = 'Organigrama de la congregación') {
   const walk = (n, depth, parentRow) => {
     const x = PAD + depth * IND, w = W - x - PAD;
     ctx.font = font(700, 24); const nameL = wrap(ctx, n.d.name, w - 40);
-    const head = M.deptHead(n.d), helpers = M.deptHelpers(n.d);
+    const head = M.deptHeadsLabeled(n.d).join(', '), helpers = M.deptHelpers(n.d);
     ctx.font = font(500, 20);
     const box = M.isGroupBox(n.d);
     const headL = wrap(ctx, box ? 'Pertenecen a la congregación' : head ? `★ ${head}` : 'Sin responsable', w - 40);
@@ -122,18 +122,20 @@ export function printOrg() {
   const collect = (n) => { all.push(n); n.children.forEach(collect); }; tree.forEach(collect);
   const gNode = all.find(n => n.d === grupos?.d);
   const gIds = new Set(gNode ? gNode.children.map(c => c.d.id) : []);
-  const people = d => ({ heads: M.deptHeads(d), helpers: M.deptHelpers(d) });
+  const people = d => ({ heads: M.deptHeadsLabeled(d), helpers: M.deptHelpers(d) });
   const row = (x, cls = '') => { const p = people(x.d); return `<tr class="${cls}"><td style="padding-left:${6 + x.depth * 14}px">${escH(x.d.name)}</td><td>${escH(p.heads.join(', ')) || '<i>—</i>'}</td><td>${escH(p.helpers.join(', '))}</td></tr>`; };
   const rows = flat.filter(x => !gIds.has(x.d.id) && !M.isGroupBox(x.d)).map(x => row(x, x.depth === 0 ? 'top' : x.depth === 1 ? 'lvl1' : '')).join('');
   const gTable = gNode && gNode.children.length ? `<h2>Grupos</h2><table><tr><th>#</th><th>Superintendente</th><th>Auxiliar</th><th>Publicadores</th></tr>${gNode.children.map((c, i) => { const h = M.deptHeads(c.d); return `<tr><td>${escH(c.d.name.replace(/^grupo\s*/i, '') || i + 1)}</td><td>${escH(h[0] || '')}</td><td>${escH(h.slice(1).join(', '))}</td><td>${escH(M.deptHelpers(c.d).join(', '))}</td></tr>`; }).join('')}</table>` : '';
   const rost = M.ROSTERS.map(r => ({ r, l: M.roster(r.k) })).filter(x => x.l.length);
-  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Organigrama</title><style>
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Organigrama</title><style>
     body{font:13px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#17282A;margin:24px}
     h1{font-size:26px;margin:0 0 4px;border-bottom:2px solid #17282A;padding-bottom:4px} h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#4B5E5F;margin:18px 0 6px}
     .box{border:1px solid #ccd;border-radius:6px;padding:8px 12px;text-align:center;font-weight:700;margin:8px 0}
     .meet{display:flex;gap:40px;flex-wrap:wrap} table{border-collapse:collapse;width:100%} td,th{padding:4px 6px;border-bottom:1px solid #e3e6e1;text-align:left;vertical-align:top} th{font-size:12px}
     tr.top td{font-weight:800;background:#eaf3f1} tr.lvl1 td:first-child{font-weight:700} .cols{columns:3;column-gap:24px} .cols div{break-inside:avoid;padding:1px 0}
-    .foot{margin-top:18px;text-align:right;color:#888;font-size:11px} @media print{body{margin:10mm}}</style></head><body>
+    .foot{margin-top:18px;text-align:right;color:#888;font-size:11px} @media print{body{margin:10mm}}
+    table{table-layout:fixed} td,th{overflow-wrap:anywhere} th:first-child{width:36%}
+    @media (max-width:700px){body{margin:12px;font-size:12px} h1{font-size:20px} .cols{columns:2} .meet{gap:16px}}</style></head><body>
     <h1>Organigrama</h1>
     ${cg.name || cg.circuit ? `<div class="box">${escH([cg.name, cg.number ? `(${cg.number})` : ''].filter(Boolean).join(' '))}${cg.circuit ? ` | ${escH(cg.circuit)}` : ''}</div>` : ''}
     ${cg.midweek || cg.weekend || cg.address ? `<h2>Reuniones</h2><div class="meet">${cg.midweek ? `<div><b>Reunión de entre semana</b><br>${escH(cg.midweek)}</div>` : ''}${cg.weekend ? `<div><b>Reunión del fin de semana</b><br>${escH(cg.weekend)}</div>` : ''}${cg.address ? `<div><b>Dirección</b><br>${escH(cg.address)}</div>` : ''}</div>` : ''}

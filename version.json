@@ -1,8 +1,8 @@
 {
-  "version": "7.6",
+  "version": "7.7",
   "notes": [
-    "Organigrama: botón «Descargar imagen»",
-    "Los grupos para el servicio del campo pertenecen a la congregación (sin responsable)",
-    "Se quitó «Sugeridos» del organigrama ya armado"
+    "Eventos: cada tipo muestra solo los campos que le sirven (nuevo tipo «Adoración en familia»)",
+    "El Comité de Servicio y el Cuerpo de ancianos se llenan solos y dicen qué es cada uno",
+    "Imprimir / PDF se ve bien en el teléfono"
   ]
 }

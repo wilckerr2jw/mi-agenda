@@ -124,6 +124,7 @@ export function eventSheet(id, preset = {}, back) {
   const skipped = e && occDate ? (e.skipDates || []).includes(occDate) : false;
   const showSkip = e && M.isRepeating(e) && occDate && occDate !== e.date;
   const isAncianos = v.category === 'ancianos';
+  const EF = M.eventFields(v.category);
   const sh = !!v.sharedId, owner = !sh || store.isSharedOwner(v);
   const others = sh ? (v.members || []).filter(u => u !== account.user?.uid).map(u => v.memberNames?.[u] || 'otra cuenta') : [];
   open({
@@ -146,10 +147,11 @@ export function eventSheet(id, preset = {}, back) {
       ${fld('Lugar', `<input id="place" name="place" maxlength="120" value="${esc(v.place || '')}" placeholder="Salón, dirección o enlace">`, 'place')}
       <div class="f"><span class="lbl">Color <span class="hint">(como en tu calendario impreso)</span></span>
         <div class="colorpick" role="radiogroup" aria-label="Color del evento">${M.EVENT_COLORS.map(([c, n]) => `<label title="${n}"><input type="radio" name="color" value="${c}" ${(v.color || '') === c ? 'checked' : ''}><span style="--sw:${c || M.catOf(v.category).c}" class="${c ? '' : 'auto'}">${c ? '' : 'A'}</span><em>${n}</em></label>`).join('')}</div></div>
-      ${fld('Tema sugerido <span class="hint">(opcional)</span>', `<input id="theme" name="theme" maxlength="200" value="${esc(v.theme || '')}" placeholder="Ej. tema para la noche de adoración en familia">`, 'theme')}
+      <div class="f" id="theme-box" ${EF.theme || v.theme ? '' : 'hidden'}><label for="theme" id="theme-lbl">${esc(EF.themeLabel)} <span class="hint">(opcional)</span></label>
+        <input id="theme" name="theme" maxlength="200" value="${esc(v.theme || '')}" placeholder="${esc(EF.themePh)}"></div>
       ${owner ? '' : '<div hidden>'}
-      <div class="f" id="companion-single" ${isAncianos ? 'hidden' : ''}>
-        <label for="companionId">Persona que me acompaña</label>
+      <div class="f" id="companion-single" ${isAncianos || !(EF.companion || v.companionId) ? 'hidden' : ''}>
+        <label for="companionId" id="companion-lbl">${esc(EF.companionLabel)}</label>
         ${peopleSelect('companionId', v.companionId, 'Nadie')}
       </div>
       <div class="f" id="companion-group" ${isAncianos ? '' : 'hidden'}>
@@ -875,7 +877,9 @@ export function deptSheet(id, preset = {}) {
       ${fld('Depende de', `<select id="parentId" name="parentId"><option value="">Nadie (arriba de todo)</option>${parents.map(x => `<option value="${x.id}" ${x.id === v.parentId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`, 'parentId')}
       ${v.info ? `<p class="hint">ℹ️ ${esc(v.info)}</p>` : ''}
       ${M.isGroupBox(v) ? '<p class="hint">Los grupos para el servicio del campo pertenecen a la congregación: no llevan responsable. Cada grupo de abajo tiene su superintendente y su auxiliar.</p>' : ''}
-      <div class="f" ${M.isGroupBox(v) ? 'hidden' : ''}><span class="lbl">★ Responsables <span class="hint">(uno o más)</span></span>
+      ${M.canAutoHeads(v) ? `<label class="check"><input type="checkbox" id="auto-heads" name="autoHeads" ${M.autoHeads(v) ? 'checked' : ''}> ${M.isComite(v) ? 'Llenar solo con el coordinador, el secretario y el superintendente de servicio' : 'Llenar solo con todos los ancianos (el coordinador primero)'}</label>
+        <p class="hint" id="auto-heads-list" ${M.autoHeads(v) ? '' : 'hidden'}>★ ${esc(M.deptHeadsLabeled(v).join(', ') || '—')}. Si cambias a alguno en su departamento o en Personas, aquí se actualiza solo.</p>` : ''}
+      <div class="f" id="heads-box" ${M.isGroupBox(v) || M.autoHeads(v) ? 'hidden' : ''}><span class="lbl">★ Responsables <span class="hint">(uno o más)</span></span>
         ${people.length ? personPick('headIds', people, heads, null, 'checkbox', { lazy: true }) : ''}
         <input id="headNames" name="headNames" maxlength="200" value="${esc(v.headNames ?? v.headName ?? '')}" placeholder="Otros nombres que no están en Personas (separa con comas)" aria-label="Otros responsables"></div>
       <label class="check" ${M.isGroupBox(v) ? 'hidden' : ''}><input type="checkbox" id="has-helpers" name="hasHelpers" ${hasHelpers ? 'checked' : ''}> Este departamento tiene ayudantes</label>
@@ -904,7 +908,8 @@ function saveDept(id, r, form) {
   const helperRoles = Object.fromEntries(helperIds.map(h => [h, String(fd.get(`role_${h}`) || '').trim()]).filter(([, t]) => t));
   if (!withHelpers) r.helperNames = '';
   const siblings = (data.depts || []).filter(x => (x.parentId || '') === (r.parentId || '') && x.id !== id);
-  store.upsert('depts', M.withHistory(id ? prev : null, { ...prev, id: id || uid(), name: r.name, ic: r.ic || 'flag', parentId: r.parentId || '', headIds, headNames: r.headNames || '', headId: null, headName: null, helperIds, helperRoles, helperNames: r.helperNames || '', notes: r.notes || '',
+  const auto = M.canAutoHeads({ ...prev, name: r.name }) ? { autoHeads: !!fd.get('autoHeads') } : {};
+  store.upsert('depts', M.withHistory(id ? prev : null, { ...prev, ...auto, id: id || uid(), name: r.name, ic: r.ic || 'flag', parentId: r.parentId || '', headIds, headNames: r.headNames || '', headId: null, headName: null, helperIds, helperRoles, helperNames: r.helperNames || '', notes: r.notes || '',
     reviewAt: r.reviewAt || '', reviewNote: (r.reviewNote || '').trim(),
     order: prev.order ?? (siblings.reduce((m, x) => Math.max(m, Number(x.order) || 0), 0) + 1) }));
   closeOrBack();
