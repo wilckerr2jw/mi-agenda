@@ -739,12 +739,31 @@ function followHtml(p) {
   if (M.canShepherd() && M.isShepherdable(p)) {
     const st = M.pastoreoStatus(p);
     out.push(`<div class="follow-card ${st.late ? 'late' : ''}"><div class="grow"><b>🐑 Pastoreo</b><span class="meta">Última visita: ${agoText(st.days)}${st.late ? ` · más de ${M.pastoreoMonths()} meses` : ''}</span></div>
-      <div class="fc-btns"><button class="btn small primary" data-a="visit-new" data-id="${p.id}" data-v="pastoreo">Lo visité</button></div></div>`);
+      ${M.helpedByName(p) ? `<span class="meta">🤝 Lo ayuda: ${esc(M.helpedByName(p))}</span>` : ''}
+      <div class="fc-btns"><button class="btn small primary" data-a="visit-new" data-id="${p.id}" data-v="pastoreo">Lo visité</button><button class="btn small ghost" data-a="helped-edit" data-id="${p.id}">Quién lo ayuda</button></div></div>`);
   }
   const vs = M.visitsOf(p).slice(0, 6);
-  if (vs.length) out.push(`<h3 class="sub-h">Visitas</h3><div class="stack">${vs.map(v => `<div class="card mini visit-row"><span class="grow"><strong>${esc(M.VISIT_KINDS[v.kind] || v.kind)} · ${esc(fmtShort(v.date))}</strong>${v.lesson || v.note ? `<span class="meta">${v.lesson ? `Lección ${esc(v.lesson)}` : ''}${v.lesson && v.note ? ' · ' : ''}${esc(v.note || '')}</span>` : ''}</span><button class="icon-btn" data-a="visit-del" data-id="${p.id}" data-v="${v.id}" aria-label="Borrar visita">${ic('x', 'sm')}</button></div>`).join('')}</div>
+  if (vs.length) out.push(`<h3 class="sub-h">Visitas</h3><div class="stack">${vs.map(v => `<div class="card mini visit-row"><span class="grow"><strong>${esc(M.VISIT_KINDS[v.kind] || v.kind)} · ${esc(fmtShort(v.date))}</strong>${v.lesson || v.note ? `<span class="meta">${v.lesson ? `Lección ${esc(v.lesson)}` : ''}${v.lesson && v.note ? ' · ' : ''}${esc(v.note || '')}</span>` : ''}${(v.withIds || []).length ? `<span class="meta">👥 Con ${esc(v.withIds.map(M.personName).filter(Boolean).join(', '))}</span>` : ''}</span><button class="icon-btn" data-a="visit-del" data-id="${p.id}" data-v="${v.id}" aria-label="Borrar visita">${ic('x', 'sm')}</button></div>`).join('')}</div>
     ${(p.visits || []).length > 6 ? `<p class="hint pad">Y ${(p.visits || []).length - 6} visitas más antiguas.</p>` : ''}`);
   return out.join('');
+}
+
+// Anciano que ayuda a un hermano (p. ej. a cada siervo ministerial le toca un anciano)
+export function helpedSheet(pid) {
+  const p = store.get('people', pid);
+  if (!p) return;
+  const b = backFn;
+  open({ title: `Quién ayuda a ${p.name}`, back: () => personDetail(pid, b),
+    body: `<form id="f" data-form="helped" data-id="${pid}">${personPick('helpedById', M.elders().filter(x => x.id !== pid), p.helpedById ? [p.helpedById] : [], null, 'radio')}
+      ${fld('…o escribe su nombre', `<input id="helpedByName" name="helpedByName" maxlength="80" value="${esc(p.helpedById ? '' : p.helpedByName || '')}">`, 'helpedByName')}
+      <label class="check"><input type="checkbox" name="clear"> Nadie</label></form>`,
+    actions: '<button type="submit" form="f" class="btn primary">Guardar</button>' });
+}
+function saveHelped(pid, r) {
+  const p = store.get('people', pid);
+  if (!p) return close();
+  store.upsert('people', { ...p, helpedById: r.clear ? '' : (r.helpedById || ''), helpedByName: r.clear || r.helpedById ? '' : (r.helpedByName || '') });
+  closeOrBack();
 }
 
 // Guarda una visita en la ficha (y actualiza «último contacto»)
@@ -767,6 +786,8 @@ export function visitSheet(pid, kind) {
       ${fld('¿Qué fue?', `<select id="kind" name="kind">${options(kinds, k)}</select>`, 'kind')}
       ${fld('Fecha', `<input id="date" name="date" type="date" required value="${today()}" max="${today()}">`, 'date')}
       <div id="visit-lesson" ${k === 'estudio' ? '' : 'hidden'}>${fld('Lección o capítulo que vieron', `<input id="lesson" name="lesson" maxlength="60" value="${esc(p.study?.lesson || '')}" placeholder="Ej. 12">`, 'lesson')}</div>
+      <div id="visit-with" ${k === 'pastoreo' ? '' : 'hidden'}><div class="f"><span class="lbl">¿Con quién fuiste? <span class="hint">(ancianos o siervos ministeriales)</span></span>
+        ${personPick('withIds', data.people.filter(x => x.id !== pid && !x.isMe && (M.isElder(x) || M.isMinisterial(x))), p.helpedById ? [p.helpedById].filter(id => !data.people.find(x => x.id === id)?.isMe) : [])}</div></div>
       ${fld('Nota <span class="hint">(opcional)</span>', `<textarea id="note" name="note" rows="2" maxlength="400" placeholder="Qué vieron, qué quedó pendiente…"></textarea>`, 'note')}
     </form>`,
     actions: '<button type="submit" form="f" class="btn primary">Guardar visita</button>',
@@ -775,7 +796,8 @@ export function visitSheet(pid, kind) {
 function saveVisit(pid, r) {
   const p = store.get('people', pid);
   if (!p) return close();
-  addVisit(p, { date: r.date || today(), kind: r.kind, lesson: r.kind === 'estudio' ? (r.lesson || '') : '', note: r.note || '' });
+  const withIds = r.kind === 'pastoreo' ? new FormData(document.getElementById('f')).getAll('withIds') : [];
+  addVisit(p, { date: r.date || today(), kind: r.kind, lesson: r.kind === 'estudio' ? (r.lesson || '') : '', note: r.note || '', withIds });
   toast('Visita anotada');
   closeOrBack();
 }
@@ -2755,6 +2777,7 @@ export function submit(form) {
     case 'weekplan': return saveWeekPlan(r);
     case 'pin': return savePin(id, r);
     case 'visit': return saveVisit(id, r);
+    case 'helped': return saveHelped(id, r);
     case 'dept': return saveDept(id, r, form);
     case 'congre': return saveCongre(r);
     case 'study': return saveStudy(id, r, form);

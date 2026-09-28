@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '6.8.1';
+export const APP_VERSION = '6.9';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -467,6 +467,11 @@ export function pastoreoStatus(p, t = today()) {
 export const studentsLate = (t = today()) => data.people.filter(isStudent).filter(p => studyStatus(p, t).late);
 // A quién pastoreo: por omisión, los de mi grupo (los grupos de Personas donde estoy yo) y los siervos ministeriales.
 // Cada anciano atiende su propio grupo. profile.pastoreoScope = 'all' muestra a toda la congregación.
+// Ancianos: por su relación o privilegios, o por estar en un grupo de ancianos en Personas
+export const isElder = p => [...String(p.role || '').split(','), ...(p.privileges || [])].some(x => /^\s*anciano\b|coordinador del cuerpo|^\s*secretario\s*$|superintendente de (servicio|la reuni)/i.test(x))
+  || (p.groupIds || []).some(id => /anciano/i.test(data.groups.find(g => g.id === id)?.name || ''));
+export const helpedByName = p => personName(p.helpedById) || p.helpedByName || '';
+export const elders = () => data.people.filter(p => isElder(p)).sort((a, b) => a.name.localeCompare(b.name, 'es'));
 export const isMinisterial = p => [...String(p.role || '').split(','), ...(p.privileges || [])].some(x => /^\s*siervo ministerial/i.test(x));
 // Mis grupos: si estoy en un grupo para el servicio del campo («Grupo 5»), solo ese; si no, todos los míos
 export function myGroupIds() {
@@ -476,7 +481,7 @@ export function myGroupIds() {
   return field.length ? field : mine;
 }
 export function pastoreoPool() {
-  const all = data.people.filter(isShepherdable);
+  const all = data.people.filter(p => isShepherdable(p) && !isElder(p));   // a los ancianos no se les cuenta en el pastoreo
   const mine = myGroupIds();
   if (profile().pastoreoScope === 'all' || !mine.length) return all;
   return all.filter(p => isMinisterial(p) || (p.groupIds || []).some(g => mine.includes(g)));

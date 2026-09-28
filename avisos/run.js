@@ -139,7 +139,8 @@ async function buildMessage(uid, p, now) {
       const mine = field.length ? field : allMine;
       const ministerial = x => [...String(x.role || '').split(','), ...(x.privileges || [])].some(r => /^\s*siervo ministerial/i.test(r));
       const inScope = x => pr.pastoreoScope === 'all' || !mine.length || ministerial(x) || (x.groupIds || []).some(g => mine.includes(g));
-      const lateP = people.filter(x => !x.isMe && !student(x) && !/interesad|estudiante|familiar/i.test(x.role || '') && inScope(x))
+      const elder = x => [...String(x.role || '').split(','), ...(x.privileges || [])].some(r => /^\s*anciano\b|coordinador del cuerpo|^\s*secretario\s*$|superintendente de (servicio|la reuni)/i.test(r)) || (x.groupIds || []).some(id => /anciano/i.test(groups.find(g => g.id === id)?.name || ''));
+      const lateP = people.filter(x => !x.isMe && !student(x) && !elder(x) && !/interesad|estudiante|familiar/i.test(x.role || '') && inScope(x))
         .filter(x => { const l = last(x, 'pastoreo'); return !l || diffDays(today, l) > months * 30; }).length;
       if (lateP) lines.push(`🐑 ${plural(lateP, 'hermano', 'hermanos')} sin visita de pastoreo en ${months} meses`);
     }

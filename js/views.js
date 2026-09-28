@@ -495,7 +495,7 @@ function seguimiento(st) {
         ${scope === 'mine' && !M.myGroupIds().length ? '<p class="hint">Para ver solo tu grupo, agrega tu ficha («Tú») al grupo que atiendes en Personas → Grupos.</p>' : ''}
         <label class="mini-f"><span>Avisar si pasan más de</span><select id="pastoreo-months">${[3, 4, 6, 9, 12].map(n => `<option value="${n}" ${n === M.pastoreoMonths() ? 'selected' : ''}>${n} meses</option>`).join('')}</select></label></div>
       ${groups.length ? `<div class="chips"><button class="chip" data-a="pfilter" data-v="" aria-pressed="${!g}">Todos</button>${groups.map(x => `<button class="chip" data-a="pfilter" data-v="${x.id}" aria-pressed="${g === x.id}">${esc(x.name)}</button>`).join('')}</div>` : ''}
-      ${sheep.length ? `<div class="stack">${sheep.map(p => { const s = M.pastoreoStatus(p); return followRow(p, s, `${p.role ? `${esc(p.role)} · ` : ''}visita de pastoreo ${agoText(s.days)}`); }).join('')}</div>`
+      ${sheep.length ? `<div class="stack">${sheep.map(p => { const s = M.pastoreoStatus(p); return followRow(p, s, `${p.role ? `${esc(p.role)} · ` : ''}visita de pastoreo ${agoText(s.days)}${M.helpedByName(p) ? ` · 🤝 ${esc(M.helpedByName(p))}` : ''}`); }).join('')}</div>`
         : '<p class="hint pad">No hay hermanos en esta lista. Agrega personas en la pestaña Personas.</p>'}</section>`;
   }
   return html;

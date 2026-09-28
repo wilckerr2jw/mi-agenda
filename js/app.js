@@ -206,6 +206,7 @@ document.addEventListener('click', e => {
     case 'org-share': return import('./orgimg.js').then(O => O.shareOrg());
     case 'org-print': return import('./orgimg.js').then(O => O.printOrg());
     case 'visit-new': return S.visitSheet(id, v);
+    case 'helped-edit': return S.helpedSheet(id);
     case 'visit-del': return S.visitDelete(id, v);
     case 'study-edit': return S.studySheet(id);
     case 'new-assign': return S.eventSheet(null, { category: 'asignacion', date: today() });
@@ -360,7 +361,7 @@ document.addEventListener('change', e => {
   if (t.matches?.('input[data-a="ag-pick"]')) return S.agendaTogglePick(t.dataset.id);
   if (t.matches?.('select[data-admin-uid]')) return S.adminSetType(t.dataset.adminUid, t.value, t);
   if (t.matches?.('input[data-a="ev-pick"]')) { const cur = new Set(ui.agenda.picked || []); t.checked ? cur.add(t.value) : cur.delete(t.value); ui.agenda.picked = [...cur]; return render(); }
-  if (t.id === 'kind' && t.form?.dataset.form === 'visit') { const box = document.getElementById('visit-lesson'); if (box) box.hidden = t.value !== 'estudio'; return; }
+  if (t.id === 'kind' && t.form?.dataset.form === 'visit') { const box = document.getElementById('visit-lesson'); if (box) box.hidden = t.value !== 'estudio'; const w = document.getElementById('visit-with'); if (w) w.hidden = t.value !== 'pastoreo'; return; }
   if (t.id === 'has-helpers') { const b = document.getElementById('helpers-box'); if (b) b.hidden = !t.checked; return; }
   if (t.matches?.('.psel[data-psel="headIds"] input[type=checkbox]')) {   // quien es responsable no sale en ayudantes
     document.querySelectorAll(`.psel[data-psel="helperIds"] .psel-row[data-id="${t.value}"]`).forEach(r => { r.hidden = t.checked; const c = r.querySelector('input[type=checkbox]'); if (t.checked && c) c.checked = false; });
