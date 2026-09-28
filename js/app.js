@@ -320,8 +320,11 @@ document.addEventListener('input', e => {
   else if (e.target.matches?.('[data-psel-q]')) {   // 🔍 buscar hermano en la lista del departamento
     const box = e.target.closest('.psel'), q = norm(e.target.value);
     let shown = 0;
-    box.querySelectorAll('.psel-row').forEach(r => { const hideHead = box.dataset.psel === 'helperIds' && document.querySelector(`.psel[data-psel="headIds"] input[value="${r.dataset.id}"]:checked`); const ok = !hideHead && (!q || r.dataset.n.includes(q)); r.hidden = !ok; if (ok) shown++; });
-    box.querySelector('.psel-empty').hidden = !!shown;
+    const lazy = !!box.dataset.lazy;
+    box.querySelectorAll('.psel-row').forEach(r => { const hideHead = box.dataset.psel === 'helperIds' && document.querySelector(`.psel[data-psel="headIds"] input[value="${r.dataset.id}"]:checked`); const checked = r.querySelector('input')?.checked; const ok = !hideHead && (q ? r.dataset.n.includes(q) : (!lazy || checked)); r.hidden = !ok; if (ok) shown++; });
+    const em = box.querySelector('.psel-empty');
+    em.hidden = !!shown;
+    if (!shown) em.textContent = q ? 'Nadie con ese nombre.' : 'Escribe parte del nombre y marca a los que participan.';
   }
   else if (e.target.classList?.contains('pp-other')) S.pickerChanged(e.target);
   else if (e.target.id === 'gsearch') {

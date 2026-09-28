@@ -155,7 +155,7 @@ export function eventSheet(id, preset = {}, back) {
       <div class="f" id="companion-group" ${isAncianos ? '' : 'hidden'}>
         <span class="lbl">Quiénes participan</span>
         ${pickList('Grupos', sortedGroups(), 'companionGroupIds', v.companionGroupIds || [], g => esc(g.name))}
-        ${pickList('Personas', sortedPeople(), 'companionPersonIds', v.companionPersonIds || [], p => esc(p.name) + (p.role ? ` <span class="hint">${esc(p.role)}</span>` : ''))}
+        <p class="hint pick-h">Personas</p>${personPick('companionPersonIds', sortedPeople(), v.companionPersonIds || [], null, 'checkbox', { lazy: true })}
       </div>
       ${owner ? '' : '</div>'}
       ${fld('Repetición', `<select id="repeat" name="repeat">${options(M.REPEATS, v.repeat || 'none')}</select>`, 'repeat')}
@@ -840,13 +840,14 @@ function saveStudy(pid, r, form) {
 
 // Lista de personas con 🔍 para buscar escribiendo el nombre. Los elegidos van primero.
 // roles = { id: 'función' } → a cada elegido se le puede escribir su función (solo en ayudantes)
-function personPick(name, people, chosen, roles = null, type = 'checkbox') {
+// lazy = la lista completa no se muestra: solo los elegidos, y al escribir aparecen los que coinciden
+function personPick(name, people, chosen, roles = null, type = 'checkbox', { lazy = false } = {}) {
   const on = new Set(chosen);
   const list = [...people].sort((a, b) => (on.has(b.id) ? 1 : 0) - (on.has(a.id) ? 1 : 0) || a.name.localeCompare(b.name, 'es'));
-  return `<div class="psel" data-psel="${name}">
-    <div class="psel-q">${ic('search', 'sm')}<input type="search" data-psel-q placeholder="Buscar por nombre…" aria-label="Buscar hermano" autocomplete="off"></div>
-    <div class="checklist psel-list">${list.map(p => `<label class="check psel-row" data-id="${p.id}" data-n="${esc(norm(p.name + ' ' + (p.role || '')))}"><input type="${type}" name="${name}" value="${p.id}" ${on.has(p.id) ? 'checked' : ''}> <span class="psel-name">${esc(p.name)}${p.role ? ` <span class="hint">${esc(p.role)}</span>` : ''}</span>${roles ? `<input class="psel-role" name="role_${p.id}" maxlength="60" value="${esc(roles[p.id] || '')}" placeholder="Función (opcional)" aria-label="Función de ${esc(p.name)}">` : ''}</label>`).join('')}
-      <p class="hint psel-empty" hidden>Nadie con ese nombre. Escríbelo abajo en «Otros nombres».</p></div>
+  return `<div class="psel ${lazy ? 'lazy' : ''}" data-psel="${name}" ${lazy ? 'data-lazy="1"' : ''}>
+    <div class="psel-q">${ic('search', 'sm')}<input type="search" data-psel-q placeholder="${lazy ? 'Escribe un nombre para buscar…' : 'Buscar por nombre…'}" aria-label="Buscar hermano" autocomplete="off"></div>
+    <div class="checklist psel-list">${list.map(p => `<label class="check psel-row" data-id="${p.id}" data-n="${esc(norm(p.name + ' ' + (p.role || '') + ' ' + (p.aliases || '')))}" ${lazy && !on.has(p.id) ? 'hidden' : ''}><input type="${type}" name="${name}" value="${p.id}" ${on.has(p.id) ? 'checked' : ''}> <span class="psel-name">${esc(p.name)}${p.role ? ` <span class="hint">${esc(p.role)}</span>` : ''}</span>${roles ? `<input class="psel-role" name="role_${p.id}" maxlength="60" value="${esc(roles[p.id] || '')}" placeholder="Función (opcional)" aria-label="Función de ${esc(p.name)}">` : ''}</label>`).join('')}
+      <p class="hint psel-empty" ${lazy && !on.size ? '' : 'hidden'}>${lazy ? 'Escribe parte del nombre y marca a los que participan.' : 'Nadie con ese nombre. Escríbelo abajo en «Otros nombres».'}</p></div>
   </div>`;
 }
 
@@ -868,11 +869,11 @@ export function deptSheet(id, preset = {}) {
       ${fld('Depende de', `<select id="parentId" name="parentId"><option value="">Nadie (arriba de todo)</option>${parents.map(x => `<option value="${x.id}" ${x.id === v.parentId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`, 'parentId')}
       ${v.info ? `<p class="hint">ℹ️ ${esc(v.info)}</p>` : ''}
       <div class="f"><span class="lbl">★ Responsables <span class="hint">(uno o más)</span></span>
-        ${people.length ? personPick('headIds', people, heads) : ''}
+        ${people.length ? personPick('headIds', people, heads, null, 'checkbox', { lazy: true }) : ''}
         <input id="headNames" name="headNames" maxlength="200" value="${esc(v.headNames ?? v.headName ?? '')}" placeholder="Otros nombres que no están en Personas (separa con comas)" aria-label="Otros responsables"></div>
       <label class="check"><input type="checkbox" id="has-helpers" name="hasHelpers" ${hasHelpers ? 'checked' : ''}> Este departamento tiene ayudantes</label>
       <div class="f" id="helpers-box" ${hasHelpers ? '' : 'hidden'}><span class="lbl">Ayudantes <span class="hint">(a cada uno le puedes poner su función, si la tiene)</span></span>
-        ${people.length ? personPick('helperIds', people.filter(p => !heads.includes(p.id)), v.helperIds || [], v.helperRoles || {}) : '<p class="hint">Agrega personas en la pestaña Personas para marcarlas aquí.</p>'}
+        ${people.length ? personPick('helperIds', people.filter(p => !heads.includes(p.id)), v.helperIds || [], v.helperRoles || {}, 'checkbox', { lazy: true }) : '<p class="hint">Agrega personas en la pestaña Personas para marcarlas aquí.</p>'}
         <input id="helperNames" name="helperNames" maxlength="300" value="${esc(v.helperNames || '')}" placeholder="Otros nombres (separa con comas)" aria-label="Otros ayudantes">
         <div class="two pad-top">${fld('🎓 Revisar cómo van el', `<input id="reviewAt" name="reviewAt" type="date" value="${esc(v.reviewAt || '')}">`, 'reviewAt')}
           ${fld('Qué revisar <span class="hint">(opcional)</span>', `<input id="reviewNote" name="reviewNote" maxlength="120" value="${esc(v.reviewNote || '')}" placeholder="Ej. si ya maneja el sonido solo">`, 'reviewNote')}</div>
@@ -1261,7 +1262,7 @@ export function profileSheet() {
   open({
     title: 'Mi perfil',
     body: `${formTag('profile', 'me')}
-      ${avatarPicker('photo', ic('clock'), v.photo)}
+      ${avatarPicker('photo', ic('clock'), v.photo || data.people.find(p => p.isMe)?.photo || '')}
       <div class="two">
         ${fld('Tu nombre', `<input id="myName" name="myName" maxlength="80" value="${esc(v.myName || '')}" placeholder="Ej. Antonio Rojas" autocomplete="name">`, 'myName')}
         ${fld('Cómo te escriben', `<input id="myAliases" name="myAliases" maxlength="120" value="${esc(v.myAliases || '')}" placeholder="Ej. Tony, Antonio J.">`, 'myAliases')}
@@ -1362,7 +1363,7 @@ function saveProfile(r, form) {
   const checked = new FormData(form).getAll('roles');
   const typed = String(r.roleOtro || '').split(',').map(x => x.trim()).filter(Boolean);
   const roles = [...new Set([...checked, ...typed])];
-  store.upsert('profile', { ...M.profile(), id: 'me', myName: r.myName || '', myAliases: r.myAliases || '', roles, role: roles.join(', '), photo: r.photo, goalEnabled: r.goalEnabled === 'on', goalMonthly: r.goalMonthly, goalAnnual: r.goalAnnual, customCats });
+  store.upsert('profile', { ...M.profile(), id: 'me', myName: r.myName || '', myAliases: r.myAliases || '', roles, role: roles.join(', '), photo: r.photo, goalEnabled: r.goalEnabled === 'on', goalMonthly: r.goalMonthly, goalAnnual: r.goalAnnual, customCats }, { explicit: true });
   closeOrBack();
 }
 
@@ -2129,7 +2130,7 @@ export function meetingSheet(id, back) {
       ${fld('Lugar', `<input id="place" name="place" maxlength="120" value="${esc(v.place || '')}">`, 'place')}
       <div class="f"><span class="lbl">Participantes</span>
         ${pickList('Grupos', sortedGroups(), 'attGroup', v.attendeeGroupIds || [], g => esc(g.name))}
-        ${pickList('Personas', sortedPeople(), 'attPerson', v.attendeeIds || [], p => esc(p.name) + (p.role ? ` <span class="hint">${esc(p.role)}</span>` : ''))}
+        <p class="hint pick-h">Personas</p>${personPick('attPerson', sortedPeople(), v.attendeeIds || [], null, 'checkbox', { lazy: true })}
         <input id="attendees" name="attendees" maxlength="200" value="${esc(v.attendees || '')}" placeholder="Otros participantes (escribe los nombres)" aria-label="Otros participantes">
         ${m ? departedNotice(v.attendeeGroupIds || [], v.date) : ''}
       </div>

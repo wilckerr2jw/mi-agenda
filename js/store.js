@@ -35,11 +35,22 @@ export const get = (col, id) => data[col].find(x => x.id === id);
 // Guarda un elemento tal cual (sin tocar fechas de modificación).
 // La memoria se actualiza al instante (así la pantalla nunca va por detrás) y luego
 // se guarda en el teléfono o se envía a Firestore.
-function write(col, item) {
+// Datos del perfil que nunca se borran «sin querer»: solo se vacían desde Editar mi perfil (explicit)
+const PROTECT = ['photo', 'role', 'roles', 'myName', 'goalEnabled', 'goalMonthly', 'goalAnnual', 'congre', 'notif', 'customCats'];
+const isEmpty = v => v === undefined || v === null || v === '' || v === false || (Array.isArray(v) && !v.length);
+function protectProfile(item) {
+  const cur = data.profile.find(p => p.id === item.id);
+  if (!cur) return item;
+  const out = { ...item, createdAt: cur.createdAt || item.createdAt };
+  PROTECT.forEach(k => { if (isEmpty(out[k]) && !isEmpty(cur[k])) out[k] = cur[k]; });
+  return out;
+}
+function write(col, item, opts = {}) {
   if (col === 'events' && item.sharedId) return sharedWrite(item);
   // Protección: nunca se guarda el perfil antes de haberlo recibido de la nube
   // (si no, un perfil vacío borraría tu rol, tus metas y tus ajustes)
   if (col === 'profile' && isCloud && !profileLoaded) { console.warn('Perfil aún no cargado: no se guarda'); return; }
+  if (col === 'profile' && !opts.explicit) item = protectProfile(item);
   const i = data[col].findIndex(x => x.id === item.id);
   if (i >= 0) data[col][i] = item; else data[col].push(item);
   notify();
@@ -63,10 +74,10 @@ function profileArrived() {
 }
 
 // Crea o actualiza un elemento y devuelve la versión guardada
-export function upsert(col, item) {
+export function upsert(col, item, opts = {}) {
   const now = new Date().toISOString();
   const saved = { ...item, updatedAt: now, createdAt: item.createdAt || now };
-  write(col, saved);
+  write(col, saved, opts);
   return saved;
 }
 
@@ -95,7 +106,7 @@ export function importAll(json) {
   let n = 0;
   COLS.forEach(c => (Array.isArray(src[c]) ? src[c] : []).forEach(it => {
     if (c === 'people' && it && isDuplicatePerson(it)) return;
-    if (it && it.id) { write(c, it); n++; }
+    if (it && it.id) { write(c, it, { explicit: true }); n++; }
   }));
   // Un archivo de cambios puede pedir quitar elementos: { remove: { events: [ids] } }
   const rm = parsed.remove || {};

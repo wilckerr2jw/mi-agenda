@@ -1,6 +1,7 @@
 {
-  "version": "6.9",
+  "version": "7.0",
   "notes": [
-    "Pastoreo: sin ancianos; anota con quién fuiste a cada visita y qué anciano ayuda a cada hermano"
+    "Tu foto y tu perfil ya no se borran al actualizar",
+    "Reuniones: busca a los participantes escribiendo su nombre y márcalos"
   ]
 }
