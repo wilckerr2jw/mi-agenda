@@ -133,7 +133,10 @@ async function buildMessage(uid, p, now) {
     if (lateS) lines.push(`📖 ${plural(lateS, 'curso bíblico espera', 'cursos bíblicos esperan')} tu visita`);
     if (type === 'anciano') {
       const months = Number(pr.pastoreoMonths) || 6;
-      const me = people.find(x => x.isMe), mine = me?.groupIds || [];
+      const groups = docs(await user.collection('groups').get());
+      const me = people.find(x => x.isMe), allMine = me?.groupIds || [];
+      const field = allMine.filter(id => /^grupo\s*\d+/i.test(groups.find(g => g.id === id)?.name || ''));
+      const mine = field.length ? field : allMine;
       const ministerial = x => [...String(x.role || '').split(','), ...(x.privileges || [])].some(r => /^\s*siervo ministerial/i.test(r));
       const inScope = x => pr.pastoreoScope === 'all' || !mine.length || ministerial(x) || (x.groupIds || []).some(g => mine.includes(g));
       const lateP = people.filter(x => !x.isMe && !student(x) && !/interesad|estudiante|familiar/i.test(x.role || '') && inScope(x))
