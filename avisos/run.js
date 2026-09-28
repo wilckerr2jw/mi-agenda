@@ -116,6 +116,12 @@ async function buildMessage(uid, p, now) {
     }
   }
 
+  // Capacitación del organigrama que toca revisar (el día que pusiste o si ya pasó)
+  {
+    const rv = docs(await user.collection('depts').where('reviewAt', '<=', today).get()).filter(d => d.reviewAt);
+    if (rv.length) lines.push(`🎓 Toca revisar la capacitación${p.details ? `: ${rv.slice(0, 3).map(d => d.name).join(', ')}` : ` de ${plural(rv.length, 'departamento', 'departamentos')}`}`);
+  }
+
   // Lunes: cursos bíblicos sin estudio reciente y hermanos sin visita de pastoreo (solo cuántos)
   if (p.follow && now.monday) {
     const people = docs(await user.collection('people').get());

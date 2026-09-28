@@ -1,7 +1,8 @@
 {
-  "version": "6.6",
+  "version": "6.7",
   "notes": [
-    "Congregación: en cuántos departamentos está cada hermano y quién del grupo no tiene ninguno",
-    "El organigrama ya no aparece a publicadores ni precursores"
+    "📋 Pegar acuerdos: la app reconoce departamentos y hermanos",
+    "🔗 Unir fichas repetidas de una persona",
+    "🎓 Fecha para revisar la capacitación, 🕓 historial y 📤 enviar al responsable por WhatsApp"
   ]
 }

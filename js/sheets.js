@@ -673,8 +673,52 @@ export function personDetail(id, back = null) {
       ${doneCount ? `<p class="hint pad">${doneCount} ${doneCount === 1 ? 'tarea completada' : 'tareas completadas'}.</p>` : ''}
       ${p.notes ? `<h3 class="sub-h">Notas</h3><p class="prose">${esc(p.notes)}</p>` : ''}
       ${linkedNotes.length ? `<h3 class="sub-h">Notas de la agenda vinculadas</h3><div class="stack">${linkedNotes.map(n => `<button class="card mini" data-a="note-in-sheet" data-id="${n.id}" data-bk="person" data-bid="${id}"><strong>${esc(n.title || 'Sin título')}</strong><span class="meta">${M.noteDate(n) ? fmtShort(M.noteDate(n)) : ''}</span></button>`).join('')}</div>` : ''}`,
-    actions: `<button type="button" class="btn ghost" data-a="edit-person" data-id="${id}">Editar</button><button type="button" class="btn primary" data-a="sheet-close">Listo</button>`,
+    actions: `<button type="button" class="btn ghost" data-a="person-merge" data-id="${id}" title="Unir con una ficha repetida">🔗 Unir</button><button type="button" class="btn ghost" data-a="edit-person" data-id="${id}">Editar</button><button type="button" class="btn primary" data-a="sheet-close">Listo</button>`,
   });
+}
+
+// ───── Unir dos fichas de la misma persona ─────
+// Todo lo de la ficha repetida (departamentos, tareas, notas, reuniones, eventos, visitas…) pasa a esta; luego se borra la repetida.
+export function mergeSheet(pid) {
+  const p = store.get('people', pid);
+  if (!p) return;
+  const b = backFn;
+  const others = sortedPeople().filter(x => x.id !== pid);
+  open({ title: `Unir con ${p.name}`, back: () => personDetail(pid, b),
+    body: `<p class="hint">Elige la <b>ficha repetida</b>. Todo lo suyo (departamentos, tareas, notas, reuniones, visitas, grupos y privilegios) pasa a <b>${esc(p.name)}</b> y la repetida se borra. Se queda el nombre «${esc(p.name)}».</p>
+      <form id="merge-f">${personPick('mergeFrom', others, [], null, 'radio')}</form>`,
+    actions: `<button type="button" class="btn primary" data-a="person-merge-go" data-id="${pid}">Unir</button>` });
+}
+export function mergePeople(intoId) {
+  const from = document.querySelector('#merge-f input[name="mergeFrom"]:checked')?.value;
+  if (!from) return toast('Elige la ficha repetida');
+  const a = store.get('people', intoId), z = store.get('people', from);
+  if (!a || !z) return;
+  const sw = id => (id === from ? intoId : id);
+  const swList = l => [...new Set((l || []).map(sw))];
+  // Departamentos
+  (data.depts || []).forEach(d => {
+    const H = M.deptHeadIds(d), A = d.helperIds || [];
+    if (!H.includes(from) && !A.includes(from)) return;
+    const headIds = swList(H), helperIds = swList(A).filter(x => !headIds.includes(x));
+    const helperRoles = { ...(d.helperRoles || {}) }; if (helperRoles[from]) { helperRoles[intoId] = helperRoles[intoId] || helperRoles[from]; delete helperRoles[from]; }
+    const since = { ...(d.since || {}) }; if (since[from]) { since[intoId] = [since[intoId], since[from]].filter(Boolean).sort()[0]; delete since[from]; }
+    store.upsert('depts', { ...d, headIds, headId: null, helperIds, helperRoles, since, history: (d.history || []).map(h => (h.pid === from ? { ...h, pid: intoId } : h)) });
+  });
+  data.tasks.filter(t => t.personId === from || t.companionId === from || (t.responsibleIds || []).includes(from))
+    .forEach(t => store.upsert('tasks', { ...t, personId: sw(t.personId), companionId: sw(t.companionId), responsibleIds: swList(t.responsibleIds) }));
+  data.notes.filter(n => n.personId === from).forEach(n => store.upsert('notes', { ...n, personId: intoId }));
+  data.meetings.filter(m => (m.attendeeIds || []).includes(from)).forEach(m => store.upsert('meetings', { ...m, attendeeIds: swList(m.attendeeIds) }));
+  data.events.filter(e => !e.sharedId && (e.companionId === from || (e.companionPersonIds || []).includes(from)))
+    .forEach(e => store.upsert('events', { ...e, companionId: sw(e.companionId), companionPersonIds: swList(e.companionPersonIds) }));
+  const pick = k => a[k] || z[k] || '';
+  store.upsert('people', { ...z, ...a, phone: pick('phone'), address: pick('address'), photo: pick('photo'), role: pick('role'), notes: [a.notes, z.notes].filter(Boolean).join('\n'),
+    privileges: [...new Set([...(a.privileges || []), ...(z.privileges || [])])], groupIds: [...new Set([...(a.groupIds || []), ...(z.groupIds || [])])],
+    aliases: [a.aliases, z.aliases, z.name].filter(Boolean).join(', '), visits: [...(a.visits || []), ...(z.visits || [])].sort((x, y) => y.date.localeCompare(x.date)),
+    study: a.study || z.study, lastContact: [a.lastContact, z.lastContact].filter(Boolean).sort().pop() || '', isMe: !!(a.isMe || z.isMe) });
+  store.remove('people', from);
+  toast(`Unidas: ${z.name} → ${a.name}`);
+  personDetail(intoId);
 }
 
 // ───── Seguimiento en la ficha: curso bíblico, revisitas, pastoreo e historial de visitas ─────
@@ -774,12 +818,12 @@ function saveStudy(pid, r, form) {
 
 // Lista de personas con 🔍 para buscar escribiendo el nombre. Los elegidos van primero.
 // roles = { id: 'función' } → a cada elegido se le puede escribir su función (solo en ayudantes)
-function personPick(name, people, chosen, roles = null) {
+function personPick(name, people, chosen, roles = null, type = 'checkbox') {
   const on = new Set(chosen);
   const list = [...people].sort((a, b) => (on.has(b.id) ? 1 : 0) - (on.has(a.id) ? 1 : 0) || a.name.localeCompare(b.name, 'es'));
   return `<div class="psel" data-psel="${name}">
     <div class="psel-q">${ic('search', 'sm')}<input type="search" data-psel-q placeholder="Buscar por nombre…" aria-label="Buscar hermano" autocomplete="off"></div>
-    <div class="checklist psel-list">${list.map(p => `<label class="check psel-row" data-id="${p.id}" data-n="${esc(norm(p.name + ' ' + (p.role || '')))}"><input type="checkbox" name="${name}" value="${p.id}" ${on.has(p.id) ? 'checked' : ''}> <span class="psel-name">${esc(p.name)}${p.role ? ` <span class="hint">${esc(p.role)}</span>` : ''}</span>${roles ? `<input class="psel-role" name="role_${p.id}" maxlength="60" value="${esc(roles[p.id] || '')}" placeholder="Función (opcional)" aria-label="Función de ${esc(p.name)}">` : ''}</label>`).join('')}
+    <div class="checklist psel-list">${list.map(p => `<label class="check psel-row" data-id="${p.id}" data-n="${esc(norm(p.name + ' ' + (p.role || '')))}"><input type="${type}" name="${name}" value="${p.id}" ${on.has(p.id) ? 'checked' : ''}> <span class="psel-name">${esc(p.name)}${p.role ? ` <span class="hint">${esc(p.role)}</span>` : ''}</span>${roles ? `<input class="psel-role" name="role_${p.id}" maxlength="60" value="${esc(roles[p.id] || '')}" placeholder="Función (opcional)" aria-label="Función de ${esc(p.name)}">` : ''}</label>`).join('')}
       <p class="hint psel-empty" hidden>Nadie con ese nombre. Escríbelo abajo en «Otros nombres».</p></div>
   </div>`;
 }
@@ -807,11 +851,16 @@ export function deptSheet(id, preset = {}) {
       <label class="check"><input type="checkbox" id="has-helpers" name="hasHelpers" ${hasHelpers ? 'checked' : ''}> Este departamento tiene ayudantes</label>
       <div class="f" id="helpers-box" ${hasHelpers ? '' : 'hidden'}><span class="lbl">Ayudantes <span class="hint">(a cada uno le puedes poner su función, si la tiene)</span></span>
         ${people.length ? personPick('helperIds', people.filter(p => !heads.includes(p.id)), v.helperIds || [], v.helperRoles || {}) : '<p class="hint">Agrega personas en la pestaña Personas para marcarlas aquí.</p>'}
-        <input id="helperNames" name="helperNames" maxlength="300" value="${esc(v.helperNames || '')}" placeholder="Otros nombres (separa con comas)" aria-label="Otros ayudantes"></div>
+        <input id="helperNames" name="helperNames" maxlength="300" value="${esc(v.helperNames || '')}" placeholder="Otros nombres (separa con comas)" aria-label="Otros ayudantes">
+        <div class="two pad-top">${fld('🎓 Revisar cómo van el', `<input id="reviewAt" name="reviewAt" type="date" value="${esc(v.reviewAt || '')}">`, 'reviewAt')}
+          ${fld('Qué revisar <span class="hint">(opcional)</span>', `<input id="reviewNote" name="reviewNote" maxlength="120" value="${esc(v.reviewNote || '')}" placeholder="Ej. si ya maneja el sonido solo">`, 'reviewNote')}</div>
+        <p class="hint">Ese día te aparece en Hoy y en el resumen de la mañana.</p></div>
       <div class="f"><span class="lbl">Icono</span><div class="iconpick">${M.DEPT_ICONS.map(x => `<label><input type="radio" name="ic" value="${x}" ${x === (v.ic || 'flag') ? 'checked' : ''}><span>${ic(x)}</span></label>`).join('')}</div></div>
       ${fld('Notas <span class="hint">(opcional)</span>', `<textarea id="notes" name="notes" rows="2" maxlength="400">${esc(v.notes || '')}</textarea>`, 'notes')}
     </form>
-    ${d ? `<button type="button" class="btn pad-top" data-a="dept-new" data-id="${d.id}">＋ Agregar un departamento debajo</button>` : ''}
+    ${d ? `<div class="stack pad-top"><button type="button" class="btn" data-a="dept-send" data-id="${d.id}">📤 Enviar a ${M.deptHeads(d).length > 1 ? 'los responsables' : 'el responsable'} por WhatsApp</button>
+      <button type="button" class="btn ghost" data-a="dept-new" data-id="${d.id}">＋ Agregar un departamento debajo</button></div>` : ''}
+    ${d && (d.history || []).length ? `<h3 class="sub-h">🕓 Historial</h3><ul class="dept-hist">${[...d.history].reverse().slice(0, 10).map(h => `<li><span class="hint">${esc(fmtShort(h.d))}</span> ${h.op === '+' ? 'Entró' : 'Salió'} <b>${esc(M.personName(h.pid) || h.n || '—')}</b> como ${h.as === 'resp' ? 'responsable' : 'ayudante'}</li>`).join('')}</ul>` : ''}
     ${kids ? `<p class="hint pad-top">Tiene ${kids} ${kids === 1 ? 'departamento' : 'departamentos'} debajo. Si lo eliminas, esos suben un nivel.</p>` : ''}`,
     actions: foot('depts', d?.id),
   });
@@ -825,8 +874,9 @@ function saveDept(id, r, form) {
   const helperRoles = Object.fromEntries(helperIds.map(h => [h, String(fd.get(`role_${h}`) || '').trim()]).filter(([, t]) => t));
   if (!withHelpers) r.helperNames = '';
   const siblings = (data.depts || []).filter(x => (x.parentId || '') === (r.parentId || '') && x.id !== id);
-  store.upsert('depts', { ...prev, id: id || uid(), name: r.name, ic: r.ic || 'flag', parentId: r.parentId || '', headIds, headNames: r.headNames || '', headId: null, headName: null, helperIds, helperRoles, helperNames: r.helperNames || '', notes: r.notes || '',
-    order: prev.order ?? (siblings.reduce((m, x) => Math.max(m, Number(x.order) || 0), 0) + 1) });
+  store.upsert('depts', M.withHistory(id ? prev : null, { ...prev, id: id || uid(), name: r.name, ic: r.ic || 'flag', parentId: r.parentId || '', headIds, headNames: r.headNames || '', headId: null, headName: null, helperIds, helperRoles, helperNames: r.helperNames || '', notes: r.notes || '',
+    reviewAt: r.reviewAt || '', reviewNote: (r.reviewNote || '').trim(),
+    order: prev.order ?? (siblings.reduce((m, x) => Math.max(m, Number(x.order) || 0), 0) + 1) }));
   closeOrBack();
 }
 // Si se elimina uno, los que dependían de él pasan a depender de su «padre»
@@ -860,6 +910,137 @@ export function deptMove(id, dir) {
     renumber(list.filter(x => x.id !== id));
     return toast(`Ahora depende de «${up.parent?.name || 'nadie (arriba de todo)'}»`);
   }
+}
+
+// ───── Pegar acuerdos: la app reconoce departamentos y hermanos ─────
+// Cada línea «Departamento: Nombre - Nombre, Nombre» se convierte en una propuesta que revisas antes de aplicar.
+// Si la línea está debajo de un título que dice «capacitación», se propone como ayudantes «en capacitación».
+const STOP = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y', 'e', 'a', 'al', 'para', 'en', 'sfh', 'siervo', 'spte', 'superintendente', 'auxiliares']);
+const toks = t => norm(t).replace(/[^a-z0-9ñ ]/g, ' ').split(/\s+/).filter(w => w.length > 1 && !STOP.has(w));
+const lev = (a, b) => { const m = a.length, n = b.length; if (!m || !n) return m || n; let prev = Array.from({ length: n + 1 }, (_, j) => j); for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; } return prev[n]; };
+function matchDept(label) {
+  const L = toks(label);
+  if (!L.length) return null;
+  const aux = /auxiliar/i.test(label);
+  let best = null, bestScore = 0;
+  (data.depts || []).forEach(d => {
+    const D = toks(d.name);
+    const hit = L.filter(w => D.some(x => x === w || (w.length > 4 && (x.startsWith(w) || w.startsWith(x))))).length;
+    let score = hit / L.length - (D.length - hit) * 0.02;
+    if (aux !== /auxiliar/i.test(d.name)) score -= 0.3;   // «coordinador auxiliar» es el auxiliar, no el coordinador
+    if (score > bestScore) { bestScore = score; best = d; }
+  });
+  return bestScore >= 0.5 ? best : null;
+}
+function matchPerson(name) {
+  const n = norm(name).trim();
+  if (!n) return null;
+  const all = data.people.map(p => ({ p, keys: [p.name, ...String(p.aliases || '').split(',')].map(x => norm(x).trim()).filter(Boolean) }));
+  let hit = all.find(x => x.keys.includes(n));
+  if (!hit && n.split(' ').length >= 2) hit = all.find(x => x.keys.some(k => k.includes(n) || (k.split(' ').length >= 2 && n.includes(k))));
+  if (!hit) { let best = null, bs = 0; all.forEach(x => x.keys.forEach(k => { const r = 1 - lev(k, n) / Math.max(k.length, n.length); if (r > bs) { bs = r; best = x; } })); if (bs >= 0.84) hit = best; }
+  return hit ? hit.p : null;
+}
+const cleanName = t => t.replace(/[*°]/g, '').replace(/^\s*(coordinador|coordinadora|siervo|auxiliar|responsable|encargado)\s+/i, '').trim().replace(/\s+/g, ' ').replace(/(^|\s)(\p{L})/gu, (m, s, c) => s + c.toUpperCase());
+function parseAgreementsText(text) {
+  let ctx = '';
+  const out = [];
+  String(text || '').split(/\n/).forEach(raw => {
+    const line = raw.replace(/^\s*[°•*\-–]+\s*/, '').trim();
+    if (!line) return;
+    const i = line.indexOf(':');
+    if (i < 0 || i > 70) { if (line.length < 60 && !/[.;]$/.test(line)) ctx = line; return; }
+    const label = line.slice(0, i).trim(), rest = line.slice(i + 1).trim();
+    if (!rest) { ctx = label; return; }
+    if (/^(acuerdos?|miscel[aá]neos?|micelaneo|notas?|varios|otros|pendientes?)\b/i.test(label)) { ctx = label; return; }
+    // Solo cuenta como nombre lo que empieza con mayúscula (así «hacer lista de inactivos» no se toma por una persona)
+    const frags = rest.split(/\s[-–]\s|\s?[-–]\s|\s[-–]|,|;|\s+y\s+|\//).map(x => x.replace(/[*°.]/g, '').trim().replace(/^(coordinador|coordinadora|siervo|auxiliar|responsable|encargado)\s+/i, ''));
+    const names = frags.filter(x => x && (matchPerson(x) || /(^|\s)\p{Lu}/u.test(x)) && x.split(/\s+/).length <= 5 && !/\d{2}/.test(x)).map(cleanName);
+    if (!names.length) return;
+    const training = /capacita/i.test(ctx) || /capacita/i.test(label);
+    out.push({ label: label.replace(/\s*\(.*?\)\s*/g, ' ').trim(), dept: matchDept(label), names: names.map(n => ({ n, p: /^(yo|wilc?ker rubio)$/i.test(n) ? data.people.find(x => x.isMe) || matchPerson(n) : matchPerson(n) })), as: training ? 'train' : 'resp' });
+  });
+  return out;
+}
+let pasteRows = [];
+export function pasteSheet() {
+  open({ title: 'Pegar acuerdos',
+    body: `<p class="hint">Pega el texto de la junta tal cual. Cada línea con la forma <b>«Departamento: Nombre - Nombre»</b> se convierte en una propuesta. Lo que esté debajo de un título con «capacitación» va como ayudantes en capacitación. Nada se guarda hasta que revises y toques Aplicar.</p>
+      <textarea id="paste-txt" rows="10" placeholder="Coordinador auxiliar: Nombre Apellido - Nombre Apellido\nSecretario auxiliar: Nombre Apellido\n\nCapacitación de varones:\nAudio y video: Nombre - Nombre"></textarea>`,
+    actions: '<button type="button" class="btn primary" data-a="paste-read">Revisar</button>' });
+}
+export function pasteRead() {
+  pasteRows = parseAgreementsText(document.getElementById('paste-txt')?.value || '');
+  if (!pasteRows.length) return toast('No encontré líneas «Departamento: nombres»');
+  const deptOpts = sel => `<option value="__new">➕ Crear departamento nuevo</option><option value="__skip">— No aplicar esta línea</option>${[...(data.depts || [])].sort((a, b) => a.name.localeCompare(b.name, 'es')).map(d => `<option value="${d.id}" ${sel === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}`;
+  open({ title: 'Revisar antes de aplicar', back: pasteSheet,
+    body: `<p class="hint">✓ = ya está en Personas · ＋ = se agrega como persona nueva. Cambia el departamento o el papel si hace falta.</p>
+      <form id="paste-f"><div class="stack">${pasteRows.map((r, i) => `<div class="card paste-row">
+        <p class="paste-lbl">«${esc(r.label)}»</p>
+        <select name="d${i}" aria-label="Departamento">${deptOpts(r.dept?.id || '__new')}</select>
+        <select name="a${i}" aria-label="Papel"><option value="resp" ${r.as === 'resp' ? 'selected' : ''}>★ Responsables</option><option value="ayud">Ayudantes</option><option value="train" ${r.as === 'train' ? 'selected' : ''}>Ayudantes en capacitación</option></select>
+        <div class="chips">${r.names.map(x => `<span class="chip static ${x.p ? 'ok' : 'new'}">${x.p ? '✓' : '＋'} ${esc(x.p ? x.p.name : x.n)}</span>`).join('')}</div></div>`).join('')}</div></form>`,
+    actions: '<button type="button" class="btn primary" data-a="paste-apply">Aplicar al organigrama</button>' });
+}
+export function pasteApply() {
+  const f = document.getElementById('paste-f');
+  if (!f) return;
+  const fd = new FormData(f);
+  let depts = 0, created = 0;
+  pasteRows.forEach((r, i) => {
+    const target = fd.get(`d${i}`), as = fd.get(`a${i}`);
+    if (target === '__skip') return;
+    const ids = r.names.map(x => { if (x.p) return x.p.id; const p = data.people.find(q => norm(q.name) === norm(x.n)) || store.upsert('people', { id: uid(), name: x.n, role: '', privileges: [], groupIds: [], phone: '', notes: '' }); if (!x.p) created++; x.p = p; return p.id; });
+    let d = target === '__new' ? null : store.get('depts', target);
+    if (!d) d = store.upsert('depts', { id: uid(), name: r.label.replace(/^\p{L}/u, c => c.toUpperCase()), ic: 'flag', parentId: '', headIds: [], helperIds: [], order: (data.depts || []).filter(x => !x.parentId).length + 1 });
+    const heads = new Set(M.deptHeadIds(d)), helps = new Set(d.helperIds || []); const roles = { ...(d.helperRoles || {}) };
+    ids.forEach(id => { if (as === 'resp') { heads.add(id); helps.delete(id); } else if (!heads.has(id)) { helps.add(id); if (as === 'train' && !roles[id]) roles[id] = 'en capacitación'; } });
+    store.upsert('depts', M.withHistory(d, { ...d, headIds: [...heads], headId: null, helperIds: [...helps], helperRoles: roles }));
+    depts++;
+  });
+  close();
+  toast(`Listo: ${depts} departamentos actualizados${created ? ` y ${created} personas nuevas` : ''}`);
+  hooks.deptsChanged?.();
+}
+
+// ───── Enviar a cada responsable lo suyo (WhatsApp) ─────
+// Arma un mensaje con el departamento, sus ayudantes, la nota y los acuerdos recientes que lo mencionan.
+export function deptSend(id) {
+  const d = store.get('depts', id);
+  if (!d) return;
+  const heads = M.deptHeadIds(d).map(pid => data.people.find(p => p.id === pid)).filter(Boolean);
+  const helpers = M.deptHelpers(d);
+  const words = [d.name, ...heads.map(p => p.name)].map(norm);
+  const since = addDays(today(), -60);
+  const agreements = data.meetings.filter(m => m.date >= since).sort((a, b) => b.date.localeCompare(a.date))
+    .flatMap(m => String(m.notes || '').split('\n').map(l => l.replace(/^\s*[-•*]\s*/, '').trim()).filter(l => l && words.some(w => w.length > 3 && norm(l).includes(w))).map(l => `• ${l}`)).slice(0, 8);
+  const cg = M.profile().congre || {};
+  const msg = n => [
+    `Hola${n ? `, ${n.split(' ')[0]}` : ''}. Te comparto lo de tu responsabilidad${cg.name ? ` en la congregación ${cg.name}` : ''}:`,
+    '', `🏛 *${d.name}*`,
+    heads.length ? `★ Responsable${heads.length > 1 ? 's' : ''}: ${heads.map(p => p.name).join(', ')}` : '',
+    helpers.length ? `🤝 Ayudantes: ${helpers.join(', ')}` : '',
+    d.reviewAt ? `🎓 Revisaremos cómo van el ${fmtShort(d.reviewAt)}${d.reviewNote ? ` (${d.reviewNote})` : ''}` : '',
+    d.notes ? `📝 ${d.notes}` : '',
+    agreements.length ? `\nAcuerdos recientes:\n${agreements.join('\n')}` : '',
+    '', 'Gracias por tu buen trabajo.',
+  ].filter(x => x !== '').join('\n');
+  const withPhone = heads.filter(p => p.phone);
+  if (withPhone.length === 1 && heads.length === 1) { window.open(`${waLink(withPhone[0].phone)}?text=${encodeURIComponent(msg(withPhone[0].name))}`, '_blank'); return; }
+  if (withPhone.length) {
+    open({ title: 'Enviar a cada responsable', back: () => deptSheet(id),
+      body: `<p class="hint">Toca a cada uno para abrir WhatsApp con su mensaje.</p><div class="stack">${heads.map(p => p.phone
+        ? `<a class="btn" href="${waLink(p.phone)}?text=${encodeURIComponent(msg(p.name))}" target="_blank" rel="noopener">💬 ${esc(p.name)}</a>`
+        : `<button class="btn ghost" data-a="dept-send-share" data-id="${id}" data-v="${p.id}">📤 ${esc(p.name)} <small>(sin teléfono: compartir)</small></button>`).join('')}</div>` });
+    return;
+  }
+  shareOut(d.name, msg(heads.length === 1 ? heads[0].name : ''));
+}
+export function deptSendShare(id, pid) {
+  const d = store.get('depts', id); const p = data.people.find(x => x.id === pid);
+  if (!d) return;
+  deptSend.last = pid;
+  shareOut(d.name, `Hola${p ? `, ${p.name.split(' ')[0]}` : ''}. Te comparto lo de tu responsabilidad: *${d.name}*.${M.deptHelpers(d).length ? `\nAyudantes: ${M.deptHelpers(d).join(', ')}` : ''}${d.notes ? `\n${d.notes}` : ''}`);
 }
 
 // Datos de la congregación (salen arriba del organigrama y en la imagen)
@@ -2501,7 +2682,8 @@ function applyAssign(list) {
     const heads = [...new Set([...M.deptHeadIds(d), ...ids(x.heads)])];
     const helpers = [...new Set([...(d.helperIds || []), ...ids(x.helpers)])].filter(id => !heads.includes(id));
     const note = x.note && !(d.notes || '').includes(x.note) ? [d.notes, x.note].filter(Boolean).join('\n') : d.notes || '';
-    store.upsert('depts', { ...store.get('depts', d.id), headIds: heads, helperIds: helpers, notes: note });
+    const cur = store.get('depts', d.id);
+    store.upsert('depts', M.withHistory(cur, { ...cur, headIds: heads, helperIds: helpers, notes: note }));
     n++;
   });
   return n;

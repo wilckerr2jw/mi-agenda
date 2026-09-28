@@ -111,6 +111,15 @@ function assignmentsHoy() {
       <span class="meta">${inDays === 0 ? '<b>Hoy</b>' : inDays === 1 ? '<b>Mañana</b>' : `${esc(fmtShort(date))} · en ${inDays} días`}${e.time ? `, ${fmtTime(e.time)}` : ''}${e.theme ? ` · ${esc(e.theme)}` : ''}</span>
       ${prep && inDays > 0 ? '<span class="meta prep-tag">✍️ Es tiempo de prepararla</span>' : ''}</button>`; }).join('')}</div></section>`;
 }
+// Hoy: capacitaciones del organigrama que toca revisar (desde 3 días antes)
+function reviewsHoy() {
+  if (!M.isModuleVisible('congregacion')) return '';
+  const list = M.reviewsDue();
+  if (!list.length) return '';
+  return `<section><div class="sec-h"><h2>🎓 Capacitación por revisar</h2></div><div class="stack">${list.map(d => `<button class="card mini asg-card prep" data-a="dept" data-id="${d.id}">
+    <strong>${esc(d.name)}</strong><span class="meta">${d.reviewAt < today() ? `<b class="late">era el ${esc(fmtShort(d.reviewAt))}</b>` : d.reviewAt === today() ? '<b>Hoy</b>' : esc(relDays(d.reviewAt))}${M.deptHelpers(d).length ? ` · ${esc(M.deptHelpers(d).join(', '))}` : ''}</span>
+    ${d.reviewNote ? `<span class="meta">${esc(d.reviewNote)}</span>` : ''}</button>`).join('')}</div></section>`;
+}
 // Hoy: aviso corto si hay cursos bíblicos pendientes (o pastoreo, los lunes)
 function followNotice() {
   if (!M.isModuleVisible('personas')) return '';
@@ -171,6 +180,7 @@ export function hoy() {
   ${quickRow()}
   ${isCloud ? '' : `<div class="notice">${ic('pin', 'sm')}<p>Modo local: tus datos están solo en este teléfono. <button class="link" data-a="settings">Ver cómo sincronizar</button></p></div>`}
   ${followNotice()}
+  ${reviewsHoy()}
   ${assignmentsHoy()}
   <section>
     <div class="sec-h"><h2>Agenda de hoy</h2></div>
@@ -537,7 +547,7 @@ export function congregacion(ui) {
   const loadHtml = all.length ? `<section><div class="sec-h"><h2>🧮 Asignaciones por hermano</h2></div>
     ${groups.length ? `<div class="chips"><button class="chip" data-a="load-g" data-v="" aria-pressed="${!gsel}">Todos</button>${groups.map(g => `<button class="chip" data-a="load-g" data-v="${g.id}" aria-pressed="${gsel === g.id}">${esc(g.name)}</button>`).join('')}</div>` : ''}
     ${withDept.length ? `<div class="stack">${withDept.map(x => `<details class="load-row"><summary><span class="load-n ${x.total >= 4 ? 'hi' : ''}">${x.total}</span><span class="grow"><b>${esc(x.p.name)}</b><small>${x.heads.length ? `★ responsable en ${x.heads.length}` : ''}${x.heads.length && x.helps.length ? ' · ' : ''}${x.helps.length ? `ayudante en ${x.helps.length}` : ''}</small></span></summary>
-      <ul class="load-list">${x.heads.map(d => `<li>★ <button class="link" data-a="dept" data-id="${d.id}">${esc(d.name)}</button></li>`).join('')}${x.helps.map(d => `<li><button class="link" data-a="dept" data-id="${d.id}">${esc(d.name)}</button>${d.helperRoles?.[x.p.id] ? ` <span class="hint">(${esc(d.helperRoles[x.p.id])})</span>` : ''}</li>`).join('')}</ul></details>`).join('')}</div>` : '<p class="hint pad">Nadie tiene departamentos todavía.</p>'}
+      <ul class="load-list">${x.heads.map(d => `<li>★ <button class="link" data-a="dept" data-id="${d.id}">${esc(d.name)}</button>${d.since?.[x.p.id] ? ` <span class="hint">desde ${esc(fmtShort(d.since[x.p.id]))}</span>` : ''}</li>`).join('')}${x.helps.map(d => `<li><button class="link" data-a="dept" data-id="${d.id}">${esc(d.name)}</button>${d.helperRoles?.[x.p.id] ? ` <span class="hint">(${esc(d.helperRoles[x.p.id])})</span>` : ''}${d.since?.[x.p.id] ? ` <span class="hint">desde ${esc(fmtShort(d.since[x.p.id]))}</span>` : ''}</li>`).join('')}</ul></details>`).join('')}</div>` : '<p class="hint pad">Nadie tiene departamentos todavía.</p>'}
     ${gsel ? (without.length ? `<h3 class="sub-h">⚠️ Sin departamento (${without.length})</h3><div class="chips">${without.map(x => `<button class="chip warn-chip" data-a="person" data-id="${x.p.id}">${esc(x.p.name)}</button>`).join('')}</div>` : '<p class="hint pad">✓ Todos los de este grupo tienen al menos un departamento.</p>')
       : `<p class="hint pad">${groups.length ? 'Elige un grupo (por ejemplo, tus ancianos y siervos) para ver quién no tiene ningún departamento.' : 'Crea un grupo en Personas (por ejemplo, «Varones» o «Ancianos y siervos») para ver quién no tiene departamento.'}</p>`}
   </section>` : '';
@@ -550,7 +560,7 @@ export function congregacion(ui) {
     : pick ? `<div class="org-tools pick-bar"><span class="grow"><b>${pick.size}</b> elegidos</span><button class="btn small ghost" data-a="org-pick-all">Todos</button><button class="btn small ghost" data-a="org-pick">Cancelar</button><button class="btn small danger" data-a="org-del" ${pick.size ? '' : 'disabled'}>Eliminar</button></div>
       <p class="hint pad">Marca los departamentos que no aplican en tu congregación. Los que dependían de ellos suben un nivel. «Sugeridos» no los vuelve a traer.</p>
       <ul class="org-ul org-root">${tree.map(n => orgNode(n, 0, o)).join('')}</ul>`
-    : `<div class="org-tools"><button class="btn small" data-a="org-share">${ic('chat', 'sm')} Compartir imagen</button><button class="btn small ghost" data-a="org-print">🖨 Imprimir / PDF</button><button class="btn small ghost" data-a="dept-new">＋ Departamento</button><button class="btn small ghost" data-a="dept-suggest">Sugeridos</button><button class="btn small ghost" data-a="org-pick">Quitar varios</button><button class="btn small ${o.sort ? 'primary' : 'ghost'}" data-a="org-sort">${o.sort ? '✓ Listo' : '↕ Ordenar'}</button></div>
+    : `<div class="org-tools"><button class="btn small" data-a="org-share">${ic('chat', 'sm')} Compartir imagen</button><button class="btn small ghost" data-a="org-print">🖨 Imprimir / PDF</button><button class="btn small ghost" data-a="dept-new">＋ Departamento</button><button class="btn small ghost" data-a="dept-suggest">Sugeridos</button><button class="btn small ghost" data-a="org-paste">📋 Pegar acuerdos</button><button class="btn small ghost" data-a="org-pick">Quitar varios</button><button class="btn small ${o.sort ? 'primary' : 'ghost'}" data-a="org-sort">${o.sort ? '✓ Listo' : '↕ Ordenar'}</button></div>
       <div class="org-fold-bar"><button class="link" data-a="org-fold-all" data-v="open">Mostrar todos</button> · <button class="link" data-a="org-fold-all" data-v="close">Ocultar todos</button></div>
       ${o.sort ? '<p class="hint pad">↑ ↓ lo sube o baja entre los de su mismo nivel · → lo mete dentro del de arriba (por ejemplo, el auxiliar debajo del encargado) · ← lo saca un nivel.</p>' : ''}
       <ul class="org-ul org-root">${tree.map(n => orgNode(n, 0, o)).join('')}</ul>

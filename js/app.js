@@ -187,6 +187,13 @@ document.addEventListener('click', e => {
     case 'dept-new': return S.deptSheet(null, { parentId: id || '' });
     case 'dept-suggest': S.deptLoadSuggested(); return render();
     case 'congre-edit': return S.congreSheet();
+    case 'dept-send': return S.deptSend(id);
+    case 'org-paste': return S.pasteSheet();
+    case 'paste-read': return S.pasteRead();
+    case 'paste-apply': return S.pasteApply();
+    case 'person-merge': return S.mergeSheet(id);
+    case 'person-merge-go': return S.mergePeople(id);
+    case 'dept-send-share': return S.deptSendShare(id, v);
     case 'load-g': ui.congre.lg = v; return render();
     case 'dept-unskip': S.deptRestoreSkipped(); return setTimeout(render, 50);
     case 'org-pick': ui.congre = { ...ui.congre, picking: !ui.congre.picking, picked: [], sorting: false }; return render();

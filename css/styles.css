@@ -996,3 +996,11 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 .load-n.hi { background: color-mix(in srgb, var(--warn) 20%, var(--surface)); color: var(--warn); }
 .load-list { margin: 8px 0 2px 44px; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 14px; }
 .warn-chip { border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+
+/* Pegar acuerdos, historial (v6.7) */
+.paste-row { display: grid; gap: 8px; padding: 12px; }
+.paste-lbl { margin: 0; font-weight: 600; }
+.chip.static.ok { border-color: color-mix(in srgb, var(--primary) 45%, transparent); }
+.chip.static.new { border-style: dashed; border-color: var(--warn); color: var(--warn); }
+.dept-hist { margin: 0; padding: 0 0 0 4px; list-style: none; display: grid; gap: 4px; font-size: 14px; }
+#paste-txt { width: 100%; font: inherit; }

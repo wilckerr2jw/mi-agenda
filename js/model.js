@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '6.6';
+export const APP_VERSION = '6.7';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -576,6 +576,21 @@ export const deptHeadIds = d => (Array.isArray(d.headIds) ? d.headIds : d.headId
 export const deptHeads = d => [...deptHeadIds(d).map(personName).filter(Boolean), ...splitNames(d.headNames ?? d.headName)];
 export const deptHelpers = d => [...(d.helperIds || []).map(id => { const n = personName(id); const r = d.helperRoles?.[id]; return n ? (r ? `${n} (${r})` : n) : ''; }).filter(Boolean), ...splitNames(d.helperNames)];
 export const deptHead = d => deptHeads(d).join(', ');
+// Historial: quién entró o salió de un departamento y desde cuándo está cada uno
+// d.history = [{ d: fecha, pid, n: nombre, as: 'resp'|'ayud', op: '+'|'-' }]   d.since = { pid: fecha }
+export function withHistory(prev, next, date = today()) {
+  const was = { resp: new Set(deptHeadIds(prev || {})), ayud: new Set(prev?.helperIds || []) };
+  const now = { resp: new Set(deptHeadIds(next)), ayud: new Set(next.helperIds || []) };
+  const history = [...(prev?.history || [])];
+  const since = { ...(prev?.since || {}) };
+  ['resp', 'ayud'].forEach(as => {
+    now[as].forEach(pid => { if (!was[as].has(pid)) { history.push({ d: date, pid, n: personName(pid), as, op: '+' }); if (!was.resp.has(pid) && !was.ayud.has(pid)) since[pid] = date; } });
+    was[as].forEach(pid => { if (!now[as].has(pid)) history.push({ d: date, pid, n: personName(pid), as, op: '-' }); });
+  });
+  Object.keys(since).forEach(pid => { if (!now.resp.has(pid) && !now.ayud.has(pid)) delete since[pid]; });
+  return { ...next, history: history.slice(-120), since };
+}
+export const reviewsDue = (t = today(), ahead = 3) => (data.depts || []).filter(d => d.reviewAt && d.reviewAt <= addDays(t, ahead)).sort((a, b) => a.reviewAt.localeCompare(b.reviewAt));
 export const deptsOfPerson = pid => (data.depts || []).filter(d => deptHeadIds(d).includes(pid) || (d.helperIds || []).includes(pid))
   .map(d => ({ d, head: deptHeadIds(d).includes(pid) })).sort((a, b) => (b.head ? 1 : 0) - (a.head ? 1 : 0) || byOrder(a.d, b.d));
 
