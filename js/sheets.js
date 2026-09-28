@@ -418,8 +418,8 @@ function responsiblesHtml(st) {
     .sort((a, b) => (st.ids.includes(b.id) ? 1 : 0) - (st.ids.includes(a.id) ? 1 : 0));   // los marcados primero
   return `<div class="checklist resp">
       <label class="check"><input type="checkbox" name="respMe" ${st.me ? 'checked' : ''}> <span><b>Yo</b>${meName ? ` <span class="hint">${esc(meName)}</span>` : ''}</span></label>
-      ${people.map(p => `<label class="check"><input type="checkbox" name="respPerson" value="${p.id}" ${st.ids.includes(p.id) ? 'checked' : ''}> <span>${esc(p.name)}${p.role ? ` <span class="hint">${esc(p.role)}</span>` : ''}</span></label>`).join('')}
     </div>
+    ${people.length ? personPick('respPerson', people, st.ids, null, 'checkbox', { lazy: true }) : ''}
     <input id="respOther" name="respOther" maxlength="160" value="${esc(st.others.join(', '))}" placeholder="Otros que no están en Personas (separa con coma)" aria-label="Otros responsables">
     ${st.others.length ? `<p class="hint resp-add">Agregar a Personas: ${st.others.map(n => `<button type="button" class="link sm" data-a="resp-add-person" data-name="${esc(n)}">+ ${esc(n)}</button>`).join('')}</p>` : ''}
     <p class="hint">Si no marcas a nadie, la tarea es tuya. Si marcas a otros y no a ti, la supervisas.</p>`;
@@ -2166,7 +2166,7 @@ function agreementsHtml(m) {
   const noMe = !M.myNames().length;
   return `<h3 class="sub-h">${list.length === 1 ? 'Encontré 1 acuerdo' : `Encontré ${list.length} acuerdos`}${pending && pending < list.length ? ` · ${pending} sin tarea` : ''}</h3>
     ${noMe ? `<p class="hint pad">Para saber cuáles te tocan a ti, escribe tu nombre en ${M.isModuleVisible('informe') ? '<button class="link" data-a="profile">Mi perfil</button>' : 'Mi perfil'}.</p>` : ''}
-    <div class="stack">${list.map((a, i) => `<div class="card mini agree ${a.task ? 'has-task' : ''}">
+    <div class="stack">${list.map(a => a.task ? { ...a, mine: M.isMineTask(a.task), responsibles: a.task.responsibles || [] } : a).map((a, i) => `<div class="card mini agree ${a.task ? 'has-task' : ''}">
       <span class="grow"><strong>${esc(a.title)}</strong>
         <span class="meta">
           ${a.subjectName ? `<span class="nw">${ic('users', 'sm')}${esc(a.subjectName)}</span>${a.subjectKnown ? '' : `<button type="button" class="link sm" data-a="agree-person" data-name="${esc(a.subjectName)}">Agregar a Personas</button>`}` : ''}
