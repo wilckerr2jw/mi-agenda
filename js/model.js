@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '7.1';
+export const APP_VERSION = '7.2';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -806,10 +806,27 @@ const HERMANOS = /\b(los|las) hermanos?\b|\b(los|las) hermanas\b|\bel hermano\b|
 // Texto normalizado que conserva las posiciones del original (una letra por letra)
 const normKeep = text => [...text].map(ch => { const n = norm(ch); return n.length === 1 ? n : ch.toLowerCase(); }).join('');
 
+// ¿Parece un nombre? (está en tus Personas, o todas sus palabras empiezan con mayúscula: «Juan de la Cruz»)
+const looksLikeName = str => { const w = String(str).trim().split(/\s+/);
+  if (resolveName(str)) return true;
+  return !NOT_NAMES.has(norm(w[0])) && !/\d/.test(str) && w.every((x, i) => /^[A-ZÁÉÍÓÚÑ]/.test(x) || (i && PARTICLES.has(x.toLowerCase()))); };
+// Palabras que indican un tema y no una persona antes de los dos puntos («Reunión de precursores: …»)
+const NOT_SUBJECT = /\b(reunion|protocolo|recordatorio|tareas?|texto|anuncio|comite|cuerpo|departamento|organigrama|nota|acuerdos?|capacitacion|asamblea|visita del|programa|limpieza|mantenimiento|informe|cuentas|territorio|grupo)\b/;
+// «Enrique: hablar con…» → el nombre es quien lo hace (empieza con un verbo en infinitivo)
+const STARTS_INFINITIVE = /^[a-záéíóúñ]{2,}(ar|er|ir)\b/i;   // «visitarla» (con la/lo) sí habla de la persona
+// «Protocolo de la reunión: Ana, Luisa y Marta» → los nombres del final son los responsables
+function tailNames(text) {
+  const m = text.match(/^(.{4,}?):\s*([^:]+)$/);
+  if (!m) return null;
+  const names = m[2].split(/\s*,\s*|\s+y\s+|\s+e\s+/).map(x => x.trim().replace(/[.;]$/, '')).filter(Boolean);
+  if (!names.length || names.length > 8 || !names.every(n => n.split(/\s+/).length <= 4 && looksLikeName(n))) return null;
+  return { head: m[1].trim(), names };
+}
+
 // Quién es el acuerdo («Nombre: …» al inicio, o un nombre al comienzo de la línea)
 function findSubject(text) {
   const colon = text.match(/^([^:]{2,45}):\s*(.+)$/);
-  if (colon && colon[1].trim().split(/\s+/).length <= 5) return { raw: colon[1].trim(), body: colon[2].trim() };
+  if (colon && colon[1].trim().split(/\s+/).length <= 5 && !/\d/.test(colon[1]) && !NOT_SUBJECT.test(norm(colon[1]))) return { raw: colon[1].trim(), body: colon[2].trim() };
   const words = text.split(/\s+/);
   for (let n = Math.min(4, words.length - 1); n >= 1; n--) {   // un nombre de tu lista al comienzo
     const hit = resolveName(words.slice(0, n).join(' '));
@@ -875,7 +892,7 @@ function makeTitle(text, subject) {
   ACTIONS.forEach(([re, build]) => { const m = nt.match(re); if (m && (!best || m.index < best.m.index)) best = { m, build }; });
   let title;
   if (best) title = best.build(subject, tailAfter(text, nt, best.m.index + best.m[0].length));
-  else title = text.split(/[,.;]/)[0];
+  else title = text.split(/[,;]|\.(?=\s|$)/)[0];
   title = title.replace(/\s+/g, ' ').trim();
   if (subject && !norm(title).includes(norm(subject))) title = `${subject}: ${title.charAt(0).toLowerCase()}${title.slice(1)}`;
   title = shorten(title, 70);
@@ -902,11 +919,16 @@ export function parseAgreements(m) {
   return source.map(l => {
     const text = l.replace(BULLET, '').replace(/^acuerdo\s*:\s*/i, '').trim();
     const key = agreementKey(text);
-    const subj = findSubject(text);
+    const tail = tailNames(text);
+    let subj = tail ? { raw: '', body: tail.head } : findSubject(text);
+    let lead = [];   // «Nombre: hacer algo» → esa persona es la responsable, no a quien se atiende
+    if (subj.raw && STARTS_INFINITIVE.test(subj.body)) { const h = resolveName(subj.raw); lead = [h ? { name: h.name, id: h.id, isMe: h.isMe } : { name: titleCase(subj.raw), id: '', isMe: false }]; subj = { raw: '', body: subj.body }; }
+    if (tail) lead = tail.names.map(n => { const h = resolveName(n); return h ? { name: h.name, id: h.id, isMe: h.isMe } : { name: titleCase(n), id: '', isMe: false }; });
     const subjHit = subj.raw ? resolveName(subj.raw) : null;
     const subjectName = subjHit && !subjHit.isMe ? subjHit.name : (subj.raw ? titleCase(subj.raw) : '');
-    const responsibles = findResponsibles(subj.body).filter(r => norm(r.name) !== norm(subjectName));
-    const title = makeTitle(subj.body, subjectName);
+    const responsibles = [...lead, ...findResponsibles(subj.body)].filter((r, i, a) => norm(r.name) !== norm(subjectName) && a.findIndex(x => norm(x.name) === norm(r.name)) === i);
+    const cap = x => x.charAt(0).toUpperCase() + x.slice(1);
+    const title = tail ? shorten(tail.head, 70) : lead.length ? shorten(cap(subj.body), 70) : makeTitle(subj.body, subjectName);
     return {
       text, key, title, due: findDate(text, base), kind: guessKind(title),
       subjectName, personId: subjHit && !subjHit.isMe ? subjHit.id : '', subjectKnown: !!(subjHit && !subjHit.isMe),

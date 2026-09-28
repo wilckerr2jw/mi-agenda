@@ -1,6 +1,8 @@
 {
-  "version": "7.1",
+  "version": "7.2",
   "notes": [
-    "Reuniones: si la nota tiene una sección «Tareas:», solo esas líneas se toman como acuerdos"
+    "Reuniones: solo se toman como acuerdos las líneas debajo de «Tareas:»",
+    "«Nombre: hacer algo» pone a esa persona como responsable",
+    "«Tema: Ana, Luisa y Marta» pone a esas personas como responsables"
   ]
 }
