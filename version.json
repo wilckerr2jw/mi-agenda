@@ -1,6 +1,7 @@
 {
-  "version": "7.3",
+  "version": "7.4",
   "notes": [
+    "Tareas que se repiten: cada semana, cada mes (el 2.º jueves, por ejemplo) o cada año",
     "Tareas: busca a los responsables escribiendo su nombre y márcalos",
     "Reuniones: el acuerdo muestra a quién le toca según su tarea"
   ]

@@ -475,7 +475,7 @@ function refreshPersonSelects(form, selectPersonId) {
 
 export function taskSheet(id, preset = {}, back) {
   const t = id ? store.get('tasks', id) : null;
-  const v = t || { title: preset.title || '', kind: preset.kind || 'visita', personId: preset.personId || '', companionId: '', due: preset.due || '', dueTime: '', status: 'pendiente', notes: preset.notes || '', log: [], meetingId: preset.meetingId || '', fromAgreement: preset.fromAgreement || '', responsibles: preset.responsibles || [], mine: preset.mine !== false };
+  const v = t || { title: preset.title || '', kind: preset.kind || 'visita', personId: preset.personId || '', companionId: '', due: preset.due || '', dueTime: '', status: 'pendiente', notes: preset.notes || '', log: [], meetingId: preset.meetingId || '', fromAgreement: preset.fromAgreement || '', responsibles: preset.responsibles || [], mine: preset.mine !== false, repeat: preset.repeat || '' };
   const meeting = v.meetingId ? store.get('meetings', v.meetingId) : null;
   const meetings = [...data.meetings].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const meetingSelect = `<select id="meetingId" name="meetingId"><option value="">Ninguna</option>${meetings.map(m => `<option value="${m.id}" ${m.id === v.meetingId ? 'selected' : ''}>${esc(m.title)} — ${fmtShort(m.date)}</option>`).join('')}</select>`;
@@ -505,6 +505,8 @@ export function taskSheet(id, preset = {}, back) {
         ${fld('Fecha límite', `<input id="due" name="due" type="date" value="${v.due || ''}">`, 'due')}
         ${fld('Hora', `<input id="dueTime" name="dueTime" type="time" value="${v.dueTime || ''}">`, 'dueTime')}
       </div>
+      ${fld('🔁 Repetir', `<select id="repeat" name="repeat">${Object.entries(M.TASK_REPEATS).map(([k, n]) => `<option value="${k}" ${k === (v.repeat || '') ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`, 'repeat')}
+      <p class="hint" id="repeat-hint" ${v.repeat ? '' : 'hidden'}>${v.repeat ? `${esc(M.repeatLabel(v.repeat, v.due))}. Al marcarla como hecha se crea la siguiente.` : ''}</p>
       ${fld('Notas', `<textarea id="notes" name="notes" rows="3">${esc(v.notes || '')}</textarea>`, 'notes')}
       ${meetings.length ? fld('Viene de la reunión…', meetingSelect, 'meetingId') : ''}
       ${v.fromAgreement && meeting ? `<p class="hint">Sale de un acuerdo de «${esc(meeting.title)}».</p>` : ''}
@@ -531,7 +533,7 @@ function collectTask(form, id) {
   const kind = M.resolveType(r.kind, r.kindOtro, M.KINDS);
   if (kind === null) return null;
   const prev = id ? store.get('tasks', id) : null;
-  const t = { ...(prev || {}), id: id || uid(), title: r.title, kind, personId: r.personId, companionId: r.companionId, due: r.due, dueTime: r.due ? r.dueTime : '', status: r.status, notes: r.notes, meetingId: r.meetingId || '', fromAgreement: r.meetingId ? (r.fromAgreement || '') : '', ...responsiblesFrom(form), log: prev?.log || [] };
+  const t = { ...(prev || {}), id: id || uid(), title: r.title, kind, personId: r.personId, companionId: r.companionId, due: r.due, dueTime: r.due ? r.dueTime : '', status: r.status, notes: r.notes, meetingId: r.meetingId || '', fromAgreement: r.meetingId ? (r.fromAgreement || '') : '', ...responsiblesFrom(form), log: prev?.log || [], repeat: r.repeat || '' };
   t.doneAt = t.status === 'hecha' ? (prev?.doneAt || today()) : '';
   return t;
 }
@@ -540,7 +542,11 @@ function saveTask(id, form) {
   const t = collectTask(form, id);
   if (!t) { toast('Escribe el tipo de tarea'); return; }
   rememberType('tasks', t.kind, M.KINDS);
+  const prev = id ? store.get('tasks', id) : null;
+  const again = t.status === 'hecha' && prev?.status !== 'hecha' ? M.repeatNext(t, uid()) : null;
+  if (again) t.repeatDone = true;
   store.upsert('tasks', t);
+  if (again) { store.upsert('tasks', again); toast(`Hecha. La próxima queda para el ${fmtShort(again.due)}`); }
   closeOrBack();
 }
 

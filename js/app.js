@@ -10,7 +10,7 @@ import * as Lock from './lock.js';
 import * as N from './notify.js';
 import * as WC from './weekcal.js';
 import * as Nat from './native.js';
-import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays } from './util.js';
+import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays, uid, fmtShort } from './util.js';
 
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
 const ui = {
@@ -83,8 +83,11 @@ function toggleTask(id) {
   if (!t) return;
   const wasDone = t.status === 'hecha';
   const next = { ...t, status: wasDone ? ((t.log || []).length ? 'seguimiento' : 'pendiente') : 'hecha', doneAt: wasDone ? '' : today() };
+  const again = !wasDone ? M.repeatNext(t, uid()) : null;
+  if (again) next.repeatDone = true;
   store.upsert('tasks', next);
-  if (!wasDone) toast('Tarea completada', 'Deshacer', () => store.upsert('tasks', t));
+  if (again) store.upsert('tasks', again);
+  if (!wasDone) toast(again ? `Tarea completada. La próxima: ${fmtShort(again.due)}` : 'Tarea completada', 'Deshacer', () => { store.upsert('tasks', t); if (again) store.remove('tasks', again.id); });
 }
 
 function shiftMonth(n) {
@@ -364,6 +367,11 @@ document.addEventListener('change', e => {
   if (t.matches?.('input[data-a="ag-pick"]')) return S.agendaTogglePick(t.dataset.id);
   if (t.matches?.('select[data-admin-uid]')) return S.adminSetType(t.dataset.adminUid, t.value, t);
   if (t.matches?.('input[data-a="ev-pick"]')) { const cur = new Set(ui.agenda.picked || []); t.checked ? cur.add(t.value) : cur.delete(t.value); ui.agenda.picked = [...cur]; return render(); }
+  if ((t.id === 'repeat' || t.id === 'due') && t.form?.dataset.form === 'task') {   // 🔁 explica cómo se repetirá
+    const h = document.getElementById('repeat-hint'), r = t.form.repeat?.value;
+    if (h) { h.hidden = !r; h.textContent = r ? `${M.repeatLabel(r, t.form.due?.value)}. Al marcarla como hecha se crea la siguiente.` : ''; }
+    if (t.id === 'repeat') return;
+  }
   if (t.id === 'kind' && t.form?.dataset.form === 'visit') { const box = document.getElementById('visit-lesson'); if (box) box.hidden = t.value !== 'estudio'; const w = document.getElementById('visit-with'); if (w) w.hidden = t.value !== 'pastoreo'; return; }
   if (t.id === 'has-helpers') { const b = document.getElementById('helpers-box'); if (b) b.hidden = !t.checked; return; }
   if (t.matches?.('.psel[data-psel="headIds"] input[type=checkbox]')) {   // quien es responsable no sale en ayudantes

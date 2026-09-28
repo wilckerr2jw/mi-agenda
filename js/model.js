@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '7.3';
+export const APP_VERSION = '7.4';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -55,6 +55,56 @@ export const KINDS = {
   llamada:      'Llamada o mensaje',
   otro:         'Otro',
 };
+
+// ───── Tareas que se repiten ─────
+export const TASK_REPEATS = { '': 'No se repite', semanal: 'Cada semana', quincenal: 'Cada 2 semanas', 'mensual-semana': 'Cada mes, misma semana y día', mensual: 'Cada mes, mismo día', anual: 'Cada año' };
+const WD = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const ORD = ['1.er', '2.º', '3.er', '4.º', 'último'];
+const isoOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// Texto claro de cómo se repite, según la fecha límite («Cada mes, el 2.º jueves»)
+export function repeatLabel(repeat, due) {
+  if (!repeat) return '';
+  if (!due) return TASK_REPEATS[repeat] || '';
+  const d = parseISO(due);
+  if (repeat === 'semanal') return `Cada ${WD[d.getDay()]}`;
+  if (repeat === 'quincenal') return `Cada 2 semanas, el ${WD[d.getDay()]}`;
+  if (repeat === 'mensual-semana') return `Cada mes, el ${ORD[Math.min(4, Math.ceil(d.getDate() / 7) - 1)]} ${WD[d.getDay()]}`;
+  if (repeat === 'mensual') return `Cada mes, el día ${d.getDate()}`;
+  if (repeat === 'anual') return `Cada año, el ${fmtShort(due)}`;
+  return '';
+}
+// Próxima fecha límite de una tarea que se repite
+export function nextDue(repeat, due) {
+  const base = due || today();
+  if (repeat === 'semanal') return addDays(base, 7);
+  if (repeat === 'quincenal') return addDays(base, 14);
+  const d = parseISO(base);
+  if (repeat === 'mensual' || repeat === 'anual') {
+    const add = repeat === 'anual' ? 12 : 1; const day = d.getDate();
+    const n = new Date(d.getFullYear(), d.getMonth() + add, 1);
+    const last = new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate();
+    n.setDate(Math.min(day, last)); return isoOf(n);
+  }
+  if (repeat === 'mensual-semana') {
+    const nth = Math.ceil(d.getDate() / 7), wd = d.getDay();
+    const first = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    const off = (wd - first.getDay() + 7) % 7;
+    let day = 1 + off + (nth - 1) * 7;
+    const last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    while (day > last) day -= 7;   // si ese mes no tiene 5.º, el último
+    first.setDate(day); return isoOf(first);
+  }
+  return '';
+}
+// Al completar una tarea que se repite, la siguiente (nueva, pendiente y con la próxima fecha)
+export function repeatNext(t, newId) {
+  if (!t.repeat || t.repeatDone) return null;
+  const due = nextDue(t.repeat, t.due);
+  if (!due) return null;
+  const n = { ...t, id: newId, due, status: 'pendiente', doneAt: '', log: [], repeatDone: false, repeatFrom: t.id, fromAgreement: '' };
+  delete n.createdAt; delete n.updatedAt;
+  return n;
+}
 
 export const STATUS = {
   pendiente:   'Pendiente',
