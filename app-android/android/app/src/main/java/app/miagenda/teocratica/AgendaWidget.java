@@ -7,7 +7,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.view.View;
 import android.widget.RemoteViews;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 /** Widget de la pantalla de inicio: lo de hoy y el botón «Registrar». */
 public class AgendaWidget extends AppWidgetProvider {
@@ -34,6 +37,27 @@ public class AgendaWidget extends AppWidgetProvider {
         v.setTextViewText(R.id.w_footer, p.getString("footer", ""));
         v.setOnClickPendingIntent(R.id.w_root, open(ctx, "hoy", 10));
         v.setOnClickPendingIntent(R.id.w_log, open(ctx, "registrar", 11));
+        // Rutinas de hoy: «✓ Texto diario» la marca como hecha (abre la app un momento y vuelve)
+        int[] slots = { R.id.w_r1, R.id.w_r2 };
+        int shown = 0;
+        try {
+            JSONArray rs = new JSONArray(p.getString("routines", "[]"));
+            String day = p.getString("day", "");
+            for (int i = 0; i < slots.length; i++) {
+                JSONObject r = i < rs.length() ? rs.optJSONObject(i) : null;
+                if (r == null) { v.setViewVisibility(slots[i], View.GONE); continue; }
+                boolean done = r.optBoolean("d", false);
+                v.setViewVisibility(slots[i], View.VISIBLE);
+                v.setTextViewText(slots[i], (done ? "✔ " : "✓ ") + r.optString("t", "Rutina"));
+                v.setTextColor(slots[i], done ? 0xFF6B8A87 : 0xFF1D5F5A);
+                v.setOnClickPendingIntent(slots[i], done ? open(ctx, "hoy", 30 + i)
+                    : open(ctx, "hecho?eid=" + Uri.encode(r.optString("e", "")) + "&dia=" + Uri.encode(day), 20 + i));
+                shown++;
+            }
+        } catch (Exception e) {
+            for (int s2 : slots) v.setViewVisibility(s2, View.GONE);
+        }
+        v.setViewVisibility(R.id.w_rt, shown > 0 ? View.VISIBLE : View.GONE);
         mgr.updateAppWidget(id, v);
     }
 }

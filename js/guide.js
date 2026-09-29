@@ -39,7 +39,7 @@ const TOPICS = [
   { g: 'Lo básico', t: 'Color y tamaño de letra', when: () => true,
     b: () => `Ajustes → ${k('Apariencia')}: elige el color de la app y el ${k('Tamaño de letra')} (Normal, Grande o Muy grande). Se guarda en cada teléfono.` },
   { g: 'Lo básico', t: 'App de Android', when: () => true,
-    b: () => `En ${k('⋯ → Ayuda → Descargar la app (APK)')} instalas la app de Android: avisos exactos sin internet y con sonidos propios. Pon el widget ${k('Agenda Teocrática · Hoy')} en tu pantalla de inicio (mantén presionado un espacio vacío → Widgets) para ver lo de hoy y registrar con un toque. En el aviso de la noche, ${k('Hoy no salí')} evita que te lo recuerde otra vez. Cuando haya una versión nueva de la app, en Hoy aparece ${k('📲 Hay una actualización de la app')}; tócalo e instálala encima (no se borra nada). Si un aviso no te llega, Ajustes → Avisos → ${k('🩺 Revisar mis avisos')} te dice qué falta (batería, permisos…) y cómo arreglarlo.` },
+    b: () => `En ${k('⋯ → Ayuda → Descargar la app (APK)')} instalas la app de Android: avisos exactos sin internet y con sonidos propios. Pon el widget ${k('Agenda Teocrática · Hoy')} en tu pantalla de inicio (mantén presionado un espacio vacío → Widgets) para ver lo de hoy y registrar con un toque. En el aviso de la noche, ${k('Hoy no salí')} evita que te lo recuerde otra vez. Cuando haya una versión nueva de la app, en Hoy aparece ${k('📲 Hay una actualización de la app')}; tócalo e instálala encima (no se borra nada). Si un aviso no te llega, Ajustes → Avisos → ${k('🩺 Revisar mis avisos')} te dice qué falta (batería, permisos…) y cómo arreglarlo. En el widget, los botones ${k('✓')} marcan tus rutinas de hoy sin buscarlas.` },
   { g: 'Lo básico', t: 'Sin internet', when: () => true,
     b: c => `Puedes registrar todo sin señal${c.cloud ? '; se sincroniza solo cuando vuelve la conexión' : ''}.` },
 
@@ -91,6 +91,10 @@ const TOPICS = [
   { g: 'Personas y notas', t: 'Nombres con apodos', when: c => c.on('personas'),
     b: () => `En la ficha de una persona, ${k('También escrito como')} guarda sus apodos u otras formas de escribir su nombre, para que la app la reconozca en los acuerdos.` },
 
+  { g: 'Congregación', t: 'Enlace para los ancianos', when: c => c.on('congregacion') && c.elder,
+    b: () => `En Congregación → ${k('📋 Para el Cuerpo de ancianos')} → ${k('🔗 Enlace para los ancianos')}: eliges qué ven (organigrama, acuerdos y tareas, visita del superintendente, mecánicas) y mandas el enlace y, aparte, la clave de 6 números. No necesitan la app; va cifrado y se actualiza solo. Puedes cambiar la clave o apagarlo cuando quieras.` },
+  { g: 'Tus datos', t: 'Google Calendar automático', when: () => true,
+    b: () => `Ajustes → ${k('Mis datos')} → ${k('Conectar con Google Calendar')}. Una sola vez pones un pequeño programa en tu cuenta de Google (la app te da el código y los pasos) y desde ahí tu agenda aparece sola en el calendario «Mi Agenda Teocrática», con lo que cambias o borras aquí.` },
   { g: 'Personas y notas', t: 'Seguimiento de cursos y pastoreo', when: c => c.on('personas'),
     b: c => `En la ficha de una persona toca ${k('＋ Anotar visita')} (curso bíblico, revisita${c.elder ? ' o pastoreo' : ''}). En Personas → ${k('Seguimiento')} ves quién necesita tu visita primero.${c.elder ? ` Con ${k('📥 Cargar visitas anteriores')} pegas tu registro de antes (nombre y fecha por línea).` : ''}` },
   { g: 'Agenda y tareas', t: 'Mis asignaciones', when: c => c.on('agenda'),

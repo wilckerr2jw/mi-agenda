@@ -59,8 +59,12 @@ export async function init(h) {
     // Aviso al servidor: esta cuenta usa la app de Android (así no se duplican los avisos de horario)
     store.patchProfile(v => (!v.nativeAppSeen || Date.now() - Date.parse(v.nativeAppSeen) > 12 * 3600e3 ? { nativeAppSeen: new Date().toISOString() } : null));
     plug('App')?.addListener('resume', () => { schedule(); checkUpdate(); refreshHealth(); });
-    // Enlaces del widget (app.miagenda.teocratica://registrar)
-    const onUrl = url => { if (/registrar/.test(url || '')) handlers.log(); };
+    // Enlaces del widget: app.miagenda.teocratica://registrar y …://hecho?eid=…&dia=… (✓ de una rutina)
+    const onUrl = url => {
+      if (/registrar/.test(url || '')) handlers.log();
+      const m = /hecho\?eid=([^&]+)&dia=(\d{4}-\d{2}-\d{2})/.exec(url || '');
+      if (m) handlers.done(decodeURIComponent(m[1]), m[2], { widget: true });
+    };
     plug('App')?.addListener('appUrlOpen', ev => onUrl(ev.url));
     plug('App')?.getLaunchUrl?.().then(r => onUrl(r?.url)).catch(() => {});
     registerPush();
@@ -329,8 +333,14 @@ function updateWidget() {
   const footer = hoy.length ? `Registrado hoy: ${M.fmtHM(mins)} h` : skip ? 'Hoy: sin actividad (marcado)' : 'Aún no registras la actividad de hoy';
   const d = new Date();
   const title = `Hoy · ${['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'][d.getDay()]} ${d.getDate()}`;
-  W.update({ title, lines: items.join('\n') || 'Nada programado para hoy.', footer }).catch(() => {});
+  // Rutinas de hoy para los botones ✓ del widget (primero las que faltan)
+  const routines = a.events.filter(e => M.isRoutine(e)).map(e => ({ e: e.id, t: e.title, d: M.isDoneBy(e, t, me) }))
+    .sort((x, y) => Number(x.d) - Number(y.d)).slice(0, 2);
+  W.update({ title, lines: items.join('\n') || 'Nada programado para hoy.', footer, routines: JSON.stringify(routines), day: t }).catch(() => {});
 }
+export function refreshWidget() { try { updateWidget(); } catch { /* sin widget */ } }
+// Después de marcar desde el widget: la app vuelve sola a la pantalla de inicio
+export function minimize() { try { plug('App')?.minimizeApp?.(); } catch { /* no disponible */ } }
 
 // Limpia el aviso fijo del cronómetro (función retirada en 5.3)
 async function clearOldTimer(LN) {
@@ -368,10 +378,24 @@ async function doSchedule() {
     });
     if (stale.length) await LN.cancel({ notifications: stale.map(n => ({ id: n.id })) });
     await clearDoneDelivered(LN);
+    reportHorizon(list);
     rec.n = list.length;
     rec.next = list.filter(n => n.extra?.eid || n.extra?.kind === 'last').slice(0, 6).map(n => ({ at: n.extra.at, body: String(n.body).slice(0, 140) }));
   } catch (e) { rec.errors.push(String(e?.message || e)); console.warn('No se pudieron programar los avisos', e); }
   saveRun(rec);
+}
+
+// Plan B: el servidor sabe hasta cuándo tiene avisos este teléfono. Si se queda sin ellos (no abres la app en
+// días o Android los borró), el servidor manda los importantes también al teléfono. Se avisa como mucho cada 6 horas.
+function reportHorizon(list) {
+  if (!store.isCloud || !list.length) return;
+  const until = new Date(Math.max(...list.map(n => Number(n.extra?.at) || 0))).toISOString();
+  store.patchProfile(v => {
+    const prev = v.nativeSched || {};
+    const old = !prev.at || Date.now() - Date.parse(prev.at) > 6 * 3600e3;
+    const moved = Math.abs(Date.parse(prev.until || 0) - Date.parse(until)) > 12 * 3600e3;
+    return old || moved ? { nativeSched: { at: new Date().toISOString(), until, n: list.length, v: M.APP_VERSION } } : null;
+  });
 }
 
 // ¿Ese aviso es de una rutina que ya marcaste?

@@ -49,6 +49,52 @@
         android:textSize="13sp"
         android:lineSpacingExtra="3dp" />
 
+    <!-- Rutinas de hoy (texto diario, lectura…): un toque las marca como hechas -->
+    <LinearLayout
+        android:id="@+id/w_rt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="4dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/w_r1"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:background="@drawable/widget_btn"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#1D5F5A"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/w_r2"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:background="@drawable/widget_btn"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#1D5F5A"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+    </LinearLayout>
+
     <TextView
         android:id="@+id/w_footer"
         android:layout_width="match_parent"

@@ -15,6 +15,8 @@ import * as Mc from './mecas.js';
 import * as Cm from './comite.js';
 import * as Bor from './borrador.js';
 import * as Vi from './visita.js';
+import * as Sh from './compartir.js';
+import * as Gc from './gcal.js';
 import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays, uid, fmtShort } from './util.js';
 
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
@@ -39,16 +41,17 @@ function markNoActivity(day = today()) {
   store.patchProfile(v => ({ noActivityDays: [...new Set([...(v.noActivityDays || []), day])].sort().slice(-60) }));
   toast('Anotado: hoy sin actividad. ¡Mañana será!');
 }
-function queueDone(eid, day) { if (eid && day) { pendingDone = { eid, day, until: Date.now() + 30000 }; applyPendingDone(); } }
+function queueDone(eid, day, o = {}) { if (eid && day) { pendingDone = { eid, day, until: Date.now() + 30000, widget: !!o.widget }; applyPendingDone(); } }
 function applyPendingDone() {
   if (pendingLog && !$('#app').hidden && data_ready()) { pendingLog = false; setTimeout(() => runQuick('time'), 300); }
   if (!pendingDone) return;
   if (Date.now() > pendingDone.until) { pendingDone = null; return; }
   const e = store.get('events', pendingDone.eid);
   if (!e) return;
-  const { day } = pendingDone; pendingDone = null;
+  const { day, widget } = pendingDone; pendingDone = null;
   if (!M.isDoneBy(e, day, store.doneId())) store.toggleDone(e, day);
   toast(`✓ Marcado como hecho: ${e.title}`);
+  if (widget) { Nat.refreshWidget(); setTimeout(() => Nat.minimize(), 1400); }   // desde el widget: se marca y vuelve a la pantalla de inicio
 }
 
 function render() {
@@ -223,6 +226,22 @@ document.addEventListener('click', e => {
     case 'dept-send-share': return S.deptSendShare(id, v);
     case 'load-g': ui.congre.lg = v; return render();
     case 'comite-share': return Cm.shareSummary();
+    case 'sh-open': return Sh.sheet();
+    case 'sh-create': return Sh.create();
+    case 'sh-save': return Sh.saveChoice();
+    case 'sh-rekey': return Sh.confirm('rekey');
+    case 'sh-rekey-go': return Sh.create(true);
+    case 'sh-off': return Sh.confirm('off');
+    case 'sh-off-go': return Sh.turnOff();
+    case 'sh-copy': return Sh.copy(v);
+    case 'sh-send': return Sh.send(v);
+    case 'gcal-open': return Gc.sheet();
+    case 'gcal-copy': return Gc.copyScript();
+    case 'gcal-connect': return Gc.connect();
+    case 'gcal-sync': return Gc.syncButton();
+    case 'gcal-pause': return Gc.togglePause();
+    case 'gcal-off': return Gc.confirmOff();
+    case 'gcal-off-go': return Gc.disconnect();
     case 'inbox-discard': return S.inboxDiscard();
     case 'send-note': return S.sendNoteSheet(id);
     case 'send-note-go': return S.sendNoteGo(id, v, el.dataset.name);
@@ -456,6 +475,8 @@ document.addEventListener('change', e => {
   }
   if (t.id === 'meca-file') return Mc.fileChosen(t);
   if (t.id === 'past-file') return Pa.fileChosen(t);
+  if (t.name === 'shsec' && t.value === 'acuerdos') { const b = document.getElementById('sh-mts'); if (b) b.hidden = !t.checked; return; }
+  if (t.matches?.('input[data-a="gcal-opt"]')) return Gc.setOpt(t.dataset.v, t.checked);
   if (t.dataset?.adminSend) return S.adminSend(t);
   if (t.dataset?.visitStart) return Vi.startChanged(t);
   if (t.id === 'stats-month') { ui.informe.sm = t.value; return render(); }
@@ -714,7 +735,7 @@ function showApp() {
   render();
   if (Nat.isNative && !natStarted) {   // app de Android: avisos en el teléfono y aviso de actualización
     natStarted = true;
-    Nat.init({ done: (eid, day) => queueDone(eid, day), log: () => { pendingLog = true; applyPendingDone(); }, noActivity: markNoActivity, changed: () => render() });
+    Nat.init({ done: (eid, day, o) => queueDone(eid, day, o), log: () => { pendingLog = true; applyPendingDone(); }, noActivity: markNoActivity, changed: () => render() });
   }
   lockOnce();
   runHashAction();
@@ -749,6 +770,8 @@ async function boot() {
   // «✓ Ya lo hice» desde un aviso: marca la rutina en cuanto se cargan los datos
   store.onData(applyPendingDone);
   store.onData(() => Nat.schedule());
+  // Enlace para los ancianos y Google Calendar: se actualizan solos cuando cambian tus datos
+  store.onData(() => { Sh.autoUpdate(); Gc.autoSync(); });
   try {
     const q = new URLSearchParams(location.search);
     if (q.get('hecho')) queueDone(q.get('hecho'), q.get('dia'));

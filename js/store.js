@@ -36,7 +36,7 @@ export const get = (col, id) => data[col].find(x => x.id === id);
 // La memoria se actualiza al instante (así la pantalla nunca va por detrás) y luego
 // se guarda en el teléfono o se envía a Firestore.
 // Datos del perfil que nunca se borran «sin querer»: solo se vacían desde Editar mi perfil (explicit)
-const PROTECT = ['photo', 'role', 'roles', 'myName', 'goalEnabled', 'goalMonthly', 'goalAnnual', 'congre', 'notif', 'customCats', 'infoFields'];
+const PROTECT = ['photo', 'role', 'roles', 'myName', 'goalEnabled', 'goalMonthly', 'goalAnnual', 'congre', 'notif', 'customCats', 'infoFields', 'share', 'gcal'];
 const isEmpty = v => v === undefined || v === null || v === '' || v === false || (Array.isArray(v) && !v.length);
 function protectProfile(item) {
   const cur = data.profile.find(p => p.id === item.id);
@@ -383,6 +383,15 @@ export const firebaseApp = () => fb?.app || null;
 export function saveDevice(id, info) {
   if (!fb || !account.user) return Promise.reject(new Error('sin sesión'));
   return fb.fs.setDoc(fb.fs.doc(fb.db, 'users', account.user.uid, 'devices', id), { ...info, updatedAt: new Date().toISOString() });
+}
+// ───── Enlace para los ancianos (compartir.js): el contenido llega ya cifrado; aquí solo se guarda o se borra ─────
+export function shareSave(id, doc) {
+  if (!fb || !account.user) return Promise.reject(new Error('sin sesión'));
+  return fb.fs.setDoc(fb.fs.doc(fb.db, 'shares', id), { ...doc, owner: account.user.uid });
+}
+export function shareRemove(id) {
+  if (!fb || !account.user) return Promise.reject(new Error('sin sesión'));
+  return fb.fs.deleteDoc(fb.fs.doc(fb.db, 'shares', id));
 }
 // Pide un aviso de prueba: el proceso de avisos (cada hora) lo ve y lo manda
 export function requestTestNotice() {

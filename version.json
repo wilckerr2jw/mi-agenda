@@ -1,9 +1,9 @@
 {
-  "version": "9.2",
+  "version": "9.3",
   "notes": [
-    "Rutinas (texto diario, lectura…): «¿Ya lo hiciste?» más confiable, con «✓ Ya lo hice» y un último aviso a las 9:00 p. m.",
-    "Revisar mis avisos: permiso, batería, tipos de aviso y rutinas de hoy",
-    "Mi Informe: campos adicionales (cartas, publicaciones, kilómetros…)",
-    "Pastoreo: cargar visitas anteriores pegando tu registro o con una foto"
+    "Enlace para los ancianos: organigrama, acuerdos, visita del superintendente y mecánicas con una clave de 6 números",
+    "Google Calendar automático: tu agenda se pasa sola a tu calendario",
+    "Widget: ✓ para marcar el texto diario sin abrir la app",
+    "Plan B de avisos: si el teléfono se queda sin avisos, el servidor te manda los importantes"
   ]
 }

@@ -105,6 +105,8 @@ public class WidgetPlugin extends Plugin {
         ed.putString("title", call.getString("title", "Hoy"));
         ed.putString("lines", call.getString("lines", ""));
         ed.putString("footer", call.getString("footer", ""));
+        ed.putString("routines", call.getString("routines", "[]"));
+        ed.putString("day", call.getString("day", ""));
         ed.apply();
         AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
         int[] ids = mgr.getAppWidgetIds(new ComponentName(ctx, AgendaWidget.class));

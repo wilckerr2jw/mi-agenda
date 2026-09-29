@@ -63,6 +63,21 @@ service cloud.firestore {
       allow read, delete: if isSelf(uid);
     }
 
+    // Enlace para los ancianos: el contenido llega cifrado con la clave (nadie lo puede leer sin ella).
+    // Quien tiene el enlace lo pide por su número; nadie puede listar los enlaces. Solo quien lo creó lo cambia o lo apaga.
+    match /shares/{id} {
+      function okShare(d) {
+        return d.keys().hasOnly(['owner', 'v', 'salt', 'iv', 'iter', 'ct', 'updatedAt'])
+          && d.owner == request.auth.uid && d.ct is string && d.ct.size() < 900000
+          && d.salt is string && d.salt.size() < 64 && d.iv is string && d.iv.size() < 64 && d.iter is int;
+      }
+      allow get: if true;
+      allow list: if false;
+      allow create: if signedIn() && (approved(request.auth.uid) || isAdmin()) && okShare(request.resource.data);
+      allow update: if signedIn() && resource.data.owner == request.auth.uid && okShare(request.resource.data);
+      allow delete: if signedIn() && resource.data.owner == request.auth.uid;
+    }
+
     // Directorio: cada usuario se anota con su correo (y nombre) para que el administrador lo encuentre
     match /directory/{uid} {
       allow read: if isSelf(uid) || isAdmin();

@@ -2576,9 +2576,10 @@ function settingsSection(id) {
         <label class="btn file">Restaurar respaldo<input type="file" id="import-file" hidden></label>
         <button class="btn" data-a="keep">Importar notas de Google Keep</button>
       </div>
-      <h3 class="sub-h">📅 Google Calendar o el calendario del teléfono</h3>
-      <p class="hint">Crea un archivo con tus eventos (con su repetición) y tus tareas pendientes con fecha. Ábrelo con Google Calendar o tu calendario para pasarlos. Si luego cambias algo en la app, vuelve a pasarlo: no se duplican.</p>
-      <div class="stack"><button class="btn" data-a="ics-export">📅 Pasar mi agenda al calendario</button></div>
+      <h3 class="sub-h">📅 Google Calendar</h3>
+      <p class="hint">${M.profile().gcal?.url ? '✓ Conectado: lo que cambias aquí aparece solo en tu calendario «Mi Agenda Teocrática».' : 'Conéctalo una vez y tu agenda se pasa sola: eventos con su repetición, tareas con fecha y reuniones. Lo que cambias o borras aquí se cambia o borra allá.'}</p>
+      <div class="stack"><button class="btn ${M.profile().gcal?.url ? '' : 'primary'}" data-a="gcal-open">📅 ${M.profile().gcal?.url ? 'Google Calendar (conectado)' : 'Conectar con Google Calendar'}</button></div>
+      <p class="hint pad-top">¿Otro calendario, o sin conectar? Pásalo con un archivo: <button class="link" data-a="ics-export">📅 Pasar mi agenda al calendario</button></p>
       <h3 class="sub-h">🛟 Copias automáticas</h3>
       ${isCloud ? `<p class="hint">Cada semana se guarda sola una copia de todo en tu cuenta (se conservan las últimas 4). Si algo se borra, lo recuperas desde aquí.</p>
       <div class="stack pad"><button class="btn" data-a="auto-backups">Ver copias automáticas</button></div>` : '<p class="hint">Disponibles solo con cuenta (modo nube).</p>'}`,
@@ -2650,6 +2651,10 @@ export async function avisosCheck() {
     row(!h.channelsOff.length, h.channelsOff.length ? `Tipos de aviso apagados en el teléfono: <b>${esc(h.channelsOff.join(', '))}</b>. Mientras estén apagados, esos avisos no te llegan.` : 'Todos los tipos de aviso están encendidos (eventos, rutinas, registro y resúmenes).', h.channelsOff.length ? `<button class="btn small" data-a="phone-set" data-v="channel" data-ch="${esc(h.channelsOffIds[0])}">Encender</button>` : ''),
     run ? row(!(run.errors || []).length, `Se programaron por última vez el <b>${esc(whenText(new Date(run.at)))}</b>: ${run.n} avisos para los próximos 7 días.${(run.errors || []).length ? `<br><span class="hint">Algo falló: ${esc(run.errors.slice(0, 3).join(' · '))}</span>` : ''}`)
       : row(false, 'Todavía no se han programado avisos en este teléfono. Toca «Volver a programar».'),
+    (() => {
+      const until = pend?.all?.length ? new Date(Math.max(...pend.all.map(x => x.at.getTime()))) : null;
+      return until ? row(true, `Tienes avisos programados hasta el <b>${esc(whenText(until))}</b>. Si el teléfono se queda sin avisos (por ejemplo, si no abres la app en días), el servidor te manda los importantes.`) : '';
+    })(),
   ].filter(Boolean).join('');
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
   const rut = (rs || []).map(x => {

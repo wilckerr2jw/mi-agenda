@@ -43,7 +43,9 @@ export function comiteSection() {
   const mec = c.mec ? block('Varones bautizados sin asignación mecánica (3 meses)', c.mec.notUsed.length
     ? `<div class="chips wrap">${c.mec.notUsed.map(p => `<button class="chip warn-chip" data-a="person" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>`
     : '<p class="hint">✓ Todos tienen alguna.</p>', c.mec.notUsed.length) : '';
-  return `<section><div class="sec-h"><h2>📋 Para el Cuerpo de ancianos</h2>${nothing ? '' : '<button class="btn small ghost" data-a="comite-share">📤 Compartir resumen</button>'}</div>
+  const link = `<button class="btn small ${M.profile().share?.secret ? '' : 'ghost'}" data-a="sh-open">🔗 ${M.profile().share?.secret ? 'Enlace activo' : 'Enlace para los ancianos'}</button>`;
+  return `<section><div class="sec-h"><h2>📋 Para el Cuerpo de ancianos</h2></div>
+    <div class="org-tools">${link}${nothing ? '' : '<button class="btn small ghost" data-a="comite-share">📤 Compartir resumen</button>'}</div>
     ${nothing ? '<p class="hint pad">Cuando tengas reuniones con acuerdos y tareas que supervisas, aquí verás lo pendiente para la reunión del cuerpo de ancianos.</p>' : `<div class="stack">${agr}${sup}${rev}${pas}${mec}</div>`}</section>`;
 }
 

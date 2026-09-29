@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#1D5F5A">
+  <title>Para el cuerpo de ancianos</title>
+  <link rel="icon" href="icons/icon-192.png">
+  <style>
+    :root { --bg: #EEF1EC; --surface: #FBFCFA; --surface-2: #E6ECE5; --ink: #17282A; --ink-2: #4B5E5F; --line: #D0D8CF; --primary: #1D5F5A; --on-primary: #fff; --ok: #2F7D4F; --warn: #9A5B0C; --danger: #A63D33; --soft: #D5E8E4; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0E1618; --surface: #162224; --surface-2: #1F2F31; --ink: #E4EDEA; --ink-2: #9FB2B0; --line: #2A3D3F; --primary: #63B8AF; --on-primary: #06211E; --ok: #6CC08E; --warn: #E0A452; --danger: #EE8A80; --soft: #1C3836; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 16px 16px 48px; }
+    h1 { font: 700 22px/1.2 Georgia, "Noto Serif", serif; margin: 6px 0 2px; }
+    h2 { font-size: 18px; margin: 0; }
+    h3 { font-size: 15px; margin: 14px 0 6px; color: var(--ink-2); }
+    .sub { color: var(--ink-2); font-size: 14px; margin: 0 0 14px; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin: 12px 0; min-width: 0; }
+    details.card > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+    details.card > summary::-webkit-details-marker { display: none; }
+    details.card > summary::after { content: "▾"; margin-left: auto; color: var(--ink-2); }
+    details.card:not([open]) > summary::after { content: "▸"; }
+    .lock { text-align: center; padding: 28px 16px; }
+    .lock input { font: 700 28px/1 ui-monospace, Menlo, monospace; letter-spacing: 8px; text-align: center; width: 12ch; padding: 10px; border: 2px solid var(--line); border-radius: 12px; background: var(--surface-2); color: var(--ink); }
+    .btn { font: 600 16px/1 system-ui, sans-serif; padding: 12px 18px; border-radius: 12px; border: 0; background: var(--primary); color: var(--on-primary); cursor: pointer; }
+    .btn.ghost { background: var(--surface-2); color: var(--ink); }
+    .row { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; min-width: 0; }
+    .row .t { min-width: 0; overflow-wrap: anywhere; }
+    .pill { flex: none; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+    .pill.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+    .pill.late { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+    .pill.mid { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+    .meta { color: var(--ink-2); font-size: 13px; }
+    .late-t { color: var(--danger); font-weight: 600; }
+    ul { margin: 4px 0; padding-left: 20px; }
+    .tree { list-style: none; padding-left: 0; }
+    .tree ul { list-style: none; padding-left: 14px; border-left: 2px solid var(--line); margin-left: 6px; }
+    .tree li { margin: 8px 0; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { background: var(--surface-2); border-radius: 999px; padding: 4px 10px; font-size: 14px; }
+    .chip.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); }
+    .bar { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; margin: 8px 0; }
+    .bar i { display: block; height: 100%; background: var(--primary); }
+    .day { margin: 10px 0; }
+    .day b { display: block; }
+    .err { color: var(--danger); font-weight: 600; }
+    .foot { color: var(--ink-2); font-size: 13px; text-align: center; margin-top: 24px; }
+    label.remember { display: inline-flex; gap: 8px; align-items: center; color: var(--ink-2); font-size: 14px; margin: 12px 0; }
+    @media print { .noprint { display: none !important; } details.card { break-inside: avoid; } body { background: #fff; } }
+  </style>
+</head>
+<body>
+  <main id="app">
+    <p class="sub">Cargando…</p>
+  </main>
+  <script type="module" src="js/ver.js"></script>
+</body>
+</html>

@@ -160,6 +160,22 @@ administrador) y `directory/{uid}` (correo y nombre de cada cuenta, para la list
   GitHub → Settings → Secrets and variables → Actions: `ANDROID_KEYSTORE_PASS` y `ANDROID_KEYSTORE_B64`.
   Guarda también `.publicar/miagenda.jks`: **sin esa llave no se pueden publicar actualizaciones de la app**.
 
+## Novedades de la v9.3: enlace para los ancianos y Google Calendar automático
+
+- **Enlace para los ancianos** (`js/compartir.js` y `ver.html` + `js/ver.js`): el contenido (organigrama, acuerdos y tareas,
+  visita del superintendente, mecánicas) se cifra en el teléfono con AES-GCM. La llave sale (PBKDF2, 600 000 vueltas) del
+  secreto que va en el enlace después de `#` —nunca llega a un servidor— y de la clave de 6 números. En Firestore solo queda
+  `shares/{id}` = `{ owner, v, salt, iv, iter, ct, updatedAt }`, donde `id` es un resumen del secreto. Las reglas dejan
+  pedir un enlace por su número (`get`) pero no listarlos; solo el dueño lo cambia o lo borra.
+- **Google Calendar automático** (`js/gcal.js` y `js/gcal-script.js`): cada persona pone en su cuenta de Google un
+  programa de Apps Script (el código está en `gcal-script.js`, sin claves; usa el servicio avanzado «Google Calendar API»)
+  implementado como aplicación web. La app le envía su agenda (POST text/plain) cuando cambia algo; el programa mantiene
+  un calendario propio, «Mi Agenda Teocrática», con id de evento fijo por elemento y una huella para no reescribir lo que
+  no cambió. La primera conexión le deja la clave de la app y desde ahí solo acepta esa.
+- **Widget:** botones ✓ para las rutinas de hoy (`app.miagenda.teocratica://hecho?eid=…&dia=…`).
+- **Plan B de avisos:** la app informa en `profile.nativeSched.until` hasta cuándo tiene avisos programados; si quedan menos
+  de 12 horas, `avisos/run.js` manda los avisos del día también al teléfono (FCM).
+
 ## Novedades de la v4.1: eventos compartidos y aviso de versión nueva
 
 - **Eventos compartidos**: colección `shared/{id}` (`owner`, `members`, `memberNames`, campos del evento). Todos los

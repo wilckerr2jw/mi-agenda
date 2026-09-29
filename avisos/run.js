@@ -214,7 +214,16 @@ async function sendTo(uid, devices, msg) {
 }
 
 const devicesOf = async uid => docs(await db.collection('users').doc(uid).collection('devices').get());
-const prefsOf = async uid => { const pr = (await db.doc(`users/${uid}/profile/me`).get()).data() || {}; return { ...DEFAULTS, ...(pr.notif || {}), _native: !!pr.nativeAppSeen && Date.now() - Date.parse(pr.nativeAppSeen) < 3 * 86400e3 }; };
+// _native: usa la app de Android (ella misma programa los avisos del día en el teléfono).
+// _phoneOk: el teléfono tiene avisos programados al menos para las próximas 12 horas (lo informa la app en nativeSched).
+// Plan B: si el teléfono se quedó sin avisos (no abren la app en días o Android los borró), el servidor los manda también a él.
+const prefsOf = async uid => {
+  const pr = (await db.doc(`users/${uid}/profile/me`).get()).data() || {};
+  const seen = !!pr.nativeAppSeen && Date.now() - Date.parse(pr.nativeAppSeen) < 3 * 86400e3;
+  const ns = pr.nativeSched;
+  const phoneOk = ns?.until ? Date.parse(ns.until) > Date.now() + 12 * 3600e3 : seen;
+  return { ...DEFAULTS, ...(pr.notif || {}), _native: seen || !!ns?.until, _phoneOk: phoneOk };
+};
 const shortDate = iso => { try { return new Intl.DateTimeFormat('es', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(toDate(iso)); } catch { return iso; } };
 
 // ───── Versión nueva publicada: se revisa version.json del sitio y se avisa a todos una vez ─────
@@ -299,7 +308,8 @@ async function daily(uid, allDevices) {
   const now = localNow(tz);
   const p = await prefsOf(uid);
   // Con la app de Android, el teléfono ya programa estos avisos: por la web solo van a la computadora
-  const devices = p._native ? allDevices.filter(d => d.mobile === false) : allDevices;
+  // (salvo que el teléfono se haya quedado sin avisos programados: plan B)
+  const devices = p._native && p._phoneOk ? allDevices.filter(d => d.mobile === false) : allDevices;
   if (!devices.length) return 0;
   const hour = Number(p.hour);
   if (now.hour < hour || now.hour >= hour + CATCH_UP_HOURS) return 0;
@@ -436,7 +446,8 @@ async function dayReminders(uid, allDevices) {
   const now = localNow(tz);
   const p = await prefsOf(uid);
   // Con la app de Android, el teléfono ya programa estos avisos: por la web solo van a la computadora
-  const devices = p._native ? allDevices.filter(d => d.mobile === false) : allDevices;
+  // (salvo que el teléfono se haya quedado sin avisos programados: plan B)
+  const devices = p._native && p._phoneOk ? allDevices.filter(d => d.mobile === false) : allDevices;
   if (!devices.length) return 0;
   const ref = db.doc(`users/${uid}/meta/plan`);
   let plan = (await ref.get()).data();
