@@ -167,6 +167,10 @@ export function eventSheet(id, preset = {}, back) {
       ${fld('Repetición', `<select id="repeat" name="repeat">${options(M.REPEATS, v.repeat || 'none')}</select>`, 'repeat')}
       <div class="f" id="repeat-days" ${v.repeat === 'days' ? '' : 'hidden'}><span class="lbl">¿Qué días?</span>
         <div class="daypick">${M.REPEAT_DAYS.map(([n, t]) => `<label><input type="checkbox" name="days" value="${n}" ${(v.days || []).includes(n) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div></div>
+      <div class="f" id="routine-box" ${M.isRepeating(v) ? '' : 'hidden'}>
+        <label class="check"><input type="checkbox" id="routine" name="routine" ${M.isRoutine(v) ? 'checked' : ''} ${typeof v.routine === 'boolean' ? 'data-set="1"' : ''}> 🔔 Es una rutina: pregúntame si ya la hice</label>
+        <p class="hint">Si no la marcas como hecha, te llega «¿Ya lo hiciste?» media hora después de que termina y un último aviso a las 9:00 p. m. (texto diario, lectura, estudio…).</p>
+      </div>
       ${fld('Notas', `<textarea id="notes" name="notes" rows="3">${esc(v.notes || '')}</textarea>`, 'notes')}
       ${isCloud && owner ? `<div class="f" id="share-box"><span class="lbl">Compartir con <span class="hint">(otras cuentas de la app)</span></span><p class="hint">Cargando cuentas…</p></div>` : ''}
     </form>
@@ -178,6 +182,18 @@ export function eventSheet(id, preset = {}, back) {
       : `<button type="button" class="btn ghost danger" data-a="delete" data-col="events" data-id="${e.id}">Quitar de mi agenda</button><button type="submit" form="f" class="btn primary">Guardar</button>`,
   });
   if (isCloud && owner) loadShareBox(v);
+}
+
+// «Es una rutina»: mientras no la toques, se marca sola según la repetición, el tipo y el nombre del evento
+export function routineAuto(form) {
+  const box = document.getElementById('routine-box'), cb = form?.querySelector('#routine');
+  if (!box || !cb) return;
+  const val = n => form.querySelector(`[name="${n}"]`)?.value || '';
+  const repeat = val('repeat') || 'none';
+  box.hidden = repeat === 'none';
+  if (cb.dataset.set) return;
+  const prev = form.dataset.id ? store.get('events', form.dataset.id) : null;
+  cb.checked = M.routineDefault({ repeat, category: val('category'), title: val('title'), doneLog: prev?.doneLog, congreAuto: prev?.congreAuto });
 }
 
 // Cambiar solo un día de un evento que se repite: ese día se salta en la serie y se crea un evento suelto
@@ -379,6 +395,13 @@ function saveEvent(id, r, form) {
   const item = { ...prev, id: id || uid(), title: r.title, category, date: r.date, time: r.time, endTime: r.endTime, place: r.place, companionId: r.companionId, companionGroupIds, companionPersonIds, repeat: r.repeat, days: r.repeat === 'days' ? days : [], color: r.color || '', notes: r.notes, theme: (r.theme || '').trim(), skipDates: prev.skipDates || [] };
   if (category === 'asignacion') { item.asg = r.asg || ''; item.prep = Number(r.prep) || 0; }
   const fd = new FormData(form);
+  // Rutina («pregúntame si ya la hice»): se guarda solo si la elegiste o si es distinta de lo que la app decidiría sola
+  if (M.isRepeating(item)) {
+    const want = fd.has('routine');
+    const box = form.querySelector('#routine');
+    if (typeof prev.routine === 'boolean' || box?.dataset.set || want !== M.routineDefault({ ...item, routine: undefined })) item.routine = want;
+    else delete item.routine;
+  }
   if (isCloud && fd.get('shareLoaded') && (!prev.sharedId || store.isSharedOwner(prev))) {
     const chosen = fd.getAll('shareWith');
     const names = Object.fromEntries([...form.querySelectorAll('input[name="shareWith"]')].map(i => [i.value, i.dataset.name || '']));
@@ -1467,6 +1490,67 @@ function studiesListHtml() {
     : '<p class="hint">Aún no has agregado ningún curso bíblico a este registro.</p>';
 }
 
+// Campos adicionales del registro (cartas, publicaciones…): los que elegiste en Mi Informe → Campos adicionales
+function extraFieldsHtml(ex = {}) {
+  const fields = M.infoFields();
+  if (!fields.length) return '';
+  return `<div class="f"><span class="lbl">Otros datos <span class="hint">(opcional)</span></span>
+    <div class="xf-grid">${fields.map(f => `<div class="xf"><span class="xf-n">${esc(f.ic)} ${esc(f.n)}</span>
+      <span class="xf-in">${f.dec ? '' : `<button type="button" class="icon-btn" data-a="xf-adj" data-k="${esc(f.id)}" data-d="-1" aria-label="Quitar uno: ${esc(f.n)}">−</button>`}
+      ${f.dec ? `<input name="x_${esc(f.id)}" type="text" inputmode="decimal" maxlength="10" value="${ex[f.id] ? esc(M.fmtExtra(f, ex[f.id])) : ''}" placeholder="0" aria-label="${esc(f.n)}">`
+        : `<input name="x_${esc(f.id)}" type="number" min="0" step="1" inputmode="numeric" value="${ex[f.id] ? esc(String(ex[f.id])) : ''}" placeholder="0" aria-label="${esc(f.n)}">`}
+      ${f.dec ? '' : `<button type="button" class="icon-btn" data-a="xf-adj" data-k="${esc(f.id)}" data-d="1" aria-label="Sumar uno: ${esc(f.n)}">+</button>`}</span></div>`).join('')}</div></div>`;
+}
+export function extraAdjust(k, d) {
+  const input = document.querySelector(`#f input[name="x_${CSS.escape(k)}"]`);
+  if (!input) return;
+  input.value = String(Math.max(0, (parseInt(input.value, 10) || 0) + Number(d)));
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+function readExtras(r, prev = {}) {
+  const out = { ...prev };   // lo de campos que ya no usas se conserva
+  M.infoFields().forEach(f => {
+    const raw = String(r[`x_${f.id}`] ?? '').replace(',', '.').trim();
+    const n = f.dec ? Math.round((Number(raw) || 0) * 100) / 100 : Math.round(Number(raw) || 0);
+    if (n > 0) out[f.id] = n; else delete out[f.id];
+  });
+  return out;
+}
+
+// Elegir los campos adicionales de Mi Informe
+export function infoFieldsSheet(back) {
+  const cur = M.infoFields();
+  const on = new Set(cur.map(f => f.id));
+  const custom = cur.filter(f => !M.INFO_PRESETS.some(p => p.id === f.id));
+  const row = (f, checked) => `<label class="check xf-pick"><input type="checkbox" name="fid" value="${esc(f.id)}" data-n="${esc(f.n)}" data-ic="${esc(f.ic)}" ${f.dec ? 'data-dec="1"' : ''} ${checked ? 'checked' : ''}> ${esc(f.ic)} ${esc(f.n)}</label>`;
+  open({
+    title: '➕ Campos adicionales', back,
+    body: `${formTag('infofields', 'me')}
+      <p class="hint">Elige qué más quieres anotar junto con tu tiempo. Aparecen al registrar y se suman en los totales del mes y del año. Son solo para ti.</p>
+      <div class="stack pad" id="xf-list">${M.INFO_PRESETS.map(f => row(f, on.has(f.id))).join('')}${custom.map(f => row(f, true)).join('')}</div>
+      <div class="f"><label for="xf-new">Otro campo</label>
+        <div class="log-add"><input id="xf-new" maxlength="30" placeholder="Ej. Tratados, Invitaciones"><button type="button" class="btn" data-a="xf-new">Agregar</button></div>
+        <p class="hint">Si quitas un campo, lo que ya anotaste no se borra: vuelve a salir si lo activas otra vez.</p></div>
+    </form>`,
+    actions: '<button type="submit" form="f" class="btn primary">Guardar</button>',
+  });
+}
+export function infoFieldNew() {
+  const input = document.getElementById('xf-new'), list = document.getElementById('xf-list');
+  const n = (input?.value || '').trim().replace(/\s+/g, ' ');
+  if (!n) { input?.focus(); return; }
+  if ([...list.querySelectorAll('input[name="fid"]')].some(i => norm(i.dataset.n) === norm(n))) { toast('Ese campo ya está en la lista'); return; }
+  const id = `c_${uid().slice(0, 8)}`;
+  list.insertAdjacentHTML('beforeend', `<label class="check xf-pick"><input type="checkbox" name="fid" value="${esc(id)}" data-n="${esc(n)}" data-ic="📌" checked> 📌 ${esc(n)}</label>`);
+  input.value = '';
+}
+function saveInfoFields(form) {
+  const infoFields = [...form.querySelectorAll('input[name="fid"]:checked')].map(i => ({ id: i.value, n: i.dataset.n, ic: i.dataset.ic || '📌', ...(i.dataset.dec ? { dec: true } : {}) }));
+  store.upsert('profile', { ...M.profile(), id: 'me', infoFields }, { explicit: true });
+  toast(infoFields.length ? `Listo: ${infoFields.map(f => f.n).join(', ')}` : 'Sin campos adicionales');
+  closeOrBack();
+}
+
 export function entrySheet(id, preset = {}, back) {
   const e = id ? store.get('entries', id) : null;
   const catKey = e ? e.category : preset.cat;
@@ -1502,6 +1586,7 @@ export function entrySheet(id, preset = {}, back) {
         </div>
         <input type="hidden" id="studies" name="studies" value="${esc(JSON.stringify(studyDraft))}">
       </div>
+      ${extraFieldsHtml(e?.extra || {})}
       ${fld('Notas', `<textarea id="notes" name="notes" rows="3">${esc(e?.notes || '')}</textarea>`, 'notes')}
     </form>`,
     actions: foot('entries', e?.id),
@@ -1542,13 +1627,22 @@ function saveEntry(id, r) {
   const prev = id ? store.get('entries', id) : {};
   let studyNames = [];
   try { studyNames = JSON.parse(r.studies || '[]'); } catch { studyNames = []; }
-  store.upsert('entries', { ...prev, id: id || uid(), category: r.category, date: r.date, minutes: parseInt(r.minutes, 10) || 0, studyNames, notes: r.notes });
+  const extra = readExtras(r, prev.extra || {});
+  store.upsert('entries', { ...prev, id: id || uid(), category: r.category, date: r.date, minutes: parseInt(r.minutes, 10) || 0, studyNames, notes: r.notes, extra });
   // Los cursos anotados cuentan como visita de estudio en la ficha de cada estudiante
   studyNames.forEach(n => {
     const p = data.people.find(x => norm(x.name) === norm(n));
     if (p && !(p.visits || []).some(v => v.kind === 'estudio' && v.date === r.date)) addVisit(p, { date: r.date, kind: 'estudio', lesson: p.study?.lesson || '', note: '' });
   });
   closeOrBack();
+}
+
+// Totales de los campos adicionales (cuadritos: «12 ✉️ Cartas»)
+export function extrasSumHtml(ex = {}, fields = M.infoFields()) {
+  const withData = fields.filter(f => Number(ex[f.id]));
+  if (!fields.length) return '';
+  return withData.length ? `<div class="xf-sum">${withData.map(f => `<div class="xf-tile"><strong>${esc(M.fmtExtra(f, ex[f.id]))}</strong><span>${esc(f.ic)} ${esc(f.n)}</span></div>`).join('')}</div>`
+    : `<p class="hint">${fields.map(f => `${esc(f.ic)} ${esc(f.n)}`).join(' · ')}: nada anotado este mes.</p>`;
 }
 
 // Ficha de un mes: totales, meta y lista de registros
@@ -1566,11 +1660,13 @@ export function monthSheet(mid, withCredit = false) {
         <div class="card mini"><strong>${M.fmtHM(t.minutes)} h</strong><span class="meta">Tiempo total</span></div>
         <div class="card mini"><strong>${t.studies}</strong><span class="meta">Cursos bíblicos</span></div>
       </div>
+      ${extrasSumHtml(M.monthExtras(mid))}
       <h3 class="sub-h">Registros del mes</h3>
       ${entries.length ? `<div class="stack">${entries.map(e => {
         const c = M.catServicioOf(e.category);
         const names = (e.studyNames || []).join(', ');
-        return `<button class="card mini entry-row" data-a="entry" data-id="${e.id}" data-mid="${mid}"><span class="dot" style="--c:${c.c}"></span><span class="grow"><strong>${esc(c.n)}</strong><span class="meta">${fmtShort(e.date)}${e.notes ? ` · ${esc(e.notes)}` : ''}${names ? ` · ${esc(names)}` : ''}</span></span><span>${M.fmtHM(e.minutes)}</span></button>`;
+        const xt = M.extrasText(e.extra || {});
+        return `<button class="card mini entry-row" data-a="entry" data-id="${e.id}" data-mid="${mid}"><span class="dot" style="--c:${c.c}"></span><span class="grow"><strong>${esc(c.n)}</strong><span class="meta">${fmtShort(e.date)}${e.notes ? ` · ${esc(e.notes)}` : ''}${names ? ` · ${esc(names)}` : ''}${xt ? ` · ${esc(xt)}` : ''}</span></span><span>${M.fmtHM(e.minutes)}</span></button>`;
       }).join('')}</div>` : '<p class="hint">Sin registros todavía. Toca «Agregar» para anotar tu primer tiempo.</p>'}`,
     actions: `<button type="button" class="btn ghost" data-a="share-month" data-id="${mid}" data-credit="${withCredit ? 1 : 0}">Enviar</button><button type="button" class="btn primary" data-a="cat-pick" data-mid="${mid}">Agregar</button>`,
   });
@@ -1596,7 +1692,8 @@ export function shareMonth(mid, withCredit) {
     `Cursos bíblicos: ${t.studies}`,
     '',
     ...Object.entries(byCat).map(([n, min]) => `• ${n}: ${M.fmtHM(min)} h`),
-  ].filter(Boolean);
+    ...(M.extrasText(M.monthExtras(mid)) ? ['', ...M.extrasText(M.monthExtras(mid), true).split('\n')] : []),
+  ].filter((x, i, a) => x || (i > 0 && a[i - 1]));
   const text = lines.join('\n');
   if (navigator.share) {
     navigator.share({ title, text }).catch(() => {});
@@ -2522,26 +2619,64 @@ function nativeNotifHtml() {
       <label class="mini-f"><span>¿Cuánto antes?</span><select id="notif-before">${[5, 10, 15, 30, 60].map(n => `<option value="${n}" ${n === Number(p.before) ? 'selected' : ''}>${n < 60 ? `${n} min` : '1 hora'}</option>`).join('')}</select></label>
       ${opt('taskTime', 'Tareas con hora')}${opt('taskDay', 'Tareas del día sin hora y atrasadas')}
       <label class="mini-f"><span>Hora del aviso de tareas</span><select id="notif-taskhour">${[7, 8, 9, 10, 12, 14, 16, 18].map(h => `<option value="${h}" ${h === Number(p.taskHour || 9) ? 'selected' : ''}>${hh(h)}</option>`).join('')}</select></label>
-      ${opt('meetingSoon', 'Reuniones: 1 hora antes')}${opt('routine', 'Rutina sin marcar')}${opt('streak', 'Racha en peligro (9:15 p. m.)')}${opt('tomorrow', 'Por la noche: lo que tienes mañana')}
+      ${opt('meetingSoon', 'Reuniones: 1 hora antes')}${opt('routine', 'Rutina sin marcar («¿Ya lo hiciste?»)')}${opt('routineLast', 'Último aviso de rutinas sin marcar (9:00 p. m.)')}${opt('streak', 'Racha en peligro (9:00 p. m.)')}${opt('tomorrow', 'Por la noche: lo que tienes mañana')}
       ${opt('details', 'Mostrar los títulos de tareas y reuniones')}
       <p class="hint pick-h"><b>🔊 Sonidos</b></p>
       <p class="hint">Cada tipo trae su sonido: Suave (eventos), Campanita (rutinas), Alerta (registro de la noche) y Amanecer (resúmenes). Para cambiar alguno: Ajustes del teléfono → Aplicaciones → Mi Agenda → Notificaciones → elige la categoría → Sonido.</p>
       <button type="button" class="btn" data-a="nat-test">Probar un aviso (llega en 5 segundos)</button>
-      <button type="button" class="btn ghost" data-a="nat-pending">🔔 Ver los avisos programados</button><div id="nat-pending"></div>
+      <button type="button" class="btn ghost" data-a="nat-pending">🩺 Revisar mis avisos (y ver los programados)</button>
       ${Nat.state.push ? '<button type="button" class="btn ghost" data-a="notif-test">Probar un aviso desde el servidor (llega en menos de 5 min)</button>' : ''}
     </div>`;
 }
 
-// Lista de los próximos avisos que el teléfono tiene programados
-export async function showPending() {
-  const box = document.getElementById('nat-pending');
-  if (!box) return;
-  box.innerHTML = '<p class="hint">Revisando…</p>';
-  const r = await Nat.pendingSummary();
-  if (!r) { box.innerHTML = '<p class="hint warn">No se pudo revisar en este teléfono.</p>'; return; }
-  const f = d => `${d.toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })} ${d.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })}`;
-  box.innerHTML = r.n ? `<p class="hint ok">✓ ${r.n} avisos programados para los próximos 7 días.</p><ul class="load-list">${r.next.map(x => `<li><b>${esc(f(x.at))}</b> · ${esc(x.body.split('\n')[0])}</li>`).join('')}</ul>`
-    : '<p class="hint warn">No hay avisos programados. Revisa que los avisos estén permitidos y abre la app una vez.</p>';
+// 🩺 Revisar mis avisos (app de Android): qué puede impedir que lleguen, cómo quedaron hoy las rutinas
+// (texto diario, lectura…) y los próximos avisos que el teléfono tiene programados.
+export const showPending = () => avisosCheck();
+const hmOf = min => fmtTime(`${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`);
+const whenText = d => `${d.toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })} ${d.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })}`;
+export async function avisosCheck() {
+  const back = () => settings('avisos');
+  open({ title: '🩺 Revisar mis avisos', back, body: '<p class="hint">Revisando tu teléfono…</p>' });
+  let h, rs, pend;
+  try { [h, rs, pend] = await Promise.all([Nat.health(), Nat.routineStatus(), Nat.pendingSummary()]); } catch { h = null; }
+  if (!h) { open({ title: '🩺 Revisar mis avisos', back, body: '<p class="hint warn">No se pudo revisar en este teléfono. Esto solo funciona en la app de Android.</p>' }); return; }
+  const run = Nat.lastRun();
+  const row = (ok, text, btn = '') => `<li class="hc-row ${ok ? 'ok' : 'bad'}"><span class="hc-ic" aria-hidden="true">${ok ? '✅' : '⚠️'}</span><span class="grow">${text}${btn ? `<span class="hc-act">${btn}</span>` : ''}</span></li>`;
+  const checks = [
+    row(h.perm === 'granted', h.perm === 'granted' ? 'Los avisos de la app están permitidos.' : 'Los avisos de la app están bloqueados en el teléfono.', h.perm === 'granted' ? '' : '<button class="btn small" data-a="phone-set" data-v="notifications">Permitir</button>'),
+    h.exact ? row(h.exact === 'granted', h.exact === 'granted' ? 'Avisos exactos: permitidos (llegan al minuto).' : 'Avisos exactos: no permitidos. Android puede atrasarlos.', h.exact === 'granted' ? '' : '<button class="btn small" data-a="nat-exact-check">Permitir</button>') : '',
+    h.battery ? row(h.battery.ignoring, h.battery.ignoring ? 'Batería: la app puede avisarte aunque el teléfono esté en reposo.' : `Batería: Android puede «dormir» la app y atrasar o saltarse avisos${h.battery.bucket >= 40 ? ' (la marcó como poco usada)' : ''}.`, h.battery.ignoring ? '' : '<button class="btn small" data-a="phone-set" data-v="battery">Quitar la restricción</button>')
+      : h.old ? row(false, 'Para revisar la batería y abrir los ajustes desde aquí, instala la actualización de la app (te aparece el aviso en Hoy).') : '',
+    row(!h.channelsOff.length, h.channelsOff.length ? `Tipos de aviso apagados en el teléfono: <b>${esc(h.channelsOff.join(', '))}</b>. Mientras estén apagados, esos avisos no te llegan.` : 'Todos los tipos de aviso están encendidos (eventos, rutinas, registro y resúmenes).', h.channelsOff.length ? `<button class="btn small" data-a="phone-set" data-v="channel" data-ch="${esc(h.channelsOffIds[0])}">Encender</button>` : ''),
+    run ? row(!(run.errors || []).length, `Se programaron por última vez el <b>${esc(whenText(new Date(run.at)))}</b>: ${run.n} avisos para los próximos 7 días.${(run.errors || []).length ? `<br><span class="hint">Algo falló: ${esc(run.errors.slice(0, 3).join(' · '))}</span>` : ''}`)
+      : row(false, 'Todavía no se han programado avisos en este teléfono. Toca «Volver a programar».'),
+  ].filter(Boolean).join('');
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  const rut = (rs || []).map(x => {
+    const title = `<b>${esc(x.e.title || 'Sin título')}</b>`;
+    let st;
+    if (!x.routine) st = `<span class="hint">No te pregunta si la hiciste.</span> <button class="btn small ghost" data-a="routine-on" data-id="${x.e.id}">🔔 Que me pregunte</button>`;
+    else if (x.done) st = '✓ Ya la marcaste hoy.';
+    else if (x.firstPending && x.lastPending) st = `🔔 Te pregunta a las ${hmOf(x.first)} y, si aún no la marcas, a las ${hmOf(x.last)}`;
+    else if (x.firstPending) st = `🔔 Te pregunta a las ${hmOf(x.first)}`;
+    else if (x.lastPending) st = `🔔 Ya pasó el aviso de las ${hmOf(x.first)}; te queda el último a las ${hmOf(x.last)}`;
+    else if (nowMin >= (x.last ?? x.first)) st = `⏰ Ya pasó la hora de los avisos de hoy. <button class="btn small" data-a="ev-done" data-id="${x.e.id}" data-date="${today()}">✓ Ya lo hice</button>`;
+    else st = '⚠️ Sin aviso programado todavía. Toca «Volver a programar».';
+    return `<li>${title}<br>${st}</li>`;
+  }).join('');
+  const next = pend?.next?.length ? `<ul class="load-list">${pend.next.map(x => `<li><b>${esc(whenText(x.at))}</b> · ${esc(x.body.split('\n')[0])}</li>`).join('')}</ul>`
+    : '<p class="hint warn">No hay avisos programados. Toca «Volver a programar».</p>';
+  open({
+    title: '🩺 Revisar mis avisos', back,
+    body: `<ul class="hc-list">${checks}</ul>
+      <h3 class="sub-h">Rutinas de hoy</h3>
+      ${rut ? `<ul class="load-list rut-list">${rut}</ul>` : '<p class="hint">Hoy no tienes eventos que se repitan (como el texto diario).</p>'}
+      <p class="hint">Una rutina es un evento que se repite y que marcas con ✓ en Hoy. Se activa o se quita dentro del evento: «🔔 Es una rutina».</p>
+      <h3 class="sub-h">Próximos avisos${pend ? ` (${pend.n})` : ''}</h3>${next}
+      <div class="stack pad"><button type="button" class="btn" data-a="nat-resched">🔄 Volver a programar</button>
+      <button type="button" class="btn ghost" data-a="nat-test">Probar un aviso (llega en 5 segundos)</button></div>
+      <p class="hint">Si un aviso no llegó: revisa que todo lo de arriba esté en ✅. En algunos teléfonos (Samsung, Xiaomi, Huawei…) también hay que dejar la app «sin restricciones» en Batería.</p>`,
+  });
 }
 
 // Avisos en el teléfono (solo aparece si la app está en la nube y tiene la clave de avisos)
@@ -2578,7 +2713,8 @@ function notifSettingsHtml() {
         <label class="mini-f"><span>Hora del aviso de tareas</span><select id="notif-taskhour">${[7, 8, 9, 10, 12, 14, 16, 18].map(h => `<option value="${h}" ${h === Number(p.taskHour || 9) ? 'selected' : ''}>${hh(h)}</option>`).join('')}</select></label>
         ${opt('meetingSoon', 'Reuniones: 1 hora antes, con su agenda')}
         ${opt('routine', 'Rutina sin marcar («aún no marcaste la lectura de hoy»)')}
-        ${opt('streak', 'Racha en peligro (9:15 p. m.)')}
+        ${opt('routineLast', 'Último aviso de rutinas sin marcar (9:00 p. m.)')}
+        ${opt('streak', 'Racha en peligro (9:00 p. m.)')}
         ${opt('partner', 'Cuando alguien hace una rutina compartida contigo')}
         ${opt('tomorrow', 'Por la noche: lo que tienes mañana (9:30 p. m.)')}
         ${opt('report', 'Primeros días del mes: enviar tu informe')}
@@ -2939,6 +3075,7 @@ export function submit(form) {
     case 'note': return saveNote(id, r);
     case 'meeting': return saveMeeting(id, r, form);
     case 'entry': return saveEntry(id, r);
+    case 'infofields': return saveInfoFields(form);
     case 'profile': return saveProfile(r, form);
     case 'weekplan': return saveWeekPlan(r);
     case 'pin': return savePin(id, r);

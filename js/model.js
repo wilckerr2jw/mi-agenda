@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '9.1';
+export const APP_VERSION = '9.2';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -381,6 +381,28 @@ export function yearTotals(withCredit = false, startYear = serviceYearStart()) {
 
 export const fmtHM = min => { min = Math.max(0, Math.round(min)); return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`; };
 
+// ───── Campos adicionales de Mi Informe (idea de la otra app) ─────
+// Tú eliges qué más anotas junto con el tiempo (profile.infoFields); cada registro guarda entry.extra = { campo: número }.
+// Son solo para ti: salen en los totales del mes y del año (y en el resumen que envías, si tienen algo).
+export const INFO_PRESETS = [
+  { id: 'cartas', n: 'Cartas', ic: '✉️' },
+  { id: 'publicaciones', n: 'Publicaciones', ic: '📚' },
+  { id: 'videos', n: 'Videos mostrados', ic: '🎬' },
+  { id: 'revisitas', n: 'Revisitas', ic: '🔁' },
+  { id: 'km', n: 'Kilómetros', ic: '🚗', dec: true },
+  { id: 'gastos', n: 'Gastos de viaje', ic: '💵', dec: true },
+];
+export const infoFields = (v = profile()) => (Array.isArray(v.infoFields) ? v.infoFields : []).filter(f => f && f.id && f.n);
+const sumExtras = (list, into = {}) => { list.forEach(e => Object.entries(e.extra || {}).forEach(([k, n]) => { const x = Number(n) || 0; if (x) into[k] = (into[k] || 0) + x; })); return into; };
+export const monthExtras = mid => sumExtras(entriesForMonth(mid));
+export const yearExtras = (startYear = serviceYearStart()) => serviceYearMonths(startYear).reduce((acc, mo) => sumExtras(entriesForMonth(mo.id), acc), {});
+export const fmtExtra = (f, n) => (f?.dec ? String(Math.round((Number(n) || 0) * 100) / 100).replace('.', ',') : String(Math.round(Number(n) || 0)));
+// «✉️ 3 · 📚 12» (corto) o «✉️ Cartas: 3» por línea (largo); solo los campos que tienen algo
+export function extrasText(ex = {}, long = false, fields = infoFields()) {
+  const parts = fields.filter(f => Number(ex[f.id])).map(f => (long ? `${f.ic} ${f.n}: ${fmtExtra(f, ex[f.id])}` : `${f.ic} ${fmtExtra(f, ex[f.id])}`));
+  return parts.join(long ? '\n' : ' · ');
+}
+
 // Días que quedan del mes contando hoy (para saber cuántas horas por día necesitas)
 export function daysLeftInMonth(mid) {
   const [y, m] = mid.split('-').map(Number);
@@ -449,6 +471,23 @@ export function repeatText(ev) {
   return REPEATS[ev.repeat] || REPEATS.none;
 }
 export const isRepeating = ev => !!ev.repeat && ev.repeat !== 'none';
+
+// ───── Rutinas (texto diario, lectura, estudio…): eventos que se repiten y que marcas como hechos ─────
+// A las rutinas la app les pregunta «¿Ya lo hiciste?» si no las marcas. Cada evento puede activarlo o quitarlo
+// («Preguntarme si ya lo hice»: campo routine). Si nunca se eligió, se decide por el tipo y el nombre.
+const ROUTINE_WORDS = /texto|lectura|leer|biblia|oraci[oó]n|orar|estudio|devocional|rutina|repaso|meditar/i;
+const STRONG_WORDS = /texto diario|texto del d[ií]a|examinando las escrituras|lectura (diaria|de la biblia|b[ií]blica)|leer la biblia|devocional|rutina|oraci[oó]n/i;
+export function routineDefault(ev) {
+  if (!ev || !isRepeating(ev)) return false;
+  if (Object.keys(ev.doneLog || {}).length) return true;   // ya lo marcaste alguna vez
+  if (ev.congreAuto || ev.category === 'asignacion') return false;
+  // Lo que se repite cada día (o casi) es una rutina, sea del tipo que sea; también el texto diario o la lectura
+  const daily = ev.repeat === 'daily' || (ev.repeat === 'days' && (ev.days || []).length >= 5);
+  if (daily || STRONG_WORDS.test(ev.title || '')) return true;
+  if (['reunion', 'ancianos'].includes(ev.category)) return false;
+  return ['estudio', 'personal', 'familia'].includes(ev.category) || ROUTINE_WORDS.test(ev.title || '');
+}
+export const isRoutine = ev => !!ev && isRepeating(ev) && (typeof ev.routine === 'boolean' ? ev.routine : routineDefault(ev));
 
 export function occursOn(ev, iso) {
   if (!ev.date) return false;

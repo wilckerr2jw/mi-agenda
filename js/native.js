@@ -25,7 +25,7 @@ const CHANNELS = [
   { id: 'general', name: 'Resúmenes y otros', description: 'Resumen de la mañana, reuniones, tareas, mañana', sound: 'amanecer.mp3', importance: 3 },
 ];
 
-export const state = { ready: false, perm: '', exact: '', update: null, build: 0, version: '' };
+export const state = { ready: false, perm: '', exact: '', update: null, build: 0, version: '', health: null };
 let handlers = { done: () => {}, log: () => {}, noActivity: () => {}, changed: () => {} };
 let timer = 0;
 
@@ -58,7 +58,7 @@ export async function init(h) {
     state.ready = true;
     // Aviso al servidor: esta cuenta usa la app de Android (así no se duplican los avisos de horario)
     store.patchProfile(v => (!v.nativeAppSeen || Date.now() - Date.parse(v.nativeAppSeen) > 12 * 3600e3 ? { nativeAppSeen: new Date().toISOString() } : null));
-    plug('App')?.addListener('resume', () => { schedule(); checkUpdate(); });
+    plug('App')?.addListener('resume', () => { schedule(); checkUpdate(); refreshHealth(); });
     // Enlaces del widget (app.miagenda.teocratica://registrar)
     const onUrl = url => { if (/registrar/.test(url || '')) handlers.log(); };
     plug('App')?.addListener('appUrlOpen', ev => onUrl(ev.url));
@@ -66,6 +66,7 @@ export async function init(h) {
     registerPush();
     schedule();
     checkUpdate();
+    refreshHealth();
   } catch (e) { console.warn('Avisos nativos no disponibles', e); }
 }
 
@@ -74,7 +75,11 @@ export async function askExact() {
   const LN = plug('LocalNotifications');
   try { state.exact = (await LN.changeExactNotificationSetting()).exact_alarm; } catch { /* no aplica */ }
   handlers.changed();
+  schedule();   // con el permiso nuevo, los avisos se vuelven a programar exactos
 }
+
+// Hora de un aviso programado: la guardamos nosotros en «extra.at» (la fecha que devuelve Android no siempre se puede leer)
+const whenOf = n => Number(n?.extra?.at) || Date.parse(n?.schedule?.at || '') || 0;
 
 // Cuántos avisos hay programados y cuáles son los próximos (para revisar en Ajustes)
 export async function pendingSummary() {
@@ -82,9 +87,62 @@ export async function pendingSummary() {
   if (!LN) return null;
   try {
     const r = await LN.getPending();
-    const list = (r.notifications || []).filter(n => n.schedule?.at).map(n => ({ at: new Date(n.schedule.at), body: n.body || n.title || '' })).sort((a, b) => a.at - b.at);
-    return { n: list.length, next: list.slice(0, 8) };
+    const now = Date.now();
+    const all = (r.notifications || []).map(n => ({ id: n.id, at: new Date(whenOf(n)), body: n.body || n.title || '', extra: n.extra || {} }));
+    const list = all.filter(x => x.at.getTime() > now - 60000).sort((a, b) => a.at - b.at);
+    return { n: list.length, next: list.slice(0, 8), all: list, ids: new Set(list.map(x => x.id)) };
   } catch { return null; }
+}
+
+// ───── Revisión de los avisos (Ajustes → Avisos → Revisar mis avisos) ─────
+const DIAG = 'miagenda.avisos.diag';
+export function lastRun() { try { return JSON.parse(localStorage.getItem(DIAG) || 'null'); } catch { return null; } }
+function saveRun(d) { try { localStorage.setItem(DIAG, JSON.stringify(d)); } catch { /* sin almacenamiento */ } }
+
+// Lo que puede impedir que un aviso llegue: permiso, avisos exactos, batería y tipos de aviso apagados
+export async function health() {
+  const LN = plug('LocalNotifications'), W = plug('AgendaWidget');
+  const out = { perm: state.perm, exact: state.exact, battery: null, channelsOff: [], old: false };
+  if (!LN) return out;
+  try { out.perm = (await LN.checkPermissions()).display; } catch { /* sin dato */ }
+  try { out.exact = (await LN.checkExactNotificationSetting()).exact_alarm; state.exact = out.exact; } catch { /* Android viejo: no aplica */ }
+  try {
+    const ch = (await LN.listChannels()).channels || [];
+    const off = CHANNELS.filter(c => { const x = ch.find(y => y.id === c.id); return x && Number(x.importance) === 0; });
+    out.channelsOff = off.map(c => c.name); out.channelsOffIds = off.map(c => c.id);
+  } catch { /* sin dato */ }
+  try { out.battery = await W.battery(); } catch { out.old = true; }   // la app instalada es anterior a la 1.12
+  state.health = out;
+  return out;
+}
+// Se revisa al abrir y al volver a la app: si hay un tipo de aviso apagado, Hoy lo avisa
+function refreshHealth() { health().then(() => handlers.changed()).catch(() => {}); }
+// Abre la pantalla del teléfono para arreglarlo: 'battery' (quitar la restricción), 'notifications' o un canal
+export async function openPhoneSettings(what, channel = '') {
+  const W = plug('AgendaWidget');
+  try { await W.openSettings({ what, channel }); return true; } catch { return false; }
+}
+// Rutinas de un día y en qué quedó cada una: ya hecha, con aviso programado o sin aviso
+export async function routineStatus(iso = today()) {
+  const me = store.doneId();
+  const pend = await pendingSummary();
+  // Las rutinas y los demás eventos que se repiten (menos las reuniones y asignaciones): así ves cuáles no preguntan
+  const evs = M.agendaFor(iso).events.filter(e => M.isRoutine(e) || (M.isRepeating(e) && !e.congreAuto && !['reunion', 'ancianos', 'asignacion'].includes(e.category)));
+  return evs.map(e => {
+    const routine = M.isRoutine(e);
+    const r = routineTimes(e);
+    const forMe = (pend?.all || []).filter(x => x.extra?.day === iso && (x.extra.eid === e.id || (x.extra.eids || []).includes(e.id)));
+    const firstPending = forMe.some(x => x.extra.kind === 'routine');
+    const lastPending = forMe.some(x => x.extra.kind === 'last' || x.extra.kind === 'streak');
+    return { e, routine, done: M.isDoneBy(e, iso, me), first: r.first, last: r.lastOk ? LAST : null, firstPending, lastPending, scheduled: firstPending || lastPending };
+  });
+}
+// Vuelve a programar ahora mismo (botón en la revisión)
+export async function rescheduleNow() {
+  if (!isNative || !state.ready) return false;
+  clearTimeout(timer);
+  await (chain = chain.then(doSchedule).catch(() => {}));
+  return true;
 }
 export async function test() {
   const LN = plug('LocalNotifications');
@@ -94,30 +152,49 @@ export async function test() {
 }
 
 // Reprograma los avisos (se llama cuando cambian los datos; espera un momento para agrupar cambios)
+let chain = Promise.resolve(), waits = 0;
 export function schedule() {
   if (!isNative || !state.ready) return;
   clearTimeout(timer);
-  timer = setTimeout(doSchedule, 2500);
+  timer = setTimeout(run, 2500);
+}
+function run() {
+  // Espera a que lleguen tus datos: si se programara con la agenda a medio cargar, se perderían avisos
+  if (!store.synced() && waits++ < 20) { timer = setTimeout(run, 1500); return; }
+  waits = 0;
+  chain = chain.then(doSchedule).catch(e => console.warn('Avisos', e));   // uno a la vez
 }
 
 function prefs() {
-  return { hour: 7, tasks: true, events: true, junta: true, before: 10, logAt: 1230, soon: true, routine: true, streak: true, taskTime: true, taskDay: true, taskHour: 9, meetingSoon: true, tomorrow: true, report: true, details: false, ...(M.profile().notif || {}) };
+  return { hour: 7, tasks: true, events: true, junta: true, before: 10, logAt: 1230, soon: true, routine: true, routineLast: true, streak: true, taskTime: true, taskDay: true, taskHour: 9, meetingSoon: true, tomorrow: true, report: true, details: false, ...(M.profile().notif || {}) };
 }
 
-function planFor(iso, p) {
+// Rutinas: primer aviso media hora después de que termina (o 1 h 30 después de empezar si no tiene hora de fin)
+// y un último aviso a las 9:00 p. m. si el primero fue temprano y aún no la marcaste.
+const LAST = 21 * 60;
+function routineTimes(e) {
+  const s = toMin(e.time);
+  const end = toMin(e.endTime) ?? (s != null ? s + 60 : null);
+  const first = end != null ? Math.min(end + 30, 23 * 60 + 30) : 21 * 60;
+  return { first, lastOk: first <= LAST - 60 };
+}
+
+function planFor(iso, p, errs = []) {
   const out = [];
   const add = (min, key, body, channelId, extra = {}, title = 'Mi Agenda') => {
-    if (min == null || min < 0 || min >= 24 * 60) return;
-    const when = at(iso, min);
-    if (when.getTime() < Date.now() + 20000) return;
-    out.push({ id: hash(`${key}:${iso}`), title, body, channelId, schedule: { at: when, allowWhileIdle: true }, smallIcon: 'ic_stat_agenda', extra: { app: 'agenda', ...extra },
-      ...(extra.kind === 'routine' || extra.kind === 'streak' ? { actionTypeId: 'rutina' } : {}), ...(extra.kind === 'log' ? { actionTypeId: 'registro', ongoing: false, autoCancel: true } : {}) });
+    if (min == null || !Number.isFinite(min) || min < 0 || min >= 24 * 60) return;
+    const when = at(iso, Math.round(min));
+    if (!Number.isFinite(when.getTime()) || when.getTime() < Date.now() + 20000) return;
+    out.push({ id: hash(`${key}:${iso}`), title, body, channelId, schedule: { at: when, allowWhileIdle: true }, smallIcon: 'ic_stat_agenda', extra: { app: 'agenda', ...extra, at: when.getTime() },
+      ...(extra.eid ? { actionTypeId: 'rutina' } : {}), ...(extra.kind === 'log' ? { actionTypeId: 'registro', ongoing: false, autoCancel: true } : {}) });
   };
+  // Cada parte va por separado: si una falla, las demás se programan igual
+  const safe = (name, fn) => { try { fn(); } catch (e) { errs.push(`${name}: ${e?.message || e}`); console.warn('Aviso no programado', name, e); } };
   const me = store.doneId();
   const before = Math.max(0, Number(p.before) || 0);
   const a = M.agendaFor(iso);
   // Resumen de la mañana
-  if (p.hour != null) {
+  if (p.hour != null) safe('resumen', () => {
     const lines = [];
     const tasks = data.tasks.filter(t => t.status !== 'hecha' && M.isMineTask(t));
     const dueToday = tasks.filter(t => t.due === iso).length, late = tasks.filter(t => t.due && t.due < iso).length;
@@ -125,40 +202,58 @@ function planFor(iso, p) {
     if (p.tasks && late) lines.push(`⏰ ${plural(late, 'tarea atrasada', 'tareas atrasadas')}`);
     if (p.events && a.events.length) lines.push(`📅 ${plural(a.events.length, 'compromiso', 'compromisos')} hoy`);
     if (p.junta) a.meetings.forEach(m => lines.push(`🗓 Hoy: ${p.details ? m.title : 'reunión'}${m.time ? ` a las ${fmtTime(m.time)}` : ''}`));
-    if (M.isModuleVisible('congregacion')) { const vn = visitNotice(iso); if (vn && (vn.days <= 14 || vn.next)) lines.push(`🧳 Visita del superintendente de circuito ${vn.days > 0 ? `en ${vn.days} días` : 'esta semana'}${vn.pend ? `: faltan ${vn.pend}` : ' ✓'}${vn.next ? ` · ${vn.next.it.t.split(' (')[0]} ${vn.next.date < iso ? 'venció el' : 'antes del'} ${vn.next.date.slice(8)}/${vn.next.date.slice(5, 7)}` : ''}`); }
-    if (M.isModuleVisible('congregacion')) { const rv = M.reviewsDue(iso, 0); if (rv.length) lines.push(`🎓 Toca revisar la capacitación: ${rv.slice(0, 3).map(d => d.name).join(', ')}${rv.length > 3 ? '…' : ''}`); }
-    if (p.assign) M.assignmentsToPrepare(iso).forEach(({ e, inDays }) => lines.push(`🎤 ${inDays === 0 ? 'Hoy' : inDays === 1 ? 'Mañana' : `En ${inDays} días`}: ${e.asg || 'tu asignación'}${p.details && e.title && e.title !== e.asg ? ` · ${e.title}` : ''}${inDays ? ' (prepárala)' : ''}`));
-    if (p.follow && new Date(`${iso}T12:00:00`).getDay() === 1) {
-      const s = M.studentsLate(iso).length, pl = M.pastoreoLate(iso).length;
-      if (s) lines.push(`📖 ${plural(s, 'curso bíblico espera', 'cursos bíblicos esperan')} tu visita`);
-      if (pl) lines.push(`🐑 ${plural(pl, 'hermano', 'hermanos')} sin visita de pastoreo en ${M.pastoreoMonths()} meses`);
-    }
+    // Lo de la congregación va aparte: si algo falla ahí, el resumen sale igual
+    try { if (M.isModuleVisible('congregacion')) { const vn = visitNotice(iso); if (vn && (vn.days <= 14 || vn.next)) lines.push(`🧳 Visita del superintendente de circuito ${vn.days > 0 ? `en ${vn.days} días` : 'esta semana'}${vn.pend ? `: faltan ${vn.pend}` : ' ✓'}${vn.next ? ` · ${vn.next.it.t.split(' (')[0]} ${vn.next.date < iso ? 'venció el' : 'antes del'} ${vn.next.date.slice(8)}/${vn.next.date.slice(5, 7)}` : ''}`); } } catch (e) { errs.push(`visita: ${e?.message || e}`); }
+    try { if (M.isModuleVisible('congregacion')) { const rv = M.reviewsDue(iso, 0); if (rv.length) lines.push(`🎓 Toca revisar la capacitación: ${rv.slice(0, 3).map(d => d.name).join(', ')}${rv.length > 3 ? '…' : ''}`); } } catch (e) { errs.push(`capacitaciones: ${e?.message || e}`); }
+    try { if (p.assign) M.assignmentsToPrepare(iso).forEach(({ e, inDays }) => lines.push(`🎤 ${inDays === 0 ? 'Hoy' : inDays === 1 ? 'Mañana' : `En ${inDays} días`}: ${e.asg || 'tu asignación'}${p.details && e.title && e.title !== e.asg ? ` · ${e.title}` : ''}${inDays ? ' (prepárala)' : ''}`)); } catch (e) { errs.push(`asignaciones: ${e?.message || e}`); }
+    try {
+      if (p.follow && new Date(`${iso}T12:00:00`).getDay() === 1) {
+        const s = M.studentsLate(iso).length, pl = M.pastoreoLate(iso).length;
+        if (s) lines.push(`📖 ${plural(s, 'curso bíblico espera', 'cursos bíblicos esperan')} tu visita`);
+        if (pl) lines.push(`🐑 ${plural(pl, 'hermano', 'hermanos')} sin visita de pastoreo en ${M.pastoreoMonths()} meses`);
+      }
+    } catch (e) { errs.push(`seguimiento: ${e?.message || e}`); }
     // Precursores / con meta: cómo vas y cuánto te toca hoy para llegar
-    const v = M.profile();
-    if (v.goalEnabled && Number(v.goalMonthly) > 0) {
-      const mid = iso.slice(0, 7), done = M.monthTotals(mid).minutes, goal = Number(v.goalMonthly);
-      const ps = M.paceStatus(mid, done, goal);
-      const left = Math.max(0, goal * 60 - done), days = Math.max(1, M.daysLeftInMonth(mid));
-      if (ps) lines.push(left ? `${ps.emoji} Llevas ${M.fmtHM(done)} de ${goal} h; hoy te tocan unas ${M.fmtHM(Math.ceil(left / days / 5) * 5)} h` : `🎉 ¡Ya llegaste a tu meta de ${goal} h este mes!`);
-    }
+    try {
+      const v = M.profile();
+      if (v.goalEnabled && Number(v.goalMonthly) > 0) {
+        const mid = iso.slice(0, 7), done = M.monthTotals(mid).minutes, goal = Number(v.goalMonthly);
+        const ps = M.paceStatus(mid, done, goal);
+        const left = Math.max(0, goal * 60 - done), days = Math.max(1, M.daysLeftInMonth(mid));
+        if (ps) lines.push(left ? `${ps.emoji} Llevas ${M.fmtHM(done)} de ${goal} h; hoy te tocan unas ${M.fmtHM(Math.ceil(left / days / 5) * 5)} h` : `🎉 ¡Ya llegaste a tu meta de ${goal} h este mes!`);
+      }
+    } catch (e) { errs.push(`meta: ${e?.message || e}`); }
     if (lines.length) add(Number(p.hour) * 60, 'daily', lines.join('\n'), 'general', { kind: 'daily' }, 'Mi Agenda · tu día');
-  }
-  a.events.forEach(e => {
+  });
+  // Eventos y rutinas (texto diario, lectura…). En las rutinas, los avisos traen «✓ Ya lo hice».
+  const lastCalls = [];
+  a.events.forEach(e => safe(`evento «${e.title || ''}»`, () => {
     const s = toMin(e.time);
-    const routine = M.isRepeating(e) && (e.category === 'estudio' || e.category === 'personal' || Object.keys(e.doneLog || {}).length);
-    const done = M.isDoneBy(e, iso, me);
-    if (p.soon && s != null && before) add(s - before, `ev:${e.id}`, `⏰ En ${before} min: ${e.title}${e.time ? ` (${fmtTime(e.time)})` : ''}${e.place ? ` · ${e.place}` : ''}`, routine ? 'rutinas' : 'eventos', { kind: 'soon' });
-    if (routine && !done) {
-      const end = toMin(e.endTime) ?? (s != null ? s + 60 : null);
-      if (p.routine) add(end != null ? Math.min(end + 30, 23 * 60 + 30) : 21 * 60, `rt:${e.id}`, `📖 Aún no marcaste «${e.title}» de hoy. ¿Ya lo hiciste?`, 'rutinas', { kind: 'routine', eid: e.id, day: iso });
-      const st = M.streak(e, me, iso);
-      if (p.streak && st >= 3) add(21 * 60 + 15, `st:${e.id}`, `🔥 Llevas ${st} días seguidos con «${e.title}». ¡No pierdas la racha hoy!`, 'rutinas', { kind: 'streak', eid: e.id, day: iso });
+    const routine = M.isRoutine(e);
+    const done = routine && M.isDoneBy(e, iso, me);
+    const ids = { eid: e.id, day: iso };
+    if (p.soon && s != null && before && !done) add(s - before, `ev:${e.id}`, `⏰ En ${before} min: ${e.title}${e.time ? ` (${fmtTime(e.time)})` : ''}${e.place ? ` · ${e.place}` : ''}`, routine ? 'rutinas' : 'eventos', routine ? { kind: 'soon', ...ids } : { kind: 'soon' });
+    if (!routine || done) return;
+    const { first, lastOk } = routineTimes(e);
+    const st = p.streak ? M.streak(e, me, iso) : 0;
+    if (p.routine) add(first, `rt:${e.id}`, `📖 Aún no marcaste «${e.title}» de hoy. ¿Ya lo hiciste?${st >= 3 && !lastOk ? ` 🔥 Llevas ${st} días seguidos.` : ''}`, 'rutinas', { kind: 'routine', ...ids });
+    if ((lastOk || !p.routine) && (st >= 3 || (p.routine && p.routineLast !== false && lastOk))) lastCalls.push({ e, st });
+  }));
+  // Último aviso de la noche: uno solo aunque sean varias rutinas
+  safe('último aviso', () => {
+    if (lastCalls.length === 1) {
+      const { e, st } = lastCalls[0];
+      add(LAST, `rl:${e.id}`, st >= 3 ? `🔥 Llevas ${st} días seguidos con «${e.title}». ¿Ya lo hiciste hoy? ¡No pierdas la racha!`
+        : `🌙 Último aviso: aún no marcaste «${e.title}» de hoy. Si ya lo hiciste, toca «✓ Ya lo hice».`, 'rutinas', { kind: st >= 3 ? 'streak' : 'last', eid: e.id, day: iso });
+    } else if (lastCalls.length > 1) {
+      const racha = lastCalls.some(x => x.st >= 3);
+      add(LAST, 'rl', `🌙 Aún no marcaste ${lastCalls.length} rutinas de hoy: ${lastCalls.slice(0, 4).map(x => `«${x.e.title}»`).join(', ')}${lastCalls.length > 4 ? '…' : ''}.${racha ? ' 🔥 ¡No pierdas tus rachas!' : ' Toca para marcarlas.'}`, 'rutinas', { kind: 'last', day: iso, eids: lastCalls.map(x => x.e.id) });
     }
   });
-  if (p.taskTime) a.tasks.filter(t => M.isMineTask(t) && toMin(t.dueTime) != null)
-    .forEach(t => add(toMin(t.dueTime) - before, `tk:${t.id}`, p.details ? `📋 A las ${fmtTime(t.dueTime)}: ${t.title}` : `📋 Tienes una tarea a las ${fmtTime(t.dueTime)}`, 'general', { kind: 'task' }));
+  if (p.taskTime) safe('tareas con hora', () => a.tasks.filter(t => M.isMineTask(t) && toMin(t.dueTime) != null)
+    .forEach(t => add(toMin(t.dueTime) - before, `tk:${t.id}`, p.details ? `📋 A las ${fmtTime(t.dueTime)}: ${t.title}` : `📋 Tienes una tarea a las ${fmtTime(t.dueTime)}`, 'general', { kind: 'task' })));
   // Tareas del día sin hora (y las atrasadas): un aviso a media mañana con sus títulos
-  if (p.taskDay) {
+  if (p.taskDay) safe('tareas del día', () => {
     const mine = data.tasks.filter(t => t.status !== 'hecha' && M.isMineTask(t));
     const dayT = mine.filter(t => t.due === iso && toMin(t.dueTime) == null);
     const late = iso === today() ? mine.filter(t => t.due && t.due < iso) : [];
@@ -167,29 +262,29 @@ function planFor(iso, p) {
     if (dayT.length === 1) add(hr, `td:${dayT[0].id}`, `📋 Hoy vence: ${name(dayT[0])}`, 'general', { kind: 'task' });
     else if (dayT.length > 1) add(hr, 'td', `📋 Hoy vencen ${dayT.length} tareas${p.details ? `: ${dayT.slice(0, 4).map(t => t.title).join(' · ')}${dayT.length > 4 ? '…' : ''}` : ''}`, 'general', { kind: 'task' });
     if (late.length) add(hr + 1, 'tl', `⏰ ${plural(late.length, 'tarea atrasada', 'tareas atrasadas')}${p.details ? `: ${late.slice(0, 4).map(t => t.title).join(' · ')}${late.length > 4 ? '…' : ''}` : '. Toca para verlas.'}`, 'general', { kind: 'task' });
-  }
-  if (p.meetingSoon) a.meetings.filter(m => toMin(m.time) != null).forEach(m => {
+  });
+  if (p.meetingSoon) safe('reuniones', () => a.meetings.filter(m => toMin(m.time) != null).forEach(m => {
     const n = (m.agenda || []).length;
     add(toMin(m.time) - 60, `mt:${m.id}`, `🗓 En 1 hora: ${p.details ? m.title : 'reunión'} (${fmtTime(m.time)})${n ? ` · agenda de ${plural(n, 'punto', 'puntos')}` : ''}${n && !m.agendaSentAt ? ' · aún no la enviaste' : ''}`, 'general', { kind: 'meeting' });
-  });
-  if (p.tomorrow) {
+  }));
+  if (p.tomorrow) safe('mañana', () => {
     const tm = M.agendaFor(addDays(iso, 1)).events.filter(e => e.time).sort((x, y) => x.time.localeCompare(y.time));
     if (tm.length) add(21 * 60 + 30, 'tm', `🌙 Mañana: ${plural(tm.length, 'evento', 'eventos')}; el primero, ${tm[0].title} a las ${fmtTime(tm[0].time)}.`, 'general', { kind: 'tomorrow' });
-  }
+  });
   // Domingo en la noche: si hace más de una semana que no guardas un respaldo, te lo recuerda
-  if (p.backup !== false && new Date(`${iso}T12:00:00`).getDay() === 0) {
+  if (p.backup !== false && new Date(`${iso}T12:00:00`).getDay() === 0) safe('respaldo', () => {
     let last = ''; try { last = localStorage.getItem('miagenda.ultimoRespaldo') || ''; } catch { /* sin almacenamiento */ }
     if (!last || diffDaysISO(iso, last) >= 7) add(20 * 60, 'bk', '☁️ Guarda tu respaldo semanal en Google Drive: Ajustes → Mis datos → Guardar respaldo en Google Drive.', 'general', { kind: 'backup' });
-  }
+  });
   // Registro de la noche (importante, siempre activo si usas Mi Informe)
-  if (M.isModuleVisible('informe') && !(M.profile().noActivityDays || []).includes(iso)) {
+  if (M.isModuleVisible('informe') && !(M.profile().noActivityDays || []).includes(iso)) safe('registro', () => {
     const hoy = data.entries.filter(e => e.date === iso);
     const mins = hoy.reduce((s, e) => s + (Number(e.minutes) || 0), 0);
     const cursos = hoy.reduce((s, e) => s + (Array.isArray(e.studyNames) ? e.studyNames.length : Number(e.studies) || 0), 0);
     const body = hoy.length ? `📝 Hoy registraste ${M.fmtHM(mins)} h${cursos ? ` y ${plural(cursos, 'curso', 'cursos')}` : ''}. ¿Te falta algo por anotar?`
       : '📝 Registra tu actividad de hoy: aún no guardaste horas ni cursos. Hazlo antes de que termine el día.';
     add(Number(p.logAt) || 1230, 'lg', body, 'registro', { kind: 'log' }, 'Importante · Mi Agenda');
-  }
+  });
   return out;
 }
 
@@ -244,22 +339,56 @@ async function clearOldTimer(LN) {
 }
 
 async function doSchedule() {
-  updateWidget();
-  const LNt = plug('LocalNotifications');
-  if (LNt) clearOldTimer(LNt);
+  try { updateWidget(); } catch (e) { console.warn('Widget no actualizado', e); }
   const LN = plug('LocalNotifications');
   if (!LN) return;
+  clearOldTimer(LN);
+  const rec = { at: new Date().toISOString(), n: 0, errors: [], exact: state.exact || '', version: M.APP_VERSION };
   try {
     const p = prefs();
     const t = today();
+    const all = [];
     // Una semana por delante (así llegan aunque no abras la app en varios días); Android admite hasta 500
-    const list = Array.from({ length: 7 }, (_, i) => planFor(addDays(t, i), p)).flat()
-      .sort((x, y) => x.schedule.at - y.schedule.at).slice(0, 200);
-    const pending = await LN.getPending();
-    const old = (pending.notifications || []).filter(n => n.id !== 1 && n.id !== 3);
-    if (old.length) await LN.cancel({ notifications: old.map(n => ({ id: n.id })) });
+    for (let i = 0; i < 7; i++) { try { all.push(...planFor(addDays(t, i), p, rec.errors)); } catch (e) { rec.errors.push(`día ${i + 1}: ${e?.message || e}`); } }
+    const list = all.sort((x, y) => x.schedule.at - y.schedule.at).slice(0, 200);
+    // Sin el permiso de avisos exactos se programan normales (si no, Android abriría sus ajustes cada vez)
+    const exact = state.exact !== 'denied';
+    list.forEach(n => { n.isExactNotification = exact; });
+    // Primero se programan los nuevos (con el mismo número reemplazan a los anteriores) y después se quitan los que
+    // ya no van: así el teléfono nunca se queda sin avisos si algo falla a mitad de camino.
     if (list.length) await LN.schedule({ notifications: list });
-  } catch (e) { console.warn('No se pudieron programar los avisos', e); }
+    const keep = new Set(list.map(n => n.id));
+    const now = Date.now();
+    const pending = (await LN.getPending()).notifications || [];
+    const stale = pending.filter(n => {
+      if (n.id === 1 || n.id === 3 || keep.has(n.id)) return false;
+      const when = whenOf(n);
+      if (when && when < now + 60000) return doneFor(n.extra);   // ya le tocaba o está por sonar: se deja, salvo si ya marcaste esa rutina
+      return true;
+    });
+    if (stale.length) await LN.cancel({ notifications: stale.map(n => ({ id: n.id })) });
+    await clearDoneDelivered(LN);
+    rec.n = list.length;
+    rec.next = list.filter(n => n.extra?.eid || n.extra?.kind === 'last').slice(0, 6).map(n => ({ at: n.extra.at, body: String(n.body).slice(0, 140) }));
+  } catch (e) { rec.errors.push(String(e?.message || e)); console.warn('No se pudieron programar los avisos', e); }
+  saveRun(rec);
+}
+
+// ¿Ese aviso es de una rutina que ya marcaste?
+function doneFor(x) {
+  const ev = x?.eid && store.get('events', x.eid);
+  return !!(ev && x.day && M.isDoneBy(ev, x.day, store.doneId()));
+}
+// Si ya marcaste la rutina (en la app o en otro teléfono), quita de la barra el aviso «¿Ya lo hiciste?» de hoy
+async function clearDoneDelivered(LN) {
+  try {
+    const t = today(), me = store.doneId();
+    const ids = new Set();
+    M.agendaFor(t).events.filter(e => M.isRepeating(e) && M.isDoneBy(e, t, me)).forEach(e => ['rt', 'rl', 'st', 'ev'].forEach(k => ids.add(hash(`${k}:${e.id}:${t}`))));
+    if (!ids.size) return;
+    const shown = ((await LN.getDeliveredNotifications()).notifications || []).filter(n => ids.has(n.id));
+    if (shown.length) await LN.removeDeliveredNotifications({ notifications: shown.map(n => (n.tag ? { id: n.id, tag: n.tag } : { id: n.id })) });
+  } catch { /* no disponible en este teléfono */ }
 }
 
 // ───── Actualización de la app (APK) ─────

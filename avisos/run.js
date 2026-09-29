@@ -23,7 +23,7 @@ const db = getFirestore();
 const log = { info: (...a) => console.log(...a), warn: (...a) => console.warn(...a), error: (...a) => console.error(...a) };
 
 const DEFAULTS = { hour: 7, tasks: true, events: true, junta: true, supervise: true, shared: true, updates: true, weekly: true, details: false,
-  before: 10, logAt: 1230, soon: true, routine: true, streak: true, taskTime: true, taskDay: true, taskHour: 9, meetingSoon: true, partner: true, tomorrow: true, report: true, assign: true, follow: true };
+  before: 10, logAt: 1230, soon: true, routine: true, routineLast: true, streak: true, taskTime: true, taskDay: true, taskHour: 9, meetingSoon: true, partner: true, tomorrow: true, report: true, assign: true, follow: true };
 const CATCH_UP_HOURS = 3;          // si una hora falla, lo intenta en las 3 siguientes
 const SUPERVISE_DAYS = 7;
 
@@ -317,7 +317,21 @@ async function daily(uid, allDevices) {
 const toMin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
 const hm = m => fmtTime(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-const isRoutine = e => e.repeat && e.repeat !== 'none' && (e.category === 'estudio' || e.category === 'personal' || Object.keys(e.doneLog || {}).length > 0);
+// Rutina (igual que en la app, js/model.js): evento que se repite y que se marca como hecho cada día.
+// Cada evento puede elegirlo («routine»); si no, se decide por lo marcado antes, el tipo y el nombre.
+const ROUTINE_WORDS = /texto|lectura|leer|biblia|oraci[oó]n|orar|estudio|devocional|rutina|repaso|meditar/i;
+const STRONG_WORDS = /texto diario|texto del d[ií]a|examinando las escrituras|lectura (diaria|de la biblia|b[ií]blica)|leer la biblia|devocional|rutina|oraci[oó]n/i;
+function isRoutine(e) {
+  if (!e.repeat || e.repeat === 'none') return false;
+  if (typeof e.routine === 'boolean') return e.routine;
+  if (Object.keys(e.doneLog || {}).length > 0) return true;
+  if (e.congreAuto || e.category === 'asignacion') return false;
+  const daily = e.repeat === 'daily' || (e.repeat === 'days' && (e.days || []).length >= 5);
+  if (daily || STRONG_WORDS.test(e.title || '')) return true;
+  if (['reunion', 'ancianos'].includes(e.category)) return false;
+  return ['estudio', 'personal', 'familia'].includes(e.category) || ROUTINE_WORDS.test(e.title || '');
+}
+const LAST_CALL = 21 * 60;   // último aviso de rutinas sin marcar (9:00 p. m.)
 function streakOf(e, uid, today) {
   let n = 0;
   for (let i = 1, d = addDays(today, -1); i < 400 && d >= (e.date || d); i++, d = addDays(d, -1)) {
@@ -349,17 +363,29 @@ async function buildPlan(uid, p, now) {
   const add = (at, key, body, kind = '', eid = '', title = 'Mi Agenda Teocrática') => { if (at >= 0 && at < 24 * 60) items.push({ at, key, title, body, kind, eid }); };
   const before = Math.max(0, Number(p.before) || 0);
 
+  const lastCalls = [];
   events.filter(e => occursOn(e, today)).forEach(e => {
     const s = toMin(e.time);
+    const routine = isRoutine(e);
     const done = (e.doneLog?.[today] || []).includes(uid);
-    if (p.soon && s != null && before) add(s - before, `ev:${e.id}:${today}`, `⏰ En ${before} min: ${e.title || 'evento'} (${fmtTime(e.time)})${e.place ? ` · ${e.place}` : ''}`, isRoutine(e) ? 'routine' : 'soon');
-    if (isRoutine(e) && !done) {
+    if (p.soon && s != null && before && !(routine && done)) add(s - before, `ev:${e.id}:${today}`, `⏰ En ${before} min: ${e.title || 'evento'} (${fmtTime(e.time)})${e.place ? ` · ${e.place}` : ''}`, routine ? 'routine' : 'soon', routine ? e._eid : '');
+    if (routine && !done) {
       const endM = toMin(e.endTime) ?? (s != null ? s + 60 : null);
-      if (p.routine) add(endM != null ? Math.min(endM + 30, 23 * 60 + 30) : 21 * 60, `rt:${e.id}:${today}`, `📖 Aún no marcaste «${e.title || 'tu rutina'}» de hoy. ¿Ya lo hiciste?`, 'routine', e._eid);
-      const st = streakOf(e, uid, today);
-      if (p.streak && st >= 3) add(21 * 60 + 15, `st:${e.id}:${today}`, `🔥 Llevas ${st} días seguidos con «${e.title}». ¡No pierdas la racha hoy!`, 'streak', e._eid);
+      const first = endM != null ? Math.min(endM + 30, 23 * 60 + 30) : 21 * 60;
+      const lastOk = first <= LAST_CALL - 60;
+      const st = p.streak ? streakOf(e, uid, today) : 0;
+      if (p.routine) add(first, `rt:${e.id}:${today}`, `📖 Aún no marcaste «${e.title || 'tu rutina'}» de hoy. ¿Ya lo hiciste?${st >= 3 && !lastOk ? ` 🔥 Llevas ${st} días seguidos.` : ''}`, 'routine', e._eid);
+      if ((lastOk || !p.routine) && (st >= 3 || (p.routine && p.routineLast !== false && lastOk))) lastCalls.push({ e, st });
     }
   });
+  // Último aviso de la noche: uno solo aunque sean varias rutinas
+  if (lastCalls.length === 1) {
+    const { e, st } = lastCalls[0];
+    add(LAST_CALL, `rl:${e.id}:${today}`, st >= 3 ? `🔥 Llevas ${st} días seguidos con «${e.title || 'tu rutina'}». ¿Ya lo hiciste hoy? ¡No pierdas la racha!`
+      : `🌙 Último aviso: aún no marcaste «${e.title || 'tu rutina'}» de hoy. Si ya lo hiciste, márcalo.`, st >= 3 ? 'streak' : 'routine', e._eid);
+  } else if (lastCalls.length > 1) {
+    add(LAST_CALL, `rl:${today}`, `🌙 Aún no marcaste ${plural(lastCalls.length, 'rutina', 'rutinas')} de hoy: ${lastCalls.slice(0, 4).map(x => `«${x.e.title || 'rutina'}»`).join(', ')}${lastCalls.length > 4 ? '…' : ''}.`, 'routine');
+  }
   if (p.taskTime) {
     docs(await user.collection('tasks').where('due', '==', today).get())
       .filter(t => t.status !== 'hecha' && isMine(t) && toMin(t.dueTime) != null)

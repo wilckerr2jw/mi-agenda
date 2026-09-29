@@ -36,7 +36,7 @@ export const get = (col, id) => data[col].find(x => x.id === id);
 // La memoria se actualiza al instante (así la pantalla nunca va por detrás) y luego
 // se guarda en el teléfono o se envía a Firestore.
 // Datos del perfil que nunca se borran «sin querer»: solo se vacían desde Editar mi perfil (explicit)
-const PROTECT = ['photo', 'role', 'roles', 'myName', 'goalEnabled', 'goalMonthly', 'goalAnnual', 'congre', 'notif', 'customCats'];
+const PROTECT = ['photo', 'role', 'roles', 'myName', 'goalEnabled', 'goalMonthly', 'goalAnnual', 'congre', 'notif', 'customCats', 'infoFields'];
 const isEmpty = v => v === undefined || v === null || v === '' || v === false || (Array.isArray(v) && !v.length);
 function protectProfile(item) {
   const cur = data.profile.find(p => p.id === item.id);
@@ -202,24 +202,33 @@ export const account = {
   signOut: () => fb.auth.signOut(fb.authInst),
 };
 
+// ¿Ya llegaron todos tus datos? (los avisos del teléfono esperan a esto para no programarse con la agenda a medias)
+// Firestore entrega la primera vez lo guardado en el teléfono o, si no hay nada guardado, espera al servidor.
+// Si algo no responde, a los 15 segundos se da por listo.
+const seenCols = new Set();
+let syncStart = 0;
+export const synced = () => !isCloud || seenCols.size >= COLS.length + 1 || (syncStart > 0 && Date.now() - syncStart > 15000);
+
 export function startSync(uid) {
   stopSync();
+  syncStart = Date.now();
   COLS.forEach(c => {
     const ref = fb.fs.collection(fb.db, 'users', uid, c);
     unsubs.push(fb.fs.onSnapshot(ref,
       snap => {
+        seenCols.add(c);
         const list = snap.docs.map(d => ({ ...d.data(), id: d.id }));
         if (c === 'events') { ownEvents = list; composeEvents(); }
         else { data[c] = list; if (c === 'profile') { if (list.length || !snap.metadata.fromCache) profileArrived(); composeEvents(); if (myName() !== lastMemberName) touchMember(); } }
         notify();
       },
-      err => onError(err)));
+      err => { seenCols.add(c); onError(err); }));
   });
   // Eventos que otros te compartieron (o que tú compartiste)
   const q = fb.fs.query(fb.fs.collection(fb.db, 'shared'), fb.fs.where('members', 'array-contains', uid));
   unsubs.push(fb.fs.onSnapshot(q,
-    snap => { sharedDocs = snap.docs.map(d => ({ ...d.data(), _id: d.id })); composeEvents(); notify(); },
-    err => console.warn('Compartidos no disponibles', err)));
+    snap => { seenCols.add('shared'); sharedDocs = snap.docs.map(d => ({ ...d.data(), _id: d.id })); composeEvents(); notify(); },
+    err => { seenCols.add('shared'); console.warn('Compartidos no disponibles', err); }));
   // Te anotas en la lista de cuentas (solo tu nombre) para que otros puedan compartirte eventos
   touchMember();
 }
@@ -231,7 +240,7 @@ export function startSync(uid) {
 const SH = 'sh_';
 let ownEvents = [];
 let sharedDocs = [];
-const SHARED_FIELDS = ['title', 'category', 'date', 'time', 'endTime', 'place', 'repeat', 'days', 'notes', 'theme', 'color', 'skipDates'];
+const SHARED_FIELDS = ['title', 'category', 'date', 'time', 'endTime', 'place', 'repeat', 'days', 'notes', 'theme', 'color', 'skipDates', 'routine'];
 const myProfile = () => data.profile.find(p => p.id === 'me') || { id: 'me' };
 export const myName = () => (myProfile().myName || account.user?.displayName || (account.user?.email || '').split('@')[0] || 'Alguien').slice(0, 80);
 const pick = o => Object.fromEntries(SHARED_FIELDS.filter(k => o[k] !== undefined).map(k => [k, o[k]]));
@@ -348,6 +357,7 @@ export function stopSync() {
   unsubs.forEach(u => u());
   unsubs = [];
   profileLoaded = false; profileQueue = [];
+  seenCols.clear(); syncStart = 0;
   COLS.forEach(c => { data[c] = []; });
   ownEvents = []; sharedDocs = [];
   notify();

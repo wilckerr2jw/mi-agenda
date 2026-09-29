@@ -1,7 +1,9 @@
 {
-  "version": "9.1",
+  "version": "9.2",
   "notes": [
-    "Mi Informe: ve los años de servicio anteriores",
-    "Estadísticas del mes: horas por día, por día de la semana, avance a la meta y por tipo"
+    "Rutinas (texto diario, lectura…): «¿Ya lo hiciste?» más confiable, con «✓ Ya lo hice» y un último aviso a las 9:00 p. m.",
+    "Revisar mis avisos: permiso, batería, tipos de aviso y rutinas de hoy",
+    "Mi Informe: campos adicionales (cartas, publicaciones, kilómetros…)",
+    "Pastoreo: cargar visitas anteriores pegando tu registro o con una foto"
   ]
 }

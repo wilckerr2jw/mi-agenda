@@ -13,6 +13,8 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.os.PowerManager;
+import android.app.usage.UsageStatsManager;
 import android.provider.Settings;
 import android.speech.RecognizerIntent;
 import androidx.activity.result.ActivityResult;
@@ -110,6 +112,59 @@ public class WidgetPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("widgets", ids.length);
         call.resolve(ret);
+    }
+
+    /**
+     * Batería: ¿Android deja trabajar a la app en reposo? (si la «optimiza», los avisos pueden atrasarse o no llegar).
+     * bucket: qué tan «usada» la considera Android (10 activa … 40 poco usada, 45 restringida).
+     */
+    @PluginMethod
+    public void battery(PluginCall call) {
+        Context ctx = getContext();
+        JSObject ret = new JSObject();
+        PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
+        ret.put("ignoring", pm == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M || pm.isIgnoringBatteryOptimizations(ctx.getPackageName()));
+        ret.put("saver", pm != null && pm.isPowerSaveMode());
+        int bucket = 0;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            UsageStatsManager us = (UsageStatsManager) ctx.getSystemService(Context.USAGE_STATS_SERVICE);
+            if (us != null) bucket = us.getAppStandbyBucket();
+        }
+        ret.put("bucket", bucket);
+        call.resolve(ret);
+    }
+
+    /** Abre la pantalla del teléfono para arreglar los avisos: battery | notifications | channel | app */
+    @PluginMethod
+    public void openSettings(PluginCall call) {
+        Context ctx = getContext();
+        String what = call.getString("what", "app");
+        String pkg = ctx.getPackageName();
+        Intent i;
+        if ("battery".equals(what) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + pkg));
+        } else if ("channel".equals(what) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            i = new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS);
+            i.putExtra(Settings.EXTRA_APP_PACKAGE, pkg);
+            i.putExtra(Settings.EXTRA_CHANNEL_ID, call.getString("channel", ""));
+        } else if (("notifications".equals(what) || "channel".equals(what)) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+            i.putExtra(Settings.EXTRA_APP_PACKAGE, pkg);
+        } else {
+            i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + pkg));
+        }
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            ctx.startActivity(i);
+        } catch (Exception e) {
+            // Algunos teléfonos no tienen esa pantalla: se abre la de la app
+            try {
+                Intent d = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + pkg));
+                d.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                ctx.startActivity(d);
+            } catch (Exception e2) { call.reject("no-disponible"); return; }
+        }
+        call.resolve();
     }
 
     /** Dictado por voz: abre el reconocedor de voz del teléfono y devuelve lo que se dijo (en español). */

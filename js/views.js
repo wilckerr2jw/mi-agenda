@@ -206,6 +206,7 @@ export function hoy() {
   ${noticeGroup([
     Nat.state.update ? `<button class="log-now apk-up" data-a="apk-update">📲 <span><b>Hay una actualización de la app</b><small>Versión ${esc(Nat.state.update.name)}. Toca para descargarla e instalarla.</small></span></button>` : '',
     Nat.isNative && Nat.state.exact && Nat.state.exact !== 'granted' ? `<button class="log-now" data-a="nat-exact-hoy">🔔 <span><b>Permite los avisos exactos</b><small>Sin este permiso, Android puede atrasar los avisos de tus eventos y tareas. Toca para activarlo.</small></span></button>` : '',
+    Nat.isNative && Nat.state.health?.channelsOff?.length ? `<button class="log-now" data-a="phone-set" data-v="channel" data-ch="${esc(Nat.state.health.channelsOffIds[0])}">🔕 <span><b>Tienes apagados unos avisos en el teléfono</b><small>${esc(Nat.state.health.channelsOff.join(', '))}: por eso no te llegan. Toca para encenderlos.</small></span></button>` : '',
     (() => { const vn = M.isModuleVisible('congregacion') ? visitNotice() : null; return vn ? `<button class="log-now visit-now" data-a="visita-open" data-id="${vn.v.id}">🧳 <span><b>Visita del superintendente de circuito ${vn.days > 1 ? `en ${vn.days} días` : vn.days === 1 ? 'mañana' : vn.days === 0 ? 'hoy' : 'esta semana'}</b><small>${vn.pend ? `Faltan ${vn.pend} cosas por tener listas` : '✓ Todo listo'}${vn.next ? ` · ${esc(vn.next.it.t.split(' (')[0])} ${vn.next.date < today() ? 'venció el' : 'antes del'} ${esc(fmtShort(vn.next.date))}` : ''}</small></span></button>` : ''; })(),
     (() => { let last = ''; try { last = localStorage.getItem('miagenda.ultimoRespaldo') || ''; } catch { return ''; } const old = !last || (Date.parse(t) - Date.parse(last)) / 864e5 >= 14; return old && d.getDay() === 0 ? `<button class="log-now" data-a="backup-drive">☁️ <span><b>Guarda tu respaldo en Google Drive</b><small>${last ? `El último fue el ${esc(fmtShort(last))}.` : 'Todavía no has guardado uno desde este teléfono.'} Toca para guardarlo.</small></span></button>` : ''; })()
   ])}
@@ -530,7 +531,8 @@ function seguimiento(st) {
     html += `<section><div class="sec-h"><h2>🐑 Pastoreo</h2><span class="hint">${lateP ? `${lateP} sin visita reciente` : 'al día'}</span></div>
       <div class="pad follow-opts"><label class="mini-f"><span>A quiénes veo</span><select id="pastoreo-scope"><option value="mine" ${scope === 'mine' ? 'selected' : ''}>Mi grupo y los siervos ministeriales</option><option value="all" ${scope === 'all' ? 'selected' : ''}>Toda la congregación</option></select></label>
         ${scope === 'mine' && !M.myGroupIds().length ? '<p class="hint">Para ver solo tu grupo, agrega tu ficha («Tú») al grupo que atiendes en Personas → Grupos.</p>' : ''}
-        <label class="mini-f"><span>Avisar si pasan más de</span><select id="pastoreo-months">${[3, 4, 6, 9, 12].map(n => `<option value="${n}" ${n === M.pastoreoMonths() ? 'selected' : ''}>${n} meses</option>`).join('')}</select></label></div>
+        <label class="mini-f"><span>Avisar si pasan más de</span><select id="pastoreo-months">${[3, 4, 6, 9, 12].map(n => `<option value="${n}" ${n === M.pastoreoMonths() ? 'selected' : ''}>${n} meses</option>`).join('')}</select></label>
+        <button type="button" class="btn small ghost" data-a="past-import">📥 Cargar visitas anteriores</button></div>
       ${groups.length ? `<div class="chips"><button class="chip" data-a="pfilter" data-v="" aria-pressed="${!g}">Todos</button>${groups.map(x => `<button class="chip" data-a="pfilter" data-v="${x.id}" aria-pressed="${g === x.id}">${esc(x.name)}</button>`).join('')}</div>` : ''}
       ${sheep.length ? `<div class="stack">${sheep.map(p => { const s = M.pastoreoStatus(p); return followRow(p, s, `${p.role ? `${esc(p.role)} · ` : ''}visita de pastoreo ${agoText(s.days)}${M.helpedByName(p) ? ` · 🤝 ${esc(M.helpedByName(p))}` : ''}`); }).join('')}</div>`
         : '<p class="hint pad">No hay hermanos en esta lista. Agrega personas en la pestaña Personas.</p>'}</section>`;
@@ -895,7 +897,7 @@ export function informe(ui = {}) {
     <span class="av-wrap">${avatarHtml(v.photo, ic('clock'), 'big')}${paceBadge(v)}</span>
     <div><strong>${M.roleText(v) ? esc(M.roleText(v)) : 'Sin rol indicado'}</strong><p class="role">Toca para editar tu perfil y tus metas</p></div>
   </div>
-  <button type="button" class="btn ghost pad" data-a="profile">Editar mi perfil</button>
+  <div class="two pad"><button type="button" class="btn ghost" data-a="profile">Editar mi perfil</button><button type="button" class="btn ghost" data-a="info-fields">➕ Campos adicionales</button></div>
   ${isCur ? pioneerHint : ''}
   ${isCur ? goal : ''}
   ${isCur ? weekCard(v) : ''}
@@ -905,13 +907,14 @@ export function informe(ui = {}) {
   <p class="hint pad">Año de servicio: septiembre a agosto. Toca un mes para ver el detalle o registrar tiempo.</p>
   <div class="stack">${months.map(mo => {
     const t = M.monthTotals(mo.id);
+    const xt = M.extrasText(M.monthExtras(mo.id));
     return `<button class="card mini" data-a="month" data-id="${mo.id}" data-credit="0">
       <strong>${cap(mo.name)} ${mo.year}</strong>
-      <span class="meta">${t.minutes || t.studies ? `${M.fmtHM(t.minutes)} h · ${t.studies} ${t.studies === 1 ? 'curso bíblico' : 'cursos bíblicos'}` : 'Sin registrar'}</span>
+      <span class="meta">${t.minutes || t.studies ? `${M.fmtHM(t.minutes)} h · ${t.studies} ${t.studies === 1 ? 'curso bíblico' : 'cursos bíblicos'}` : xt ? '' : 'Sin registrar'}${xt ? `${t.minutes || t.studies ? ' · ' : ''}${esc(xt)}` : ''}</span>
     </button>`;
   }).join('')}</div>
   <div class="card mini report-total">
     <strong>Total del año</strong>
-    <span class="meta">${M.fmtHM(year.minutes)} h · ${year.studies} ${year.studies === 1 ? 'curso bíblico' : 'cursos bíblicos'}</span>
+    <span class="meta">${M.fmtHM(year.minutes)} h · ${year.studies} ${year.studies === 1 ? 'curso bíblico' : 'cursos bíblicos'}${M.extrasText(M.yearExtras(start)) ? ` · ${esc(M.extrasText(M.yearExtras(start)))}` : ''}</span>
   </div>`;
 }

@@ -10,6 +10,7 @@ import * as Lock from './lock.js';
 import * as N from './notify.js';
 import * as WC from './weekcal.js';
 import * as Nat from './native.js';
+import * as Pa from './pastoreo.js';
 import * as Mc from './mecas.js';
 import * as Cm from './comite.js';
 import * as Bor from './borrador.js';
@@ -168,7 +169,7 @@ document.addEventListener('click', e => {
     case 'ev-pick-all': { const ids = v.split(',').filter(Boolean); const cur = new Set(ui.agenda.picked || []); const all = ids.every(x => cur.has(x)); ids.forEach(x => (all ? cur.delete(x) : cur.add(x))); ui.agenda.picked = [...cur]; return render(); }
     case 'ev-bulk-share': return S.bulkShareSheet(ui.agenda.picked || [], () => { ui.agenda.picking = false; ui.agenda.picked = []; render(); });
     case 'bulk-share-go': return S.bulkShareGo();
-    case 'ev-done': { const on = store.toggleDone(store.get('events', id), el.dataset.date); if (on) toast('¡Hecho! ✓'); return; }
+    case 'ev-done': { const on = store.toggleDone(store.get('events', id), el.dataset.date); if (on) toast('¡Hecho! ✓'); if ($('.hc-list')) setTimeout(() => S.avisosCheck(), 300); return; }
     case 'occ-edit': return S.occEdit(id, el.dataset.date);
     case 'ev-dup': return S.eventSheet(null, { copyOf: id });
     case 'wk-move': { const n = Number(v); if (V.weekSpan(ui.agenda) === 7) ui.agenda.week = n ? addDays(ui.agenda.week || M.mondayOf(today()), n) : M.mondayOf(today()); else ui.agenda.day = n ? addDays(ui.agenda.day || today(), n) : today(); return render(); }
@@ -297,6 +298,16 @@ document.addEventListener('click', e => {
     case 'apk-update': return Nat.openDownload();
     case 'nat-exact': return Nat.askExact().then(() => S.settings());
     case 'nat-pending': return S.showPending();
+    case 'nat-resched': return Nat.rescheduleNow().then(ok => { toast(ok ? '🔄 Avisos programados de nuevo' : 'Esto solo funciona en la app de Android'); return S.avisosCheck(); });
+    case 'nat-exact-check': return Nat.askExact().then(() => S.avisosCheck());
+    case 'phone-set': return Nat.openPhoneSettings(v, el.dataset.ch || '').then(ok => { if (!ok) toast(v === 'battery' ? 'Ábrelo en Ajustes del teléfono → Aplicaciones → Agenda Teocrática → Batería → «Sin restricciones»' : 'Ábrelo en Ajustes del teléfono → Aplicaciones → Agenda Teocrática → Notificaciones y enciende todos los tipos de aviso', null, null, 10000); });
+    case 'routine-on': {   // desde la revisión de avisos: que este evento pregunte «¿Ya lo hiciste?»
+      const ev = store.get('events', id);
+      if (!ev) return;
+      store.upsert('events', { ...ev, routine: true });
+      toast(`🔔 Listo: «${ev.title}» te preguntará si ya lo hiciste`);
+      return Nat.rescheduleNow().then(() => S.avisosCheck());
+    }
     case 'nat-exact-hoy': return Nat.askExact().then(render);
     case 'nat-test': return Nat.test().then(ok => toast(ok ? 'En 5 segundos te llega un aviso de prueba' : 'No se pudo programar la prueba'));
     case 'shared-unhide': store.upsert('profile', { ...M.profile(), id: 'me', sharedHidden: [] }); return S.settings();
@@ -322,6 +333,11 @@ document.addEventListener('click', e => {
     case 'entry': return S.entrySheet(id, {}, () => S.monthSheet(el.dataset.mid));
     case 'adj': return S.adjustMinutes(Number(el.dataset.delta));
     case 'study-add': return S.studyAdd();
+    case 'past-import': return Pa.importSheet();
+    case 'past-save': return Pa.save();
+    case 'xf-adj': return S.extraAdjust(el.dataset.k, el.dataset.d);
+    case 'xf-new': return S.infoFieldNew();
+    case 'info-fields': return S.infoFieldsSheet();
     case 'study-remove': return S.studyRemove(el.dataset.i);
     case 'share-month': return S.shareMonth(id, el.dataset.credit === '1');
     case 'cat-add': return S.catAdd();
@@ -374,8 +390,10 @@ document.addEventListener('input', e => {
   if (e.target.id === 'q') { ui[ui.route].q = e.target.value; refreshList(); }
   else if (e.target.id === 'cat-name') S.catNameInput(e.target.value);
   else if (e.target.id === 'meca-text') Mc.textEdited(e.target);
+  else if (e.target.id === 'past-text') Pa.textChanged();
   else if (e.target.dataset?.visitNote || e.target.dataset?.visitNotes) Vi.noteInput(e.target);
   else if (e.target.id === 'set-q') S.settingsFilter(e.target.value);
+  else if (e.target.id === 'title' && e.target.form?.dataset.form === 'event') S.routineAuto(e.target.form);   // «texto diario», «lectura»… son rutinas
   else if (e.target.dataset?.agreements) S.refreshAgreements();
   else if (e.target.classList?.contains('pp-q')) S.pickerFilter(e.target);
   else if (e.target.matches?.('[data-psel-q]')) {   // 🔍 buscar hermano en la lista del departamento
@@ -394,12 +412,16 @@ document.addEventListener('input', e => {
   }
 });
 
+// Al volver de los ajustes del teléfono (batería, avisos), la revisión de avisos se actualiza sola
+document.addEventListener('visibilitychange', () => { if (!document.hidden && $('.hc-list')) setTimeout(() => S.avisosCheck(), 600); });
+
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.id === 'log-text') { e.preventDefault(); $('[data-a="log-add"]')?.click(); }
   if (e.key === 'Enter' && e.target.id === 'study-name') { e.preventDefault(); $('[data-a="study-add"]')?.click(); }
   if (e.key === 'Enter' && e.target.id === 'priv-new') { e.preventDefault(); $('[data-a="priv-add"]')?.click(); }
   if (e.key === 'Enter' && e.target.id === 'ag-t') { e.preventDefault(); $('[data-a="ag-add"]')?.click(); }
   if (e.key === 'Enter' && e.target.id === 'wgoal-text') { e.preventDefault(); $('[data-a="wgoal-add"]')?.click(); }
+  if (e.key === 'Enter' && e.target.id === 'xf-new') { e.preventDefault(); $('[data-a="xf-new"]')?.click(); }
 });
 
 document.addEventListener('change', e => {
@@ -433,6 +455,7 @@ document.addEventListener('change', e => {
     if (t.id === 'repeat') return;
   }
   if (t.id === 'meca-file') return Mc.fileChosen(t);
+  if (t.id === 'past-file') return Pa.fileChosen(t);
   if (t.dataset?.adminSend) return S.adminSend(t);
   if (t.dataset?.visitStart) return Vi.startChanged(t);
   if (t.id === 'stats-month') { ui.informe.sm = t.value; return render(); }
@@ -450,7 +473,8 @@ document.addEventListener('change', e => {
   if (t.matches?.('input[data-a="org-pick-item"]')) { const cur = new Set(ui.congre.picked || []); t.checked ? cur.add(t.value) : cur.delete(t.value); ui.congre.picked = [...cur]; return render(); }
   if (t.id === 'pastoreo-scope') { store.patchProfile({ pastoreoScope: t.value }); return render(); }
   if (t.id === 'pastoreo-months') { store.patchProfile({ pastoreoMonths: Number(t.value) || 6 }); return render(); }
-  if (t.id === 'repeat' && t.form?.dataset.form === 'event') { const box = document.getElementById('repeat-days'); if (box) box.hidden = t.value !== 'days'; return; }
+  if (t.id === 'repeat' && t.form?.dataset.form === 'event') { const box = document.getElementById('repeat-days'); if (box) box.hidden = t.value !== 'days'; S.routineAuto(t.form); return; }
+  if (t.id === 'routine' && t.form?.dataset.form === 'event') { t.dataset.set = '1'; return; }   // la elegiste tú: ya no cambia sola
   if (t.matches?.('select[data-otro]')) {   // «✏️ Nuevo tipo…» muestra el campo de texto
     const box = document.getElementById(t.dataset.otro);
     if (box) { box.hidden = t.value !== '__otro'; if (!box.hidden) box.querySelector('input')?.focus(); }
@@ -466,6 +490,7 @@ document.addEventListener('change', e => {
       if (group) group.hidden = !isAncianos;
       const asg = document.getElementById('asg-box');
       if (asg) asg.hidden = t.value !== 'asignacion';
+      S.routineAuto(t.form);
     }
     return;
   }

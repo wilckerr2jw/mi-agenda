@@ -39,13 +39,13 @@ const TOPICS = [
   { g: 'Lo básico', t: 'Color y tamaño de letra', when: () => true,
     b: () => `Ajustes → ${k('Apariencia')}: elige el color de la app y el ${k('Tamaño de letra')} (Normal, Grande o Muy grande). Se guarda en cada teléfono.` },
   { g: 'Lo básico', t: 'App de Android', when: () => true,
-    b: () => `En ${k('⋯ → Ayuda → Descargar la app (APK)')} instalas la app de Android: avisos exactos sin internet y con sonidos propios. Pon el widget ${k('Agenda Teocrática · Hoy')} en tu pantalla de inicio (mantén presionado un espacio vacío → Widgets) para ver lo de hoy y registrar con un toque. En el aviso de la noche, ${k('Hoy no salí')} evita que te lo recuerde otra vez. Cuando haya una versión nueva de la app, en Hoy aparece ${k('📲 Hay una actualización de la app')}; tócalo e instálala encima (no se borra nada).` },
+    b: () => `En ${k('⋯ → Ayuda → Descargar la app (APK)')} instalas la app de Android: avisos exactos sin internet y con sonidos propios. Pon el widget ${k('Agenda Teocrática · Hoy')} en tu pantalla de inicio (mantén presionado un espacio vacío → Widgets) para ver lo de hoy y registrar con un toque. En el aviso de la noche, ${k('Hoy no salí')} evita que te lo recuerde otra vez. Cuando haya una versión nueva de la app, en Hoy aparece ${k('📲 Hay una actualización de la app')}; tócalo e instálala encima (no se borra nada). Si un aviso no te llega, Ajustes → Avisos → ${k('🩺 Revisar mis avisos')} te dice qué falta (batería, permisos…) y cómo arreglarlo.` },
   { g: 'Lo básico', t: 'Sin internet', when: () => true,
     b: c => `Puedes registrar todo sin señal${c.cloud ? '; se sincroniza solo cuando vuelve la conexión' : ''}.` },
 
   // ───── Agenda y tareas
   { g: 'Agenda y tareas', t: 'Marcar como hecho y rachas', when: c => c.on('agenda'),
-    b: () => `En los eventos que se repiten (texto diario, lectura…) aparece un círculo a la derecha: tócalo para marcarlo ${k('hecho')} ese día. Si lo haces varios días seguidos verás 🔥 y cuántos van. En los compartidos también ves ✓ quién más lo hizo.` },
+    b: () => `En los eventos que se repiten (texto diario, lectura…) aparece un círculo a la derecha: tócalo para marcarlo ${k('hecho')} ese día. Si lo haces varios días seguidos verás 🔥 y cuántos van. En los compartidos también ves ✓ quién más lo hizo. Con ${k('🔔 Es una rutina')} (dentro del evento), si no la marcas te llega «¿Ya lo hiciste?» y un último aviso a las 9:00 p. m.` },
   { g: 'Agenda y tareas', t: 'Semana: mover y cambiar la duración', when: c => c.on('agenda'),
     b: () => `Agenda → ${k('Semana')}: toda la semana por horas, como un calendario. <b>Arrastra</b> un evento para cambiarlo de hora o de día (con el dedo: mantenlo presionado un momento y muévelo); la rayita de abajo cambia cuánto dura. Si se repite, te pregunta si es ${k('Solo el …')} o ${k('Todas las fechas')}. ${k('Enviar como imagen')} la manda por WhatsApp.` },
   { g: 'Agenda y tareas', t: 'Crear tocando la Semana, 3 días y plantillas', when: c => c.on('agenda'),
@@ -92,7 +92,7 @@ const TOPICS = [
     b: () => `En la ficha de una persona, ${k('También escrito como')} guarda sus apodos u otras formas de escribir su nombre, para que la app la reconozca en los acuerdos.` },
 
   { g: 'Personas y notas', t: 'Seguimiento de cursos y pastoreo', when: c => c.on('personas'),
-    b: c => `En la ficha de una persona toca ${k('＋ Anotar visita')} (curso bíblico, revisita${c.elder ? ' o pastoreo' : ''}). En Personas → ${k('Seguimiento')} ves quién necesita tu visita primero.` },
+    b: c => `En la ficha de una persona toca ${k('＋ Anotar visita')} (curso bíblico, revisita${c.elder ? ' o pastoreo' : ''}). En Personas → ${k('Seguimiento')} ves quién necesita tu visita primero.${c.elder ? ` Con ${k('📥 Cargar visitas anteriores')} pegas tu registro de antes (nombre y fecha por línea).` : ''}` },
   { g: 'Agenda y tareas', t: 'Mis asignaciones', when: c => c.on('agenda'),
     b: () => `Crea un evento de tipo ${k('Mi asignación')}: elige la parte, escribe el tema y cuántos días antes prepararte. Sale en Hoy y en el resumen de la mañana.` },
   { g: 'Mi Informe', t: 'Tu año de servicio', when: c => c.on('informe'),
@@ -103,7 +103,7 @@ const TOPICS = [
 
   // ───── Mi Informe
   { g: 'Mi Informe', t: 'Registrar tiempo', when: c => c.on('informe'),
-    b: () => `En Informe toca ${k('+')}, elige la categoría, ajusta con ${k('+1h')} ${k('+5m')}, agrega tus cursos bíblicos y ${k('Guardar')}.` },
+    b: () => `En Informe toca ${k('+')}, elige la categoría, ajusta con ${k('+1h')} ${k('+5m')}, agrega tus cursos bíblicos y ${k('Guardar')}. Con ${k('➕ Campos adicionales')} anotas también cartas, publicaciones, kilómetros o lo que quieras llevar.` },
   { g: 'Mi Informe', t: 'Tiempo de crédito', when: c => c.on('informe'),
     b: () => `LDC, Betel y las categorías que marques como crédito no cuentan para tu meta, pero se ven aparte en un tono más claro.` },
   { g: 'Mi Informe', t: 'Tus propias categorías (ej. CEH)', when: c => c.on('informe'),
