@@ -1,13 +1,14 @@
 // Vistas principales. Cada función recibe el estado de la interfaz (ui) y devuelve HTML.
 
 import { data, isCloud } from './store.js';
-import { mecaSection, isBaptizedMale } from './mecas.js';
+import { mecaSection, isBaptizedMale, myMecas, ROLE_IC } from './mecas.js';
 import { comiteSection } from './comite.js';
+import { remindList } from './recordar.js';
 import { visitaSection, visitNotice } from './visita.js';
 import * as store from './store.js';
 import * as WC from './weekcal.js';
 import * as Nat from './native.js';
-import { esc, ic, today, parseISO, fmtLong, fmtShort, fmtMonth, fmtTime, timeParts, relDays, norm, initials, pad, MESES, DIAS, cap, avatarHtml } from './util.js';
+import { esc, ic, today, parseISO, fmtLong, fmtShort, fmtMonth, fmtTime, timeParts, relDays, norm, initials, pad, MESES, DIAS, cap, avatarHtml, diffDays } from './util.js';
 import * as M from './model.js';
 import { resolved } from './theme.js';
 
@@ -77,10 +78,25 @@ export function taskRow(t) {
     <button class="chk" data-a="toggle-task" data-id="${t.id}" aria-pressed="${done}" aria-label="${done ? 'Marcar como pendiente' : 'Marcar como hecha'}">${ic('check')}</button>
     <button class="row-main" data-a="task" data-id="${t.id}">
       <span class="title">${prio === 'alta' && !done ? '<span class="prio-tag" title="Prioridad alta">Alta</span> ' : ''}${esc(t.title)}</span>
-      <span class="meta-line">${p ? `<span class="who">${esc(p.name)}</span>` : ''}${kind ? `<span>${esc(kind)}</span>` : ''}${comp ? `<span>Con ${esc(comp.name)}</span>` : ''}${t.repeat && !done ? `<span title="${esc(M.repeatLabel(t.repeat, t.due))}">🔁 ${esc(M.repeatLabel(t.repeat, t.due))}</span>` : ''}${t.status === 'seguimiento' ? '<span class="follow">En seguimiento</span>' : ''}${mtg ? `<span class="from-mtg" title="Sale de la reunión «${esc(mtg.title)}»">${ic('clip', 'sm')}${esc(mtg.title)}</span>` : ''}${!M.isMineTask(t) ? `<span class="sup">👁 Supervisas${(t.responsibles || []).length ? ` · ${esc(t.responsibles.join(', '))}` : ''}</span>` : (mtg && (t.responsibles || []).length ? '<span class="mine">👉 Te toca</span>' : '')}</span>
+      <span class="meta-line">${p ? `<span class="who">${esc(p.name)}</span>` : ''}${kind ? `<span>${esc(kind)}</span>` : ''}${comp ? `<span>Con ${esc(comp.name)}</span>` : ''}${t.repeat && !done ? `<span title="${esc(M.repeatLabel(t.repeat, t.due))}">🔁 ${esc(M.repeatLabel(t.repeat, t.due))}</span>` : ''}${t.status === 'seguimiento' ? '<span class="follow">En seguimiento</span>' : ''}${mtg ? `<span class="from-mtg" title="Sale de la reunión «${esc(mtg.title)}»">${ic('clip', 'sm')}${esc(mtg.title)}</span>` : ''}${acctTag(t)}${!M.isMineTask(t) ? `<span class="sup">👁 Supervisas${(t.responsibles || []).length ? ` · ${esc(t.responsibles.join(', '))}` : ''}</span>` : (mtg && (t.responsibles || []).length ? '<span class="mine">👉 Te toca</span>' : '')}</span>
     </button>
     ${due.label ? `<span class="due ${due.cls}">${due.label}${due.time ? `<small>${due.time}</small>` : ''}</span>` : ''}
   </div>`;
+}
+
+// Tareas con otra cuenta: las que te asignaron («📥 De …») y las que enviaste («📲 …» y si ya la aceptó)
+const ACCT_STATE = { nueva: 'esperando', aceptada: 'la aceptó', rechazada: 'la rechazó' };
+function acctTag(t) {
+  if (t.assignedFrom) return `<span class="acct-tag from">📥 De ${esc(t.fromName)}</span>`;
+  if (t.assignedId) return `<span class="acct-tag ${esc(t.assignState || 'nueva')}">📲 ${esc(t.assignToName || 'Enviada')} · ${esc(ACCT_STATE[t.assignState || 'nueva'])}</span>`;
+  return '';
+}
+// Aviso de tareas nuevas que te asignaron (en Hoy y en Tareas)
+function assignedNotice() {
+  const n = isCloud ? store.assignedNew() : [];
+  if (!n.length) return '';
+  const from = [...new Set(n.map(d => d.ownerName || 'otra cuenta'))].join(', ');
+  return `<button class="log-now as-now" data-a="as-inbox">📥 <span><b>${n.length === 1 ? 'Tienes 1 tarea nueva' : `Tienes ${n.length} tareas nuevas`}</b><small>De ${esc(from)}. Toca para aceptarlas o rechazarlas.</small></span></button>`;
 }
 
 // Tarea como tarjeta (vista de tarjetas en Tareas)
@@ -101,6 +117,7 @@ function taskCard(t) {
       ${p ? `<span class="meta">${ic('users', 'sm')}${esc(p.name)}</span>` : ''}
       ${resp ? `<span class="meta sup">👁 ${esc(resp)}</span>` : ''}
       ${mtg ? `<span class="meta">${ic('clip', 'sm')}${esc(mtg.title)}</span>` : ''}
+      ${acctTag(t) ? `<span class="meta">${acctTag(t)}</span>` : ''}
       ${t.status === 'seguimiento' ? '<span class="meta follow">En seguimiento</span>' : ''}
       ${t.repeat && !done ? `<span class="meta">🔁 ${esc(M.repeatLabel(t.repeat, t.due))}</span>` : ''}
     </button>
@@ -139,6 +156,17 @@ function assignmentsHoy() {
       <strong>${esc(e.asg || 'Asignación')}${e.title && e.title !== e.asg ? ` · ${esc(e.title)}` : ''}</strong>
       <span class="meta">${inDays === 0 ? '<b>Hoy</b>' : inDays === 1 ? '<b>Mañana</b>' : `${esc(fmtShort(date))} · en ${inDays} días`}${e.time ? `, ${fmtTime(e.time)}` : ''}${e.theme ? ` · ${esc(e.theme)}` : ''}</span>
       ${prep && inDays > 0 ? '<span class="meta prep-tag">✍️ Es tiempo de prepararla</span>' : ''}</button>`; }).join('')}</div></section>`;
+}
+// Hoy: tus asignaciones mecánicas de las próximas 2 semanas (del programa importado)
+function mecasHoy() {
+  if (!M.isModuleVisible('congregacion')) return '';
+  const list = myMecas(14);
+  if (!list.length) return '';
+  const t = today();
+  const DW = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  return `<section><div class="sec-h"><h2>🎛 Mis asignaciones mecánicas</h2><button class="link" data-a="nav" data-v="congregacion">Ver programa</button></div>
+    <div class="mc-mine">${list.map((x, i) => { const d = parseISO(x.d); const n = diffDays(x.d, t); return `<article class="mc-day${i === 0 ? ' next' : ''}"><div class="mc-date"><span class="mc-dow">${DW[d.getDay()]}</span><b>${d.getDate()}</b><span>${MESES[d.getMonth()].slice(0, 3)}</span></div>
+      <div class="mc-cells"><div class="mc-cell"><span class="mc-r">${n === 0 ? 'Hoy' : n === 1 ? 'Mañana' : `En ${n} días`}</span>${x.roles.map(r => `<span class="mc-n">${ROLE_IC[r] || '📌'} ${esc(r)}</span>`).join('')}</div></div></article>`; }).join('')}</div></section>`;
 }
 // Hoy: capacitaciones del organigrama que toca revisar (desde 3 días antes)
 function reviewsHoy() {
@@ -229,6 +257,7 @@ export function hoy() {
     </div>
     ${actions()}
   </header>
+  ${assignedNotice()}
   ${noticeGroup([
     Nat.state.update ? `<button class="log-now apk-up" data-a="apk-update">📲 <span><b>Hay una actualización de la app</b><small>Versión ${esc(Nat.state.update.name)}. Toca para descargarla e instalarla.</small></span></button>` : '',
     Nat.isNative && Nat.state.exact && Nat.state.exact !== 'granted' ? `<button class="log-now" data-a="nat-exact-hoy">🔔 <span><b>Permite los avisos exactos</b><small>Sin este permiso, Android puede atrasar los avisos de tus eventos y tareas. Toca para activarlo.</small></span></button>` : '',
@@ -245,6 +274,7 @@ export function hoy() {
   ${followNotice()}
   ${reviewsHoy()}
   ${assignmentsHoy()}
+  ${mecasHoy()}
   <section>
     <div class="sec-h"><h2>Agenda de hoy</h2></div>
     ${entries.length ? `<div class="tl">${entries.map(x => tlItem(x, t)).join('')}</div>`
@@ -255,7 +285,7 @@ export function hoy() {
     ${due.length ? `<div class="stack">${due.map(taskRow).join('')}</div>`
       : empty('Sin tareas para hoy ni atrasadas.', `<button class="btn" data-a="new-task">Nueva tarea</button>`, 'tasks')}
   </section>
-  ${sup.length ? `<section><div class="sec-h"><h2>Por supervisar</h2><span class="hint">${sup.length}</span></div>
+  ${sup.length ? `<section><div class="sec-h"><h2>Por supervisar</h2>${remindList(3).length ? '<button class="btn small ghost" data-a="remind-tasks" data-v="3">💬 Recordar</button>' : `<span class="hint">${sup.length}</span>`}</div>
     <p class="hint pad">Tareas de otros hermanos sin novedades hace ${M.SUPERVISE_DAYS} días o más. Pregunta cómo van y anota el avance en su seguimiento.</p>
     <div class="stack">${sup.map(({ task: x, quiet, late }) => `<button class="card mini" data-a="task" data-id="${x.id}">
       <strong>${esc(x.title)}</strong>
@@ -474,7 +504,11 @@ export function tareas(ui) {
         ? `<details class="tgroup low" ${ui.tareas.lowOpen ? 'open' : ''}><summary><h2>⬇ ${b.n}</h2><span class="hint">${b.tasks.length} · tócalo para verlas</span></summary>${wrap(b.tasks)}</details>`
         : `<section class="tgroup ${b.k}"><div class="sec-h"><h2>${b.n}</h2><span class="hint">${b.tasks.length}</span></div>${wrap(b.tasks)}</section>`).join('')}`;
   }
+  const rem = f !== 'hechas' ? remindList(3) : [];
+  const remLate = rem.reduce((n, b) => n + b.late, 0);
   return `${head('Tareas', actions())}
+  ${assignedNotice()}
+  ${rem.length ? `<button class="log-now remind-now" data-a="remind-tasks" data-v="3">💬 <span><b>Recordar por WhatsApp</b><small>${rem.length} ${rem.length === 1 ? 'hermano tiene' : 'hermanos tienen'} ${remLate ? `${remLate} ${remLate === 1 ? 'tarea atrasada' : 'tareas atrasadas'}` : 'tareas que vencen pronto'}. Toca para mandarle a cada uno su recordatorio.</small></span></button>` : ''}
   <div class="chips">${chips}</div>
   ${personFilter}
   ${list.length && f === 'hechas' ? `<div class="tbar"><span></span>${viewSeg}</div>` : ''}

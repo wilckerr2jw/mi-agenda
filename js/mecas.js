@@ -163,6 +163,52 @@ function findDate(t, ctx) {
     return `${yy}-${pad(mo)}-${pad(d)}`;
   }
 }
+const nn = t => norm(t).replace(/\s+/g, ' ').trim();
+// «Audio: Juan · Video: Pedro» → [{ role, names }]. Solo si la etiqueta es una asignación conocida
+// (o, ya dentro del programa, una etiqueta corta sin números, como «Anfitrión Zoom»).
+const NOT_ROLE = /^(fecha|d[ií]a|semana|hora|lugar|nota|notas|observaci[oó]n(es)?|tel[eé]fono|encargado|responsable|programa|mes)$/i;
+const W = 'A-Za-zÁÉÍÓÚÑÜáéíóúñü().\\/';
+function labeledParts(text) {
+  const hits = [];
+  for (const m of String(text).matchAll(/[:：]/g)) {
+    const pre = text.slice(0, m.index);
+    const wm = pre.match(new RegExp(`([${W}]+(?: [${W}]+){0,2})\\s*$`));
+    if (!wm) continue;
+    const words = wm[1].split(' ');
+    let hit = null;
+    // La etiqueta más corta que sea una asignación conocida («Sol  Video:» → «Video»)
+    for (let k = 1; k <= words.length && !hit; k++) {
+      const sfx = words.slice(-k).join(' ');
+      if (roleAt(sfx)) hit = { role: roleAt(sfx), known: true, at: wm.index + wm[1].length - sfx.length };
+    }
+    // Una etiqueta propia («Anfitrión Zoom:») solo al comienzo del renglón o de una columna
+    if (!hit && /(^|\||\s{2}|\t)\s*$/.test(pre.slice(0, wm.index)) && !NOT_ROLE.test(wm[1])) hit = { role: wm[1].charAt(0).toUpperCase() + wm[1].slice(1), known: false, at: wm.index };
+    if (hit) hits.push({ ...hit, end: m.index + 1 });
+  }
+  if (!hits.some(h => h.known)) return null;
+  const parts = hits.map((h, i) => ({ role: h.role, names: text.slice(h.end, hits[i + 1] ? hits[i + 1].at : undefined).replace(/[|·]+\s*$/, '').trim() })).filter(x => x.names);
+  return parts.length ? { before: text.slice(0, hits[0].at), parts } : null;
+}
+// «Juan Pérez, Luis Gil y Mario Paz» → 3 nombres
+const splitNames = t => String(t || '').split(/\s*(?:[,;/&+|]|\s-\s|\sy\s|\se\s)\s*/i).map(x => x.replace(/^(hno|hna|hermano|hermana)\.?\s+/i, '').replace(/[.()\[\]"«»]/g, '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+const looksLikeName = t => /[a-záéíóúñ]{2}/i.test(t) && !/\d/.test(t) && t.length <= 40 && !/^(nadie|pendiente|por asignar|n\/?a|-+|—)$/i.test(t);
+// La persona de tu lista que corresponde a un nombre: primero igual (o un «también escrito como»), luego parecido
+function matchPerson(name, variants) {
+  const k = nn(name);
+  const exact = data.people.find(p => nn(p.name) === k || String(p.aliases || '').split(/[,;]/).some(a => a.trim() && nn(a) === k));
+  if (exact) return exact;
+  const hits = findPeople(name, variants);
+  const len = nk(name).trim().length;
+  const best = hits.find(h => h.e - h.s >= len * 0.6);
+  return best ? best.p : null;
+}
+// La ficha que corresponde a una fila guardada (por su id o, si no estaba en Personas al importarla, por su nombre)
+export function rowPerson(r) {
+  const p = r.pid && M.person(r.pid);
+  if (p) return p;
+  const k = nn(r.n || '');
+  return k ? data.people.find(x => nn(x.name) === k || String(x.aliases || '').split(/[,;]/).some(a => a.trim() && nn(a) === k)) || null : null;
+}
 const IGNORE = /^(programa|arreglo|asignaciones?|mec[aá]nicas?|congregaci[oó]n|reuni[oó]n|fecha|semana|entre|fin|mes|hermanos?|hno|hna|y|de|del|la|el|los|las)$/i;
 
 // Devuelve { rows: [{ d, r, pid, n }], unknown: [nombres], dates }
@@ -175,6 +221,18 @@ export function parseMecas(lines) {
   lines.forEach(line => {
     const text = line.segs.map(s => s.t).join('  ');
     const n = nk(text);
+    // Formato «una asignación por renglón»: «Audio: Juan Pérez» (la fecha va sola en el renglón de arriba o al comienzo)
+    const labeled = labeledParts(text);
+    if (labeled) {
+      const d0 = findDate(labeled.before, ctx) || lastDate;
+      if (findDate(labeled.before, ctx)) lastDate = d0;
+      labeled.parts.forEach(({ role, names }) => splitNames(names).forEach(nm => {
+        const p = matchPerson(nm, variants);
+        if (p) rows.push({ d: d0, r: role, pid: p.id, n: p.name });
+        else if (looksLikeName(nm)) { rows.push({ d: d0, r: role, pid: '', n: nm }); unknown.add(nm); }
+      }));
+      return;
+    }
     // Mes y año del título («Octubre 2026»)
     const my = n.match(/\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b(?:\s+(?:de\s+)?(\d{4}))?/);
     if (my && !/\d{1,2}\s*(de\s+)?[a-z]+/.test(n.replace(my[0], ''))) { ctx.m = MONTHS.indexOf(my[1].slice(0, 3) === 'set' ? 'sep' : my[1].slice(0, 3)) + 1; if (my[2]) ctx.y = +my[2]; }
@@ -208,7 +266,7 @@ export function parseMecas(lines) {
       .forEach(x => unknown.add(x));
   });
   const seen = new Set();
-  const uniq = rows.filter(r => { const k = `${r.d}|${r.r}|${r.pid}`; if (seen.has(k)) return false; seen.add(k); return true; });
+  const uniq = rows.filter(r => { const k = `${r.d}|${r.r}|${r.pid || nn(r.n)}`; if (seen.has(k)) return false; seen.add(k); return true; });
   return { rows: uniq, unknown: [...unknown].slice(0, 30), dates: [...new Set(uniq.map(r => r.d).filter(Boolean))].sort() };
 }
 
@@ -216,9 +274,11 @@ export function parseMecas(lines) {
 export const isBaptizedMale = p => (p.privileges || []).some(x => /^var[oó]n bautizado/i.test(x)) || M.isElder(p) || M.isMinisterial(p);
 export function mecaStats(months = 3, { elders = false } = {}) {
   const from = addDays(today(), -Math.round(months * 30.4));
-  const rows = (data.mecas || []).flatMap(x => (x.rows || []).map(r => ({ ...r, imp: x.id }))).filter(r => r.d && r.d >= from);
+  const upTo = addDays(today(), 60);   // también cuenta lo ya programado para las próximas semanas
+  const rows = (data.mecas || []).flatMap(x => (x.rows || []).map(r => ({ ...r, imp: x.id }))).filter(r => r.d && r.d >= from && r.d <= upTo)
+    .map(r => { const p = rowPerson(r); return p ? { ...r, pid: p.id } : r; });
   const by = {};
-  rows.forEach(r => { const b = by[r.pid] = by[r.pid] || { pid: r.pid, n: 0, roles: {}, last: '' }; b.n++; b.roles[r.r] = (b.roles[r.r] || 0) + 1; if (r.d > b.last) b.last = r.d; });
+  rows.filter(r => r.pid && M.person(r.pid)).forEach(r => { const b = by[r.pid] = by[r.pid] || { pid: r.pid, n: 0, roles: {}, last: '' }; b.n++; b.roles[r.r] = (b.roles[r.r] || 0) + 1; if (r.d > b.last) b.last = r.d; });
   const eligible = data.people.filter(p => isBaptizedMale(p) && !p.mecaOff && (elders || !M.isElder(p)));   // los ancianos solo si lo eliges
   const used = Object.values(by).map(b => ({ ...b, p: M.person(b.pid) })).filter(b => b.p).sort((a, b) => b.n - a.n || a.p.name.localeCompare(b.p.name, 'es'));
   const notUsed = eligible.filter(p => !by[p.id]).sort((a, b) => a.name.localeCompare(b.name, 'es'));
@@ -239,33 +299,57 @@ export function mecaSection(st = {}) {
   const imports = [...(data.mecas || [])].sort((a, b) => (b.to || '').localeCompare(a.to || ''));
   const d = mecaDept();
   const head = d ? M.deptHeads(d).join(', ') : '';
+  const cur = currentArreglo();
+  const missing = cur ? [...new Set((cur.rows || []).filter(r => !rowPerson(r)).map(r => r.n).filter(Boolean))] : [];
   const chip = (x, t) => `<button class="chip" data-a="meca-months" data-v="${x}" aria-pressed="${months === x}">${t}</button>`;
   return `<section><div class="sec-h"><h2>🎛 Asignaciones mecánicas</h2>${head ? `<span class="hint">★ ${esc(head)}</span>` : ''}</div>
-    <div class="org-tools"><button class="btn small" data-a="meca-import">📥 Importar arreglo (foto o PDF)</button><button class="btn small ghost" data-a="meca-bapt">✔ Varones bautizados (${s.eligible.length + s.off.length})</button>${s.notUsed.length ? `<button class="btn small ghost" data-a="meca-suggest">💬 Sugerir al encargado</button>` : ''}</div>
-    ${!imports.length ? `<p class="hint pad">Importa el arreglo que hizo el hermano encargado (foto o PDF) y aquí verás quiénes se están usando y quiénes no, entre los varones bautizados. La foto se lee en tu teléfono: no se envía a nadie.</p>` : `
+    <div class="org-tools"><button class="btn small primary" data-a="meca-import">📥 Importar programa</button><button class="btn small ghost" data-a="meca-bapt">✔ Varones bautizados (${s.eligible.length + s.off.length})</button>${s.notUsed.length ? `<button class="btn small ghost" data-a="meca-suggest">💬 Sugerir al encargado</button>` : ''}</div>
+    ${!imports.length ? `<div class="mc-empty"><span class="mc-empty-ic">🎛</span><p>Importa el programa que hizo el hermano encargado: una <b>foto</b>, un <b>PDF</b>, un archivo de <b>texto</b> o pegándolo. Entiende tablas y también el formato «Audio: Nombre» con la fecha arriba.</p><p class="hint">Se lee en tu teléfono: no se envía a nadie.</p></div>` : `
+    ${programHtml(cur, st)}
+    ${missing.length ? `<div class="mc-missing"><span>👤 ${missing.length} ${missing.length === 1 ? 'hermano del programa no está' : 'hermanos del programa no están'} en tus Personas. Agrégalos para que cuenten en el seguimiento.</span><button class="btn small" data-a="meca-add-all" data-id="${cur.id}">+ Agregar ${missing.length === 1 ? 'a Personas' : 'a todos'}</button></div>` : ''}
+    <h3 class="sub-h mc-sub">📊 Quiénes se están usando</h3>
     <div class="chips">${chip(1, 'Último mes')}${chip(3, '3 meses')}${chip(6, '6 meses')}${chip(12, '1 año')}<button class="chip" data-a="meca-elders" aria-pressed="${!!st.me}">${st.me ? '✓ ' : ''}Incluir ancianos</button></div>
     <div class="meca-kpis"><div><b>${s.used.length}</b><span>se usan</span></div><div class="${s.notUsed.length ? 'warn' : ''}"><b>${s.notUsed.length}</b><span>sin asignación</span></div><div><b>${s.eligible.length}</b><span>${st.me ? 'varones bautizados' : 'varones (sin ancianos)'}</span></div></div>
     ${s.notUsed.length ? `<h3 class="sub-h">⚠️ No se están usando (${s.notUsed.length})</h3><div class="chips wrap">${s.notUsed.map(p => `<button class="chip warn-chip" data-a="person" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>` : (s.eligible.length ? '<p class="hint pad">✓ Todos los varones bautizados tienen alguna asignación en este tiempo.</p>' : '')}
     ${s.heavy.length ? `<h3 class="sub-h">🔁 Los que más se repiten</h3><div class="chips wrap">${s.heavy.map(b => `<button class="chip" data-a="person" data-id="${b.pid}">${esc(b.p.name)} · ${b.n}</button>`).join('')}</div>` : ''}
     ${s.used.length ? `<details class="load-row"><summary><span class="grow"><b>Cuántas veces tuvo cada uno</b><small>desde el ${esc(fmtShort(s.from))}</small></span></summary><ul class="load-list">${s.used.map(b => `<li><b>${b.n}</b> · ${esc(b.p.name)} <span class="hint">${esc(Object.entries(b.roles).map(([r, c]) => `${r}${c > 1 ? ` ×${c}` : ''}`).join(', '))} · última: ${esc(fmtShort(b.last))}</span></li>`).join('')}</ul></details>` : ''}
-    <h3 class="sub-h">Arreglos importados</h3><div class="stack">${imports.map(x => `<div class="card mini row-card"><span class="grow"><strong>${esc(x.title || 'Arreglo')}</strong><span class="meta">${x.from ? `${esc(fmtShort(x.from))} – ${esc(fmtShort(x.to))} · ` : ''}${(x.rows || []).length} asignaciones</span></span><button class="btn small ghost" data-a="meca-view" data-id="${x.id}">Ver</button></div>`).join('')}</div>`}
+    <h3 class="sub-h">🗂 Programas importados</h3><div class="stack">${imports.map(x => `<div class="card mini row-card${x === cur ? ' mc-cur' : ''}"><span class="grow"><strong>${esc(x.title || 'Arreglo')}</strong><span class="meta">${x.from ? `${esc(fmtShort(x.from))} – ${esc(fmtShort(x.to))} · ` : ''}${(x.rows || []).length} asignaciones${x === cur ? ' · el actual' : ''}</span></span><button class="btn small ghost" data-a="meca-view" data-id="${x.id}">Ver</button></div>`).join('')}</div>`}
     ${!s.eligible.length && !s.off.length ? '<p class="hint pad">Marca en «✔ Varones bautizados» a quiénes se les puede asignar. Los ancianos y siervos ministeriales ya cuentan.</p>' : ''}
   </section>`;
+}
+export function addAll(id) {
+  const x = store.get('mecas', id);
+  if (!x) return 0;
+  const names = [...new Set((x.rows || []).filter(r => !rowPerson(r)).map(r => r.n).filter(Boolean))];
+  names.forEach(name => store.upsert('people', { id: uid(), name, privileges: ['Varón bautizado'], groupIds: [] }));
+  // Enlaza las filas con la ficha nueva
+  store.upsert('mecas', { ...x, rows: x.rows.map(r => { const p = rowPerson(r); return p ? { ...r, pid: p.id, n: p.name } : r; }) });
+  toast(names.length ? `${names.length} ${names.length === 1 ? 'hermano agregado a Personas como varón bautizado' : 'hermanos agregados a Personas como varones bautizados'}` : 'Ya estaban todos');
+  return names.length;
 }
 
 // ───── Hojas: importar, revisar, varones bautizados, sugerir ─────
 let draft = null;   // { lines, how, title }
 const S = () => import('./sheets.js');
 
+// El título del programa: el primer renglón si no trae asignaciones ni es solo una fecha
+function titleFrom(text) {
+  const first = String(text || '').split(/\r?\n/).map(l => l.trim()).find(Boolean) || '';
+  if (!first || first.length > 80 || /[:|\t]/.test(first) || /^\d{1,2}[\/\-.]\d{1,2}/.test(first)) return '';
+  return first.charAt(0).toUpperCase() + first.slice(1);
+}
 export async function importSheet() {
   const { open } = await S();
   draft = null;
-  open({ title: 'Importar arreglo', body: `
-    <p class="hint">Toma una foto clara del programa (derecho y con buena luz) o elige el PDF. Se lee en tu teléfono: no se envía a ningún servicio.</p>
-    <label class="btn primary block" for="meca-file">📷 Elegir foto o PDF</label>
-    <input id="meca-file" type="file" accept="image/*,application/pdf,.pdf" hidden>
+  open({ title: 'Importar programa', body: `
+    <p class="hint">Elige una foto clara del programa (derecho y con buena luz), el PDF o el archivo de texto. Se lee en tu teléfono: no se envía a ningún servicio.</p>
+    <label class="btn primary block" for="meca-file">📷 Elegir foto, PDF o texto</label>
+    <input id="meca-file" type="file" accept="image/*,application/pdf,.pdf,text/plain,.txt,.csv" hidden>
     <p class="hint" id="meca-step"></p>
-    <details><summary class="hint">¿Te lo pasaron como texto? Pégalo aquí</summary><textarea id="meca-paste" rows="6" placeholder="Fecha | Acomodadores | Audio | Video | Micrófonos"></textarea><button type="button" class="btn small" data-a="meca-paste">Leer texto</button></details>
+    <details class="mc-paste"><summary class="hint">¿Te lo pasaron por WhatsApp? Pega el texto aquí</summary>
+      <p class="hint">Sirve cualquiera de estas dos formas:</p>
+      <div class="mc-fmts"><pre>01-10-2026\nAcomodador: Juan Pérez\nAudio: Luis Gil\nPuerta: Mario Paz</pre><pre>Fecha | Acomodador | Audio\nJue 1 | Juan Pérez | Luis Gil</pre></div>
+      <textarea id="meca-paste" rows="7" placeholder="Pega aquí el programa"></textarea><button type="button" class="btn small" data-a="meca-paste">Leer texto</button></details>
     <div id="meca-review"></div>` });
 }
 export async function fileChosen(input) {
@@ -274,6 +358,11 @@ export async function fileChosen(input) {
   const step = t => { const el = document.getElementById('meca-step'); if (el) el.textContent = t; };
   step('Leyendo el archivo…');
   try {
+    if (/^text\//.test(f.type) || /\.(txt|csv)$/i.test(f.name)) {
+      const txt = await f.text();
+      draft = { lines: linesFromText(txt), how: 'texto', title: titleFrom(txt) || f.name.replace(/\.[a-z0-9]+$/i, '') };
+      step('Listo: leí el archivo de texto.'); review(); return;
+    }
     const { lines, how } = await readFile(f, step);
     if (!lines.length) { step('No encontré texto. Prueba con otra foto más clara.'); return; }
     draft = { lines, how, title: f.name.replace(/\.[a-z0-9]+$/i, '') };
@@ -284,7 +373,7 @@ export async function fileChosen(input) {
 export function pasteChosen() {
   const t = document.getElementById('meca-paste')?.value || '';
   if (!t.trim()) return toast('Pega el texto del arreglo');
-  draft = { lines: linesFromText(t), how: 'texto', title: 'Arreglo' };
+  draft = { lines: linesFromText(t), how: 'texto', title: titleFrom(t) || 'Programa de asignaciones' };
   review();
 }
 // Muestra lo reconocido. El texto se puede corregir y la lista se actualiza sola.
@@ -295,11 +384,11 @@ export function review(fromEdit = false) {
   draft.res = res;
   const byDate = {};
   res.rows.forEach(r => { (byDate[r.d || '—'] = byDate[r.d || '—'] || []).push(r); });
-  const html = `<h3 class="sub-h">Encontré ${res.rows.length} asignaciones${res.dates.length ? ` en ${res.dates.length} fechas` : ''}</h3>
-    ${res.rows.length ? `<div class="stack">${Object.entries(byDate).sort().map(([d, rs]) => `<div class="card mini"><span class="grow"><strong>${d === '—' ? 'Sin fecha' : esc(fmtShort(d))}</strong>
-      <span class="meta">${esc(Object.entries(rs.reduce((o, r) => { (o[r.r] = o[r.r] || []).push(r.n); return o; }, {})).map(([r, ns]) => `${r}: ${ns.join(', ')}`).join(' · '))}</span></span></div>`).join('')}</div>` : '<p class="hint">Todavía no reconocí a ningún hermano. Revisa el texto de abajo: corrige los nombres mal leídos o agrégalos a Personas.</p>'}
-    ${res.unknown.length ? `<p class="hint pad-top">No están en tus Personas: ${res.unknown.map(n => `<button type="button" class="link sm" data-a="meca-add-person" data-name="${esc(n)}">+ ${esc(n)}</button>`).join(' ')}</p>` : ''}
-    ${res.rows.some(r => !r.d) ? '<p class="hint">⚠️ Algunas no tienen fecha: escribe el mes en la primera línea del texto (por ejemplo «Octubre 2026»).</p>' : ''}
+  const html = `<h3 class="sub-h">✓ Encontré ${res.rows.length} asignaciones${res.dates.length ? ` en ${res.dates.length} fechas` : ''}</h3>
+    ${res.rows.length ? `<div class="mc-grid mc-review">${Object.entries(byDate).sort().map(([d, rs]) => { const L = d === '—' ? null : dayLabel(d); const cells = rs.reduce((o, r) => { (o[r.r] = o[r.r] || []).push(r); return o; }, {});
+      return `<article class="mc-day"><div class="mc-date">${L ? `<span class="mc-dow">${L.dow}</span><b>${L.d}</b><span>${L.m}</span>` : '<b>?</b><span>sin fecha</span>'}</div><div class="mc-cells">${Object.keys(cells).sort(roleSort).map(r => `<div class="mc-cell"><span class="mc-r">${roleIc(r)} ${esc(r)}</span>${cells[r].map(x => `<span class="mc-n${x.pid ? '' : ' new'}">${esc(x.n)}</span>`).join('<span class="mc-sep">·</span>')}</div>`).join('')}</div></article>`; }).join('')}</div>` : '<p class="hint">Todavía no reconocí a ningún hermano. Revisa el texto de abajo: corrige los nombres mal leídos o agrégalos a Personas.</p>'}
+    ${res.unknown.length ? `<div class="mc-missing"><span>👤 <b>${res.unknown.length}</b> ${res.unknown.length === 1 ? 'no está' : 'no están'} en tus Personas (en <i>cursiva</i>). Se guardan igual; agrégalos para que cuenten en el seguimiento: ${res.unknown.map(n => `<button type="button" class="link sm" data-a="meca-add-person" data-name="${esc(n)}">+ ${esc(n)}</button>`).join(' ')}</span><button type="button" class="btn small" data-a="meca-add-unknown">+ Agregar a todos</button></div>` : ''}
+    ${res.rows.some(r => !r.d) ? '<p class="hint">⚠️ Algunas no tienen fecha: escribe el mes en la primera línea del texto (por ejemplo «Octubre 2026») o la fecha arriba de sus asignaciones (01-10-2026).</p>' : ''}
     <div class="f"><label for="meca-title">Nombre del arreglo</label><input id="meca-title" maxlength="80" value="${esc(draft.title || '')}" placeholder="Ej. Octubre 2026"></div>
     <button type="button" class="btn primary block" data-a="meca-save" ${res.rows.length ? '' : 'disabled'}>Guardar arreglo</button>
     <details ${fromEdit ? 'open' : ''}><summary class="hint">Ver y corregir el texto leído</summary><textarea id="meca-text" rows="10">${esc(linesToText(draft.lines))}</textarea></details>`;
@@ -311,6 +400,12 @@ export function textEdited(el) {
   clearTimeout(editTimer);
   editTimer = setTimeout(() => { if (!draft) return; draft.lines = linesFromText(el.value); review(true); }, 500);
 }
+export function addUnknown() {
+  const names = draft?.res?.unknown || [];
+  names.forEach(name => { if (!data.people.some(p => nn(p.name) === nn(name))) store.upsert('people', { id: uid(), name, privileges: ['Varón bautizado'], groupIds: [] }); });
+  if (names.length) toast(`${names.length} agregados a Personas como varones bautizados`);
+  review();
+}
 export async function addPerson(name) {
   store.upsert('people', { id: uid(), name, privileges: ['Varón bautizado'], groupIds: [] });
   toast(`${name} agregado a Personas`);
@@ -318,7 +413,7 @@ export async function addPerson(name) {
 }
 export async function save() {
   if (!draft?.res?.rows.length) return;
-  const rows = draft.res.rows;
+  const rows = draft.res.rows.map(r => { const p = rowPerson(r); return p ? { ...r, pid: p.id, n: p.name } : r; });
   const dates = rows.map(r => r.d).filter(Boolean).sort();
   const title = document.getElementById('meca-title')?.value.trim() || draft.title || 'Arreglo';
   store.upsert('mecas', { id: uid(), title, from: dates[0] || today(), to: dates[dates.length - 1] || today(), how: draft.how, rows });
@@ -330,9 +425,7 @@ export async function viewSheet(id) {
   const x = store.get('mecas', id);
   if (!x) return;
   const { open } = await S();
-  const byDate = {};
-  (x.rows || []).forEach(r => { (byDate[r.d || '—'] = byDate[r.d || '—'] || []).push(r); });
-  open({ title: x.title || 'Arreglo', body: `<div class="stack">${Object.entries(byDate).sort().map(([d, rs]) => `<div class="card mini"><span class="grow"><strong>${d === '—' ? 'Sin fecha' : esc(fmtShort(d))}</strong><span class="meta">${esc(Object.entries(rs.reduce((o, r) => { (o[r.r] = o[r.r] || []).push(r.n); return o; }, {})).map(([r, ns]) => `${r}: ${ns.join(', ')}`).join(' · '))}</span></span></div>`).join('')}</div>`,
+  open({ title: x.title || 'Programa', body: programHtml(x, { mv: 'fechas', all: true }),
     actions: `<button type="button" class="btn ghost danger" data-a="delete" data-col="mecas" data-id="${x.id}">Eliminar</button>` });
 }
 export async function baptSheet() {
@@ -378,3 +471,212 @@ export async function suggest(months = 3) {
   try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e?.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(text); toast('Mensaje copiado: pégalo en WhatsApp'); } catch { toast('No se pudo compartir'); }
 }
+
+// ═════════ Programa de asignaciones (el «organigrama» de las mecánicas) ═════════
+// Cada fecha es una tarjeta con sus asignaciones; se puede ver por fechas o por hermano,
+// imprimir en hoja carta, compartir como imagen y avisar a cada hermano por WhatsApp.
+export const ROLE_IC = { Acomodador: '🪑', Puerta: '🚪', Audio: '🎚️', Video: '🎥', 'Micrófonos': '🎤', Plataforma: '🎙️', Zoom: '💻', Estacionamiento: '🅿️' };
+const roleIc = r => ROLE_IC[r] || '📌';
+const ROLE_ORDER = ['Acomodador', 'Puerta', 'Audio', 'Video', 'Micrófonos', 'Plataforma', 'Zoom', 'Estacionamiento'];
+const roleSort = (a, b) => { const i = ROLE_ORDER.indexOf(a), j = ROLE_ORDER.indexOf(b); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j) || a.localeCompare(b, 'es'); };
+const DOW3 = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const MES3 = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const pISO = s => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
+const dayLabel = iso => { const d = pISO(iso); return { dow: DOW3[d.getDay()], d: d.getDate(), m: MES3[d.getMonth()] }; };
+const rowName = r => rowPerson(r)?.name || r.n || '—';
+
+// El arreglo que está corriendo (o el próximo; si no, el último)
+export function currentArreglo() {
+  const t = today();
+  const all = [...(data.mecas || [])].filter(x => (x.rows || []).length);
+  return all.filter(x => (x.from || '') <= t && t <= (x.to || '')).sort((a, b) => (b.from || '').localeCompare(a.from || ''))[0]
+    || all.filter(x => (x.from || '') > t).sort((a, b) => a.from.localeCompare(b.from))[0]
+    || all.sort((a, b) => (b.to || '').localeCompare(a.to || ''))[0] || null;
+}
+// { roles: [...], days: [{ d, cells: { rol: [nombres] } }] }
+export function programOf(x) {
+  const byD = {}, roles = new Set();
+  (x?.rows || []).forEach(r => { const d = r.d || ''; const c = (byD[d] = byD[d] || {}); (c[r.r] = c[r.r] || []).push(rowName(r)); roles.add(r.r); });
+  return { roles: [...roles].sort(roleSort), days: Object.keys(byD).sort().map(d => ({ d, cells: byD[d] })) };
+}
+const meNames = () => { const me = data.people.find(p => p.isMe); const v = M.profile(); return new Set([me?.name, v.myName].filter(Boolean).map(nn)); };
+
+// Tus próximas asignaciones mecánicas (para Hoy)
+export function myMecas(days = 14) {
+  const me = data.people.find(p => p.isMe), mine = meNames();
+  if (!me && !mine.size) return [];
+  const t = today(), end = addDays(t, days);
+  return (data.mecas || []).flatMap(x => x.rows || []).filter(r => r.d && r.d >= t && r.d <= end && ((me && rowPerson(r)?.id === me.id) || mine.has(nn(r.n))))
+    .sort((a, b) => a.d.localeCompare(b.d) || roleSort(a.r, b.r))
+    .reduce((out, r) => { const last = out[out.length - 1]; if (last && last.d === r.d) last.roles.push(r.r); else out.push({ d: r.d, roles: [r.r] }); return out; }, []);
+}
+
+// Vista en la app: tarjetas por fecha (la próxima resaltada) o lista por hermano
+export function programHtml(x, st = {}) {
+  if (!x) return '';
+  const { roles, days } = programOf(x);
+  const t = today(), mine = meNames();
+  const next = days.find(d => d.d >= t)?.d;
+  const past = days.filter(d => d.d && d.d < t), rest = days.filter(d => !d.d || d.d >= t);
+  const nameHtml = n => `<span class="mc-n${mine.has(nn(n)) ? ' me' : ''}">${esc(n)}</span>`;
+  const dayCard = d => { const L = d.d ? dayLabel(d.d) : null; const isNext = d.d === next, isToday = d.d === t;
+    return `<article class="mc-day${isNext ? ' next' : ''}${d.d && d.d < t ? ' past' : ''}">
+      <div class="mc-date">${L ? `<span class="mc-dow">${L.dow}</span><b>${L.d}</b><span>${L.m}</span>` : '<b>—</b>'}${isNext ? `<span class="mc-tag">${isToday ? 'Hoy' : 'Próxima'}</span>` : ''}</div>
+      <div class="mc-cells">${roles.filter(r => d.cells[r]).map(r => `<div class="mc-cell"><span class="mc-r">${roleIc(r)} ${esc(r)}</span>${d.cells[r].map(nameHtml).join('<span class="mc-sep">·</span>')}</div>`).join('')}</div>
+    </article>`; };
+  const byPerson = () => {
+    const by = {};
+    days.forEach(d => roles.forEach(r => (d.cells[r] || []).forEach(n => { (by[n] = by[n] || []).push({ d: d.d, r }); })));
+    return `<div class="mc-people">${Object.entries(by).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], 'es')).map(([n, l]) => `<div class="mc-person${mine.has(nn(n)) ? ' me' : ''}"><div class="mc-ph"><b>${esc(n)}</b><span class="mc-count">${l.length}</span></div>
+      <div class="mc-when">${l.map(a => `<span class="mc-pill${a.d && a.d < t ? ' past' : ''}">${a.d ? `${dayLabel(a.d).dow} ${dayLabel(a.d).d} ${dayLabel(a.d).m}` : '—'} · ${roleIc(a.r)} ${esc(a.r)}</span>`).join('')}</div></div>`).join('')}</div>`;
+  };
+  const view = st.mv === 'hermanos' ? 'hermanos' : 'fechas';
+  return `<div class="mc-prog">
+    <div class="mc-head"><div><strong>${esc(x.title || 'Programa')}</strong><span class="meta">${x.from ? `${esc(fmtShort(x.from))} – ${esc(fmtShort(x.to))} · ` : ''}${days.length} fechas · ${(x.rows || []).length} asignaciones</span></div>
+      ${st.all ? '' : `<div class="seg small" role="group" aria-label="Ver el programa"><button data-a="meca-mv" data-v="fechas" aria-pressed="${view === 'fechas'}">📅 Fechas</button><button data-a="meca-mv" data-v="hermanos" aria-pressed="${view === 'hermanos'}">👤 Hermanos</button></div>`}</div>
+    <div class="org-tools mc-tools"><button class="btn small" data-a="meca-share" data-id="${x.id}">🖼 Compartir imagen</button><button class="btn small ghost" data-a="meca-print" data-id="${x.id}">🖨 Imprimir carta</button><button class="btn small ghost" data-a="meca-remind" data-id="${x.id}">💬 Avisar a los hermanos</button></div>
+    ${view === 'hermanos' ? byPerson() : `${past.length ? `<details class="mc-past"><summary class="hint">Ver ${past.length} ${past.length === 1 ? 'fecha pasada' : 'fechas pasadas'}</summary><div class="mc-grid">${past.map(dayCard).join('')}</div></details>` : ''}
+      <div class="mc-grid">${rest.map(dayCard).join('')}</div>`}
+  </div>`;
+}
+
+// ───── Imprimir en hoja carta: tabla con fechas en filas y asignaciones en columnas ─────
+const escH = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+export function printProgram(id) {
+  const x = store.get('mecas', id) || currentArreglo();
+  if (!x) return toast('Primero importa un arreglo');
+  if (window.Capacitor?.isNativePlatform?.()) return toast('Para imprimir abre la app en la computadora. Desde el teléfono usa «Compartir imagen».');
+  const { roles, days } = programOf(x);
+  const cg = M.profile().congre || {};
+  const cgLine = [[cg.name, cg.number ? `(${cg.number})` : ''].filter(Boolean).join(' '), cg.circuit].filter(Boolean).join(' · ');
+  const reun = [cg.midweek ? `Entre semana: ${cg.midweek}` : '', cg.weekend ? `Fin de semana: ${cg.weekend}` : ''].filter(Boolean);
+  const head = mecaDept() ? M.deptHeads(mecaDept()).join(', ') : '';
+  const PAL = [{ n: 'Verde', p: '#1D5F5A' }, { n: 'Azul', p: '#1F4E8C' }, { n: 'Vino', p: '#7A2E3A' }, { n: 'Morado', p: '#4B3A7A' }, { n: 'Gris', p: '#3B4652' }];
+  let col = PAL[0].p; try { col = JSON.parse(localStorage.getItem('org-print-col') || '{}').p || col; } catch {}
+  const land = roles.length > 4;
+  const months = [...new Set(days.filter(d => d.d).map(d => d.d.slice(0, 7)))];
+  const rowsHtml = days.map((d, i) => { const L = d.d ? dayLabel(d.d) : null; const newMonth = i && d.d && days[i - 1].d && d.d.slice(0, 7) !== days[i - 1].d.slice(0, 7);
+    return `<tr class="${newMonth ? 'nm' : ''} ${L && ['Sáb', 'Dom'].includes(L.dow) ? 'we' : ''}"><th><span class="dw">${L ? L.dow : ''}</span> <b>${L ? L.d : '—'}</b> <span class="mo">${L ? L.m : ''}</span></th>${roles.map(r => `<td>${(d.cells[r] || []).map(escH).join('<br>') || '<span class="none">—</span>'}</td>`).join('')}</tr>`; }).join('');
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escH(x.title || 'Programa de asignaciones')}</title><style>
+    @page{size:letter ${land ? 'landscape' : 'portrait'};margin:10mm}
+    :root{--c2:${col};--c1:color-mix(in srgb,var(--c2) 78%,#000);--c3:color-mix(in srgb,var(--c2) 8%,#fff);--c4:color-mix(in srgb,var(--c2) 30%,#fff)}
+    *{box-sizing:border-box} body{margin:0;background:#e9ece8;font-family:Arial,"Helvetica Neue",system-ui,sans-serif;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .page{background:#fff;margin:10mm auto;width:${land ? '259mm' : '195.9mm'};height:${land ? '195.9mm' : '259mm'};overflow:hidden;display:flex;flex-direction:column;padding:0}
+    .fit{flex:1;overflow:hidden;display:flex;flex-direction:column}
+    .hdr{background:var(--c1);color:#fff;display:flex;justify-content:space-between;align-items:flex-end;gap:1em;padding:.5em .8em;border-radius:0 0 10px 10px}
+    .hdr h1{margin:0;font-size:1.55em;letter-spacing:.01em;text-transform:uppercase} .hdr .s{font-weight:700;font-size:.85em;margin-top:.15em;opacity:.95} .hdr .r{text-align:right;font-weight:700;font-size:.72em;line-height:1.45;white-space:nowrap}
+    .legend{display:flex;flex-wrap:wrap;gap:.4em 1em;padding:.5em .8em .2em;font-size:.8em;color:#333}
+    table{width:calc(100% - 1.6em);margin:.7em .8em 0;border-collapse:separate;border-spacing:0;border:1.5px solid var(--c4);border-radius:10px;overflow:hidden;table-layout:fixed}
+    thead th{background:var(--c2);color:#fff;font-size:.68em;text-transform:uppercase;letter-spacing:.02em;padding:.45em .25em;text-align:center;overflow-wrap:anywhere;line-height:1.2} .ri{display:block;font-size:1.3em;margin-bottom:.1em}
+    thead th:first-child{width:10em}
+    tbody th{background:var(--c3);color:var(--c1);text-align:left;padding:.35em .5em;font-weight:600;white-space:nowrap;border-right:1.5px solid var(--c4)}
+    tbody th b{font-size:1.25em} .dw{display:inline-block;min-width:2.2em;font-size:.8em;text-transform:uppercase} .mo{font-size:.8em}
+    td{padding:.35em .45em;text-align:center;font-weight:600;font-size:.95em;line-height:1.25;border-left:1px solid #e3e7e2}
+    tbody tr:nth-child(even) td{background:#f7f9f6} tbody tr + tr > *{border-top:1px solid #e3e7e2} tr.nm > *{border-top:2.5px solid var(--c2)!important}
+    tr.we th{color:var(--c2)} .none{color:#bbb}
+    .foot{display:flex;justify-content:space-between;color:#666;font-size:8pt;padding:.4em .8em .3em;margin-top:auto}
+    .bar{position:sticky;top:0;background:var(--c1);color:#fff;padding:10px;text-align:center;font:600 15px system-ui;z-index:5} .bar button{font:700 15px system-ui;padding:8px 18px;margin-left:10px;border-radius:8px;border:0;cursor:pointer}
+    .sw{width:22px;height:22px;padding:0!important;margin:0 2px!important;border-radius:50%!important;border:2px solid #fff!important;vertical-align:middle} .bar input{width:34px;height:24px;border:0;padding:0;vertical-align:middle}
+    @media print{body{background:#fff} .bar{display:none} .page{margin:0}}
+    </style></head><body>
+    <div class="bar">Hoja carta ${land ? 'horizontal' : 'vertical'} · Colores: ${PAL.map(p => `<button type="button" class="sw" title="${p.n}" style="background:${p.p}" data-p="${p.p}"></button>`).join('')} <input type="color" id="cp" value="${col}"> <button onclick="print()">🖨 Imprimir / Guardar PDF</button></div>
+    <section class="page"><div class="fit">
+      <div class="hdr"><div><h1>${escH(x.title || 'Programa de asignaciones')}</h1>${cgLine ? `<div class="s">${escH(cgLine)}</div>` : ''}</div><div class="r">${[...reun, head ? `Encargado: ${head}` : ''].filter(Boolean).map(escH).join('<br>')}</div></div>
+      <table><thead><tr><th>Fecha</th>${roles.map(r => `<th><span class="ri">${roleIc(r)}</span>${escH(r)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table>
+    </div><div class="foot"><span>${months.length ? escH(months.map(m => `${['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][+m.slice(5) - 1]} ${m.slice(0, 4)}`).join(' – ')) : ''}</span><span>Actualizado el ${escH(fmtShort(today()))} · Mi Agenda Teocrática</span></div></section>
+    <script>
+      function fit(){var pg=document.querySelector('.page'),f=pg.querySelector('.fit'),s=15;var used=function(){return f.lastElementChild.getBoundingClientRect().bottom-f.getBoundingClientRect().top};pg.style.fontSize=s+'pt';f.style.zoom='';while(used()<f.clientHeight*.72&&s<17){s+=.5;pg.style.fontSize=s+'pt';}while(used()>f.clientHeight-4&&s>8){s-=.5;pg.style.fontSize=s+'pt';}if(used()>f.clientHeight-4)f.style.zoom=((f.clientHeight-6)/used()).toFixed(3);}
+      function setCol(p){document.documentElement.style.setProperty('--c2',p);document.getElementById('cp').value=p;try{var o=JSON.parse(opener.localStorage.getItem('org-print-col')||'{}');o.p=p;opener.localStorage.setItem('org-print-col',JSON.stringify(o))}catch(e){}}
+      document.querySelectorAll('.sw').forEach(function(b){b.onclick=function(){setCol(b.dataset.p)}});
+      document.getElementById('cp').oninput=function(){setCol(this.value)};
+      fit();setTimeout(function(){fit();print();},400);
+    <\/script></body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return toast('Permite las ventanas emergentes para imprimir');
+  w.document.write(html); w.document.close();
+}
+
+// ───── Imagen para WhatsApp (tabla dibujada) ─────
+export function drawProgram(x) {
+  const { roles, days } = programOf(x);
+  const cg = M.profile().congre || {};
+  // Siempre el tono oscuro del color de la app (en modo oscuro el claro no deja leer el texto blanco)
+  const accent = { azul: '#2B5C9E', vino: '#8A2D45', morado: '#5E4A9E', terracota: '#A5522A' }[document.documentElement.dataset.accent] || '#1D5F5A';
+  const W = Math.max(1000, 190 + roles.length * 210), PAD = 30, DW = 150, CW = (W - PAD * 2 - DW) / Math.max(1, roles.length);
+  const f = (w, s) => `${w} ${s}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  const c = document.createElement('canvas'), ctx = c.getContext('2d');
+  const lines = (t, w) => { ctx.font = f(600, 21); const words = String(t).split(/\s+/); const out = []; let cur = ''; words.forEach(wd => { const tt = cur ? `${cur} ${wd}` : wd; if (ctx.measureText(tt).width > w && cur) { out.push(cur); cur = wd; } else cur = tt; }); if (cur) out.push(cur); return out; };
+  const rowsL = days.map(d => roles.map(r => (d.cells[r] || []).flatMap(n => lines(n, CW - 20))));
+  const rowH = rowsL.map(cells => Math.max(56, 22 + Math.max(1, ...cells.map(l => l.length)) * 26));
+  const top = 150, headH = 54;
+  const H = top + headH + rowH.reduce((a, b) => a + b, 0) + 70;
+  const S = 2; c.width = W * S; c.height = H * S; ctx.scale(S, S);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = accent; ctx.fillRect(0, 0, W, 118);
+  ctx.fillStyle = '#fff'; ctx.font = f(800, 34); ctx.fillText(String(x.title || 'Programa de asignaciones').toUpperCase().slice(0, 60), PAD, 56);
+  ctx.font = f(600, 20); ctx.fillText([[cg.name, cg.number ? `(${cg.number})` : ''].filter(Boolean).join(' '), [cg.midweek, cg.weekend].filter(Boolean).join(' · ')].filter(Boolean).join('   ·   '), PAD, 92);
+  let y = top;
+  const round = (x0, y0, w, h, r) => { ctx.beginPath(); ctx.moveTo(x0 + r, y0); ctx.arcTo(x0 + w, y0, x0 + w, y0 + h, r); ctx.arcTo(x0 + w, y0 + h, x0, y0 + h, r); ctx.arcTo(x0, y0 + h, x0, y0, r); ctx.arcTo(x0, y0, x0 + w, y0, r); ctx.closePath(); };
+  round(PAD, y, W - PAD * 2, headH, 10); ctx.fillStyle = accent; ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = f(800, 19); ctx.textAlign = 'center';
+  ctx.fillText('FECHA', PAD + DW / 2, y + 34);
+  roles.forEach((r, i) => ctx.fillText(`${roleIc(r)} ${r.toUpperCase()}`, PAD + DW + CW * i + CW / 2, y + 34));
+  y += headH;
+  const t = today(), next = days.find(d => d.d >= t)?.d;
+  days.forEach((d, i) => {
+    const h = rowH[i];
+    ctx.fillStyle = d.d === next ? '#FFF6DE' : i % 2 ? '#F4F7F3' : '#FFFFFF'; ctx.fillRect(PAD, y, W - PAD * 2, h);
+    ctx.fillStyle = '#E3E7E2'; ctx.fillRect(PAD, y + h - 1, W - PAD * 2, 1);
+    const L = d.d ? dayLabel(d.d) : null;
+    ctx.textAlign = 'left'; ctx.fillStyle = accent; ctx.font = f(700, 16); ctx.fillText(L ? L.dow.toUpperCase() : '', PAD + 14, y + h / 2 + 6);
+    ctx.font = f(800, 26); ctx.fillText(L ? String(L.d) : '—', PAD + 62, y + h / 2 + 9);
+    ctx.font = f(600, 16); ctx.fillText(L ? L.m : '', PAD + 98, y + h / 2 + 6);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#17282A'; ctx.font = f(600, 21);
+    rowsL[i].forEach((ls, k) => { const cx = PAD + DW + CW * k + CW / 2; const y0 = y + h / 2 - (Math.max(1, ls.length) - 1) * 13 + 7; (ls.length ? ls : ['—']).forEach((l, j) => { ctx.fillStyle = ls.length ? '#17282A' : '#B8BDB8'; ctx.fillText(l, cx, y0 + j * 26); }); });
+    y += h;
+  });
+  ctx.textAlign = 'right'; ctx.fillStyle = '#7A8584'; ctx.font = f(500, 16); ctx.fillText(`Actualizado el ${fmtShort(t)} · Mi Agenda Teocrática`, W - PAD, H - 26);
+  return c;
+}
+export async function shareProgram(id) {
+  const x = store.get('mecas', id) || currentArreglo();
+  if (!x) return toast('Primero importa un arreglo');
+  const c = drawProgram(x);
+  c.toBlob(async blob => {
+    const file = new File([blob], `programa-asignaciones-${today()}.png`, { type: 'image/png' });
+    try { if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: x.title || 'Programa de asignaciones' }); return; } } catch (e) { if (e?.name === 'AbortError') return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('Imagen descargada');
+  }, 'image/png');
+}
+
+// ───── Avisar a cada hermano sus asignaciones (un mensaje de WhatsApp por persona) ─────
+export async function remindSheet(id, span = 'semana') {
+  const x = store.get('mecas', id) || currentArreglo();
+  if (!x) return;
+  const { open } = await S();
+  const t = today(), end = span === 'todo' ? '9999' : addDays(t, span === 'mes' ? 31 : 7);
+  const by = {};
+  (x.rows || []).filter(r => r.d && r.d >= t && r.d <= end).sort((a, b) => a.d.localeCompare(b.d)).forEach(r => { const p = rowPerson(r); const k = p?.id || nn(r.n); (by[k] = by[k] || { p, n: p?.name || r.n, list: [] }).list.push(r); });
+  const list = Object.values(by).sort((a, b) => a.n.localeCompare(b.n, 'es'));
+  const chip = (v, n) => `<button class="chip" data-a="meca-remind" data-id="${x.id}" data-v="${v}" aria-pressed="${span === v}">${n}</button>`;
+  open({ title: 'Avisar a los hermanos', body: `<p class="hint">Cada hermano recibe sus asignaciones en un mensaje de WhatsApp. Toca «Enviar» en cada uno.</p>
+    <div class="chips">${chip('semana', 'Próximos 7 días')}${chip('mes', 'Próximo mes')}${chip('todo', 'Todo el programa')}</div>
+    ${list.length ? `<div class="stack">${list.map(b => `<div class="card mini row-card"><span class="grow"><strong>${esc(b.n)}</strong><span class="meta">${esc(b.list.map(r => `${fmtShort(r.d)} ${r.r}`).join(' · '))}</span>${b.p?.phone ? '' : '<span class="meta warn-t">Sin teléfono: se comparte el mensaje</span>'}</span>
+      <button class="btn small" data-a="meca-remind-send" data-id="${x.id}" data-v="${span}" data-k="${esc(b.p?.id || nn(b.n))}">💬 Enviar</button></div>`).join('')}</div>` : '<p class="hint pad">No hay asignaciones en ese tiempo.</p>'}` });
+}
+export async function remindSend(id, span, key) {
+  const x = store.get('mecas', id) || currentArreglo();
+  if (!x) return;
+  const t = today(), end = span === 'todo' ? '9999' : addDays(t, span === 'mes' ? 31 : 7);
+  const rows = (x.rows || []).filter(r => r.d && r.d >= t && r.d <= end).filter(r => (rowPerson(r)?.id || nn(r.n)) === key).sort((a, b) => a.d.localeCompare(b.d));
+  if (!rows.length) return;
+  const p = rowPerson(rows[0]);
+  const first = (p?.name || rows[0].n).split(' ')[0];
+  const byD = rows.reduce((o, r) => { (o[r.d] = o[r.d] || []).push(r.r); return o; }, {});
+  const text = [`Hola, ${first}. Te recuerdo tus asignaciones:`, '', ...Object.entries(byD).map(([d, rs]) => `• ${fmtLongD(d).charAt(0).toUpperCase() + fmtLongD(d).slice(1)}: ${rs.join(' y ')}`), '', '¡Gracias por tu apoyo!'].join('\n');
+  if (p?.phone) { window.open(`${waLink(p.phone)}?text=${encodeURIComponent(text)}`, '_blank'); return; }
+  try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e?.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(text); toast('Mensaje copiado: pégalo en WhatsApp'); } catch { toast('No se pudo compartir'); }
+}
+const fmtLongD = iso => { const d = pISO(iso); return `${['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][d.getDay()]} ${d.getDate()} de ${['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][d.getMonth()]}`; };

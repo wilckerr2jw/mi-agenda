@@ -9,9 +9,11 @@ import * as store from './store.js';
 import * as M from './model.js';
 import { esc, today, toast, fmtShort, addDays } from './util.js';
 import * as V from './visita.js';
-import { mecaStats } from './mecas.js';
+import { mecaStats, rowPerson, programOf } from './mecas.js';
+import * as A from './agenda.js';
 
 export const SECTIONS = [
+  ['agenda', '🗓 Agenda de la próxima reunión', 'Los puntos, a qué hora empieza cada uno y quién lo presenta (sin los privados ni los detalles de los confidenciales)'],
   ['org', '🏛 Organigrama', 'Departamentos, responsables y ayudantes'],
   ['acuerdos', '📋 Acuerdos y tareas', 'De las reuniones que elijas, con responsable, fecha y si ya están hechos'],
   ['visita', '🧳 Visita del superintendente', 'Lo que hay que preparar, quién lo prepara y las fechas límite'],
@@ -39,6 +41,29 @@ async function sha(text) { return b64u(await crypto.subtle.digest('SHA-256', enc
 
 // ───── Lo que se comparte ─────
 const cfg = () => M.profile().share || null;
+// Las partes que se comparten. «Agenda» es nueva (9.8): en los enlaces ya creados se agrega sola, salvo que la quites.
+export const sectionsOf = c => { const all = SECTIONS.map(x => x[0]); if (!c?.sections) return all; return c.sections.includes('agenda') || c.agendaOff ? c.sections : ['agenda', ...c.sections]; };
+// La próxima reunión del cuerpo de ancianos con agenda (o, si no hay, la próxima reunión con agenda)
+export function nextAgendaMeeting() {
+  const t = today();
+  const up = data.meetings.filter(m => (m.date || '') >= t && (m.agenda || []).some(x => !x.priv)).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+  return up.find(m => /ancianos|cuerpo/i.test(m.title || '')) || up[0] || null;
+}
+function agendaSnap() {
+  const m = nextAgendaMeeting();
+  if (!m) return null;
+  const list = A.sortByBlock((m.agenda || []).filter(x => !x.priv));
+  const prayer = true;
+  const sch = A.schedule(list, m.time, prayer);
+  const pr = m.prayers || {};
+  const total = A.agendaTotal(list, prayer);
+  return {
+    t: m.title || 'Reunión', d: m.date || '', time: m.time || '', place: m.place || '',
+    end: m.time && total ? A.endTime(m.time, total) : '', total,
+    pStart: { at: sch.prayerStart || '', who: pr.start || '' }, pEnd: { at: sch.prayerEnd || '', who: pr.end || '' },
+    items: list.map(x => ({ t: x.t || '', at: sch.items[x.id] || '', by: A.joinNames(A.splitNames(x.by)), min: Number(x.min) || 0, k: A.AGENDA_KINDS[x.kind || 'informar']?.n || '', conf: x.conf ? 1 : 0, ref: x.ref ? A.formatRef(x.ref) : '', subs: x.conf ? [] : (x.subs || []) })),
+  };
+}
 export const isActive = () => !!cfg()?.secret;
 // Reuniones con acuerdos (las más recientes primero)
 export const meetingsWithAgreements = () => [...data.meetings].filter(m => (m.date || '') <= addDays(today(), 7) && M.parseAgreements(m).length)
@@ -95,17 +120,18 @@ function mecasSnap() {
   return {
     arreglos: show.map(x => {
       const byD = {};
-      (x.rows || []).forEach(r => { (byD[r.d || ''] = byD[r.d || ''] || []).push({ r: r.r, n: M.personName(r.pid) || r.n }); });
-      return { t: x.title || 'Arreglo', from: x.from || '', to: x.to || '', days: Object.keys(byD).sort().map(d => ({ d, rows: byD[d] })) };
+      (x.rows || []).forEach(r => { (byD[r.d || ''] = byD[r.d || ''] || []).push({ r: r.r, n: rowPerson(r)?.name || r.n }); });
+      return { t: x.title || 'Arreglo', from: x.from || '', to: x.to || '', roles: programOf(x).roles, days: Object.keys(byD).sort().map(d => ({ d, rows: byD[d] })) };
     }),
     notUsed: s.notUsed.map(p => p.name), heavy: s.heavy.map(b => `${b.p.name} (${b.n})`),
   };
 }
 export function snapshot(c = cfg() || {}) {
-  const sec = c.sections || SECTIONS.map(x => x[0]);
+  const sec = sectionsOf(c);
   const v = M.profile();
   return {
     v: 1, by: v.myName || '', congre: v.congre?.name || '',
+    agenda: sec.includes('agenda') ? agendaSnap() : null,
     org: sec.includes('org') ? orgSnap() : null,
     acuerdos: sec.includes('acuerdos') ? acuerdosSnap(c) : null,
     visita: sec.includes('visita') ? visitaSnap() : null,
@@ -162,11 +188,12 @@ export async function sheet() {
   const { open } = await S();
   if (!store.isCloud) { open({ title: '🔗 Enlace para los ancianos', body: '<p class="hint warn">Para compartir necesitas usar la app con tu cuenta (modo nube).</p>' }); return; }
   const c = cfg();
-  const sec = c?.sections || SECTIONS.map(x => x[0]);
+  const sec = sectionsOf(c);
+  const nm = nextAgendaMeeting();
   const mts = meetingsWithAgreements().slice(0, 8);
   const list = Array.isArray(c?.meetings) ? c.meetings : ['auto'];
   const chosen = new Set(list);
-  const secHtml = SECTIONS.map(([k, n, d]) => `<label class="check"><input type="checkbox" name="shsec" value="${k}" ${sec.includes(k) ? 'checked' : ''}> <span><b>${n}</b><br><small class="hint">${esc(d)}</small></span></label>`).join('');
+  const secHtml = SECTIONS.map(([k, n, d]) => `<label class="check"><input type="checkbox" name="shsec" value="${k}" ${sec.includes(k) ? 'checked' : ''}> <span><b>${n}</b><br><small class="hint">${esc(d)}${k === 'agenda' ? (nm ? ` · ahora: ${esc(nm.title || 'Reunión')}, ${esc(fmtShort(nm.date))}` : ' · saldrá cuando prepares la agenda de una reunión') : ''}</small></span></label>`).join('');
   const mtHtml = `<div class="f" id="sh-mts" ${sec.includes('acuerdos') ? '' : 'hidden'}><span class="lbl">Acuerdos de qué reuniones</span>
     <label class="check"><input type="checkbox" name="shmt" value="auto" ${chosen.has('auto') ? 'checked' : ''}> <span><b>La última reunión con acuerdos</b><br><small class="hint">Cambia sola cuando haces otra reunión${mts[0] ? ` (ahora: ${esc(mts[0].title || 'Reunión')}, ${esc(fmtShort(mts[0].date))})` : ''}</small></span></label>
     ${mts.slice(1).map(m => `<label class="check"><input type="checkbox" name="shmt" value="${m.id}" ${chosen.has(m.id) ? 'checked' : ''}> ${esc(m.title || 'Reunión')} <span class="hint">· ${esc(fmtShort(m.date))}</span></label>`).join('')}
@@ -197,7 +224,7 @@ export async function sheet() {
 function formChoice() {
   const sections = [...document.querySelectorAll('input[name="shsec"]:checked')].map(i => i.value);
   const meetings = [...document.querySelectorAll('input[name="shmt"]:checked')].map(i => i.value);
-  return { sections, meetings };
+  return { sections, meetings, agendaOff: !sections.includes('agenda') };
 }
 async function saveCfg(c) {
   const v = M.profile();
@@ -205,11 +232,11 @@ async function saveCfg(c) {
 }
 export async function create(rekey = false) {
   const prev = cfg();
-  const { sections, meetings } = rekey && prev ? { sections: prev.sections, meetings: prev.meetings } : formChoice();
+  const { sections, meetings, agendaOff } = rekey && prev ? { sections: sectionsOf(prev), meetings: prev.meetings, agendaOff: !!prev.agendaOff } : formChoice();
   if (!sections.length) return toast('Marca al menos una parte para compartir');
   toast('Creando el enlace cifrado…');
   try {
-    const c = await newConfig(sections, meetings);
+    const c = { ...await newConfig(sections, meetings), agendaOff };
     const hash = await publish(c, true);
     if (prev?.id && prev.id !== c.id) await store.shareRemove(prev.id).catch(() => {});
     await saveCfg({ ...c, hash, updatedAt: new Date().toISOString() });
@@ -219,9 +246,9 @@ export async function create(rekey = false) {
 }
 export async function saveChoice() {
   const c = cfg(); if (!c) return;
-  const { sections, meetings } = formChoice();
+  const { sections, meetings, agendaOff } = formChoice();
   if (!sections.length) return toast('Marca al menos una parte para compartir');
-  const next = { ...c, sections, meetings };
+  const next = { ...c, sections, meetings, agendaOff };
   try { const hash = await publish(next, true); await saveCfg({ ...next, hash, updatedAt: new Date().toISOString() }); toast('✓ Actualizado: los ancianos ya lo ven así'); setTimeout(sheet, 300); } catch (e) { console.warn(e); toast('No se pudo actualizar. Revisa la conexión.'); }
 }
 export async function confirm(what) {
@@ -246,7 +273,7 @@ export async function copy(what) {
 export async function send(what) {
   const c = cfg(); if (!c) return;
   const text = what === 'code' ? `Clave para abrir el enlace: ${c.code}`
-    : `📋 Para el cuerpo de ancianos${M.profile().congre?.name ? ` de ${M.profile().congre.name}` : ''}: ${SECTIONS.filter(([k]) => (c.sections || []).includes(k)).map(x => x[1].replace(/^\S+\s/, '').toLowerCase()).join(', ')}. Se actualiza solo.\n${linkOf(c)}\nLa clave te la mando aparte.`;
+    : `📋 Para el cuerpo de ancianos${M.profile().congre?.name ? ` de ${M.profile().congre.name}` : ''}: ${SECTIONS.filter(([k]) => sectionsOf(c).includes(k)).map(x => x[1].replace(/^\S+\s/, '').toLowerCase()).join(', ')}. Se actualiza solo.\n${linkOf(c)}\nLa clave te la mando aparte.`;
   try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e?.name === 'AbortError') return; }
   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 }

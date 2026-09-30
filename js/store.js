@@ -59,6 +59,7 @@ function protectMe(item) {
 }
 function write(col, item, opts = {}) {
   if (col === 'events' && item.sharedId) return sharedWrite(item);
+  if (col === 'tasks' && item.assignedFrom) return assignedAnswer(item);
   // Protección: nunca se guarda el perfil antes de haberlo recibido de la nube
   // (si no, un perfil vacío borraría tu rol, tus metas y tus ajustes)
   if (col === 'profile' && isCloud && !profileLoaded) { console.warn('Perfil aún no cargado: no se guarda'); return; }
@@ -68,6 +69,7 @@ function write(col, item, opts = {}) {
   if (i >= 0) data[col][i] = item; else data[col].push(item);
   notify();
   if (isCloud) cloud.upsert(col, item); else local.persist();
+  if (col === 'tasks' && item.assignedId && !opts.fromRemote) assignedPush(item);
 }
 
 // Cambia solo algunos campos del perfil. Si el perfil aún no llegó de la nube, espera a que llegue.
@@ -96,6 +98,9 @@ export function upsert(col, item, opts = {}) {
 
 export function remove(col, id) {
   if (col === 'events' && String(id).startsWith(SH)) return sharedRemove(id);
+  if (col === 'tasks' && String(id).startsWith(AS)) return assignedRespond(id.slice(AS.length), false);
+  const gone = col === 'tasks' ? data.tasks.find(x => x.id === id) : null;
+  if (gone?.assignedId && fb && account.user) fb.fs.deleteDoc(fb.fs.doc(fb.db, 'assigned', gone.assignedId)).catch(() => {});
   data[col] = data[col].filter(x => x.id !== id);
   notify();
   if (isCloud) cloud.remove(col, id); else local.persist();
@@ -106,7 +111,7 @@ export const restore = (col, item) => write(col, item);
 
 // ---------- Respaldo ----------
 export function exportAll() {
-  const own = { ...data, events: data.events.filter(e => !e.sharedId) };   // los compartidos son de otra colección
+  const own = { ...data, events: data.events.filter(e => !e.sharedId), tasks: data.tasks.filter(t => !t.assignedFrom) };   // los compartidos y las tareas recibidas son de otra colección
   return JSON.stringify({ app: 'mi-agenda-teocrática', version: 1.3, exportedAt: new Date().toISOString(), data: own }, null, 2);
 }
 
@@ -219,6 +224,7 @@ export function startSync(uid) {
         seenCols.add(c);
         const list = snap.docs.map(d => ({ ...d.data(), id: d.id }));
         if (c === 'events') { ownEvents = list; composeEvents(); }
+        else if (c === 'tasks') { ownTasks = list; composeTasks(); }
         else { data[c] = list; if (c === 'profile') { if (list.length || !snap.metadata.fromCache) profileArrived(); composeEvents(); if (myName() !== lastMemberName) touchMember(); } }
         notify();
       },
@@ -229,13 +235,22 @@ export function startSync(uid) {
   unsubs.push(fb.fs.onSnapshot(q,
     snap => { seenCols.add('shared'); sharedDocs = snap.docs.map(d => ({ ...d.data(), _id: d.id })); composeEvents(); notify(); },
     err => { seenCols.add('shared'); console.warn('Compartidos no disponibles', err); }));
+  // Tareas que te asignaron otras cuentas, y las que tú asignaste
+  const aq = field => fb.fs.query(fb.fs.collection(fb.db, 'assigned'), fb.fs.where(field, '==', uid));
+  unsubs.push(fb.fs.onSnapshot(aq('to'),
+    snap => { seenCols.add('assignedIn'); assignedIn = snap.docs.map(d => ({ ...d.data(), _id: d.id })); composeTasks(); notify(); },
+    err => { seenCols.add('assignedIn'); console.warn('Tareas recibidas no disponibles', err); }));
+  unsubs.push(fb.fs.onSnapshot(aq('owner'),
+    snap => { seenCols.add('assignedOut'); assignedOut = snap.docs.map(d => ({ ...d.data(), _id: d.id })); assignedPull(); },
+    err => { seenCols.add('assignedOut'); console.warn('Tareas asignadas no disponibles', err); }));
   // Te anotas en la lista de cuentas (solo tu nombre) para que otros puedan compartirte eventos
   touchMember();
 }
 
 // ═════════════════════════════ EVENTOS COMPARTIDOS ═════════════════════════════
 // shared/{id} → { ...campos del evento, owner, ownerName, members: [uid], memberNames: {uid: nombre}, updatedBy, updatedByName }
-// Todos los miembros lo ven y lo pueden editar; solo quien lo creó cambia con quién se comparte o lo borra.
+// Todos los miembros lo ven; solo quien lo creó lo cambia, cambia con quién se comparte o lo borra (mínimo privilegio).
+// Los demás solo marcan su propio ✓ (doneLog) y lo pueden quitar de su agenda.
 // En la app aparecen mezclados con tus eventos (id «sh_…» y sharedId); ocultarlos se guarda en profile.sharedHidden.
 const SH = 'sh_';
 let ownEvents = [];
@@ -265,12 +280,19 @@ function setHidden(sharedId, hide) {
 }
 
 function sharedWrite(item) {
+  const prev = sharedDocs.find(d => d._id === item.sharedId);
+  // Si no lo creaste tú, no se cambia: solo vuelve a verse si lo habías quitado (por ejemplo, con «Deshacer»)
+  if (prev && prev.owner !== uidOf() && fb && account.user) {
+    setHidden(item.sharedId, false);
+    notify();
+    if (JSON.stringify(pick(prev)) !== JSON.stringify(pick(item))) onError({ friendly: `Solo ${prev.ownerName || 'quien lo creó'} puede cambiar este evento.` });
+    return;
+  }
   const i = data.events.findIndex(x => x.id === item.id);
   if (i >= 0) data.events[i] = item; else data.events.push(item);
   notify();
   if (!fb || !account.user) return;
   const ref = fb.fs.doc(fb.db, 'shared', item.sharedId);
-  const prev = sharedDocs.find(d => d._id === item.sharedId);
   const base = { ...pick(item), updatedAt: new Date().toISOString(), updatedBy: uidOf(), updatedByName: myName() };
   if (prev) fb.fs.updateDoc(ref, JSON.parse(JSON.stringify(base))).catch(onError);
   else fb.fs.setDoc(ref, JSON.parse(JSON.stringify({ ...base, owner: item.owner, ownerName: item.ownerName, members: item.members, memberNames: item.memberNames || {}, createdAt: item.createdAt || base.updatedAt }))).catch(onError);
@@ -346,12 +368,105 @@ function touchMember() {
   fb.fs.setDoc(fb.fs.doc(fb.db, 'members', account.user.uid), { name: myName(), updatedAt: new Date().toISOString() }).catch(() => {});
 }
 export const refreshMember = () => touchMember();
+let membersCache = null;
 export async function listMembers() {
   if (!fb || !account.user) return [];
   const snap = await fb.fs.getDocs(fb.fs.collection(fb.db, 'members'));
-  return snap.docs.map(d => ({ uid: d.id, name: d.data().name || '' })).filter(m => m.uid !== account.user.uid && m.name)
+  membersCache = snap.docs.map(d => ({ uid: d.id, name: d.data().name || '' })).filter(m => m.uid !== account.user.uid && m.name)
     .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  return membersCache;
 }
+// Las cuentas ya cargadas (sin esperar a la nube); null si aún no se pidieron
+export const cachedMembers = () => membersCache;
+
+// ═════════════════════════════ TAREAS ASIGNADAS A OTRA CUENTA ═════════════════════════════
+// assigned/{id} → { owner, ownerName, to, toName, title, notes, kind, priority, due, dueTime,
+//                   state: 'nueva' | 'aceptada' | 'rechazada', done, doneAt, log: [{ d, t, by, byName }], createdAt, updatedAt, updatedBy }
+// Mínimo privilegio (lo exigen las reglas de Firestore): quien la asigna cambia el contenido o la borra;
+// quien la recibe solo la acepta o la rechaza, anota avances y la marca hecha. Nadie borra los avances ya anotados.
+// En tu app: la tarea que enviaste lleva assignedId (y assignTo, assignToName, assignState);
+// las que recibes y aceptas aparecen en Tareas con id «as_…» y assignedFrom.
+const AS = 'as_';
+let ownTasks = [], assignedIn = [], assignedOut = [];
+const A_FIELDS = ['title', 'notes', 'kind', 'priority', 'due', 'dueTime'];
+const isoToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const aPick = t => Object.fromEntries(A_FIELDS.map(k => [k, String(t[k] ?? '')]));
+const logKey = l => `${l.d}|${l.t}`;
+// Los avances ya anotados se quedan en su orden; solo se agregan los nuevos
+const mergeLog = (base, extra) => { const seen = new Set(base.map(logKey)); return [...base, ...extra.filter(l => !seen.has(logKey(l)) && seen.add(logKey(l)))]; };
+const tagMine = l => (l.by ? l : { ...l, by: uidOf(), byName: myName() });
+export const isAssignedTask = t => !!t?.assignedFrom;
+export const assignedNew = () => assignedIn.filter(d => d.state === 'nueva').map(d => ({ ...d, id: d._id }));
+export const newAssignedId = () => (fb ? fb.fs.doc(fb.fs.collection(fb.db, 'assigned')).id : '');
+export const myUid = () => uidOf();
+
+function composeTasks() {
+  data.tasks = [...ownTasks, ...assignedIn.filter(d => d.state === 'aceptada').map(d => ({
+    ...aPick(d), id: AS + d._id, assignedFrom: d._id, fromName: d.ownerName || 'otra cuenta',
+    status: d.done ? 'hecha' : (d.log || []).length ? 'seguimiento' : 'pendiente', doneAt: d.doneAt || '',
+    log: d.log || [], mine: true, responsibles: [], personId: '', createdAt: d.createdAt, updatedAt: d.updatedAt,
+  }))];
+}
+
+// Quien asigna: guarda en la nube lo que cambió en su tarea (o la envía por primera vez)
+function assignedPush(item) {
+  if (!fb || !account.user) return;
+  const ref = fb.fs.doc(fb.db, 'assigned', item.assignedId);
+  const doc = assignedOut.find(d => d._id === item.assignedId);
+  const now = new Date().toISOString();
+  if (doc) {
+    // «Hecha» solo se envía si ya la aceptó (si no, la otra persona todavía no la tiene en su lista)
+    const done = doc.state === 'aceptada' ? item.status === 'hecha' : !!doc.done;
+    const log = mergeLog(doc.log || [], (item.log || []).map(tagMine));
+    const patch = { ...aPick(item), done, doneAt: done ? (item.doneAt || isoToday()) : '', log };
+    const cur = { ...aPick(doc), done: !!doc.done, doneAt: doc.doneAt || '', log: doc.log || [] };
+    if (JSON.stringify(patch) === JSON.stringify(cur)) return;
+    fb.fs.updateDoc(ref, JSON.parse(JSON.stringify({ ...patch, updatedAt: now, updatedBy: uidOf() }))).catch(e => { if (e?.code !== 'not-found') onError(e); });
+  } else if (item.assignTo) {
+    fb.fs.setDoc(ref, JSON.parse(JSON.stringify({ ...aPick(item), owner: uidOf(), ownerName: myName(), to: item.assignTo, toName: item.assignToName || '',
+      state: 'nueva', done: false, doneAt: '', log: [], createdAt: now, updatedAt: now, updatedBy: uidOf() }))).catch(onError);
+  }
+}
+// Quien asigna: trae a su tarea lo que hizo la otra persona (si la aceptó, sus avances y si ya la hizo)
+function assignedPull() {
+  assignedOut.forEach(doc => {
+    const t = ownTasks.find(x => x.assignedId === doc._id);
+    if (!t) return;
+    const fromThem = doc.updatedBy && doc.updatedBy !== uidOf();
+    const log = mergeLog(t.log || [], doc.log || []);
+    const next = { ...t, assignState: doc.state, log };
+    if (fromThem) { next.status = doc.done ? 'hecha' : log.length ? 'seguimiento' : 'pendiente'; next.doneAt = doc.done ? (doc.doneAt || '') : ''; }
+    const k = x => JSON.stringify([x.assignState, x.log, x.status, x.doneAt || '']);
+    if (k(next) !== k(t)) write('tasks', { ...next, updatedAt: new Date().toISOString() }, { fromRemote: true });
+  });
+  notify();
+}
+// Quien recibe: anota avances o la marca hecha (lo único que puede cambiar)
+function assignedAnswer(item) {
+  const d = assignedIn.find(x => x._id === item.assignedFrom);
+  if (!d || !fb || !account.user) return;
+  const done = item.status === 'hecha';
+  const patch = { done, doneAt: done ? (item.doneAt || isoToday()) : '', log: mergeLog(d.log || [], (item.log || []).map(tagMine)), state: 'aceptada', updatedAt: new Date().toISOString(), updatedBy: uidOf() };
+  Object.assign(d, patch); composeTasks(); notify();
+  fb.fs.updateDoc(fb.fs.doc(fb.db, 'assigned', d._id), JSON.parse(JSON.stringify(patch))).catch(onError);
+}
+// Quien recibe: acepta o rechaza una tarea nueva (rechazar también sirve para quitarla de su lista)
+export function assignedRespond(id, accept) {
+  const d = assignedIn.find(x => x._id === id);
+  if (!d || !fb || !account.user) return;
+  const patch = { state: accept ? 'aceptada' : 'rechazada', updatedAt: new Date().toISOString(), updatedBy: uidOf(), ...(accept ? {} : { done: false, doneAt: '' }) };
+  Object.assign(d, patch); composeTasks(); notify();
+  fb.fs.updateDoc(fb.fs.doc(fb.db, 'assigned', id), patch).catch(onError);
+}
+// Quien asigna: deja de enviarla (se le quita a la otra persona; tu tarea queda igual, solo tuya)
+export function assignedStop(taskId) {
+  const t = data.tasks.find(x => x.id === taskId);
+  if (!t?.assignedId) return;
+  if (fb && account.user) fb.fs.deleteDoc(fb.fs.doc(fb.db, 'assigned', t.assignedId)).catch(onError);
+  const { assignedId, assignTo, assignToName, assignState, ...rest } = t;
+  write('tasks', { ...rest, updatedAt: new Date().toISOString() }, { explicit: true });
+}
+
 
 export function stopSync() {
   unsubs.forEach(u => u());
@@ -359,7 +474,7 @@ export function stopSync() {
   profileLoaded = false; profileQueue = [];
   seenCols.clear(); syncStart = 0;
   COLS.forEach(c => { data[c] = []; });
-  ownEvents = []; sharedDocs = [];
+  ownEvents = []; sharedDocs = []; ownTasks = []; assignedIn = []; assignedOut = []; membersCache = null;
   notify();
 }
 

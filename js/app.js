@@ -193,6 +193,12 @@ document.addEventListener('click', e => {
     // tareas
     case 'task': return S.taskSheet(id);
     case 'dept-task': return S.taskSheet(id, {}, () => S.deptSheet(el.dataset.dept || ''));
+    case 'assign-stop': return S.assignStop(id);
+    case 'as-inbox': return S.assignedInboxSheet();
+    case 'as-accept': return S.assignedAnswer(id, true);
+    case 'as-reject': return S.assignedAnswer(id, false);
+    case 'as-log': return S.assignedLog(id);
+    case 'as-toggle': return S.assignedToggle(id);
     case 'dept-assign': return S.deptAssign(id, el.dataset.v ?? '');
     case 'dept-suggest-tasks': return S.deptSuggestSheet();
     case 'dept-suggest-save': return S.deptSuggestSave();
@@ -273,6 +279,15 @@ document.addEventListener('click', e => {
     case 'meca-elders': ui.congre.me = !ui.congre.me; return render();
     case 'sy-move': if (v) { ui.informe.sy = Number(v); ui.informe.sm = ''; } return render();
     case 'meca-add-person': return Mc.addPerson(el.dataset.name);
+    case 'remind-tasks': return import('./recordar.js').then(R => R.sheet(v === undefined || v === '' ? 3 : Number(v)));
+    case 'remind-send': return import('./recordar.js').then(R => R.send(v, el.dataset.k));
+    case 'meca-add-unknown': return Mc.addUnknown();
+    case 'meca-add-all': Mc.addAll(id); return render();
+    case 'meca-mv': ui.congre.mv = v; return render();
+    case 'meca-share': return Mc.shareProgram(id);
+    case 'meca-print': return Mc.printProgram(id);
+    case 'meca-remind': return Mc.remindSheet(id, v || 'semana');
+    case 'meca-remind-send': return Mc.remindSend(id, v, el.dataset.k);
     case 'dept-unskip': S.deptRestoreSkipped(); return setTimeout(render, 50);
     case 'org-pick': ui.congre = { ...ui.congre, picking: !ui.congre.picking, picked: [], sorting: false }; return render();
     case 'org-view': ui.congre.view = v; try { localStorage.setItem('miagenda.orgVista', v); } catch { /* sin almacenamiento */ } return render();
@@ -767,7 +782,7 @@ async function boot() {
 
   store.setErrorHandler(err => {
     console.error(err);
-    toast(err?.code === 'permission-denied'
+    toast(err?.friendly ? err.friendly : err?.code === 'permission-denied'
       ? 'Sin permiso para guardar. Revisa las reglas de Firestore.'
       : 'No se pudo guardar. Se reintentará cuando haya conexión.');
   });

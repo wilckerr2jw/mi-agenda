@@ -182,6 +182,7 @@ export function printOrg() {
     .names.c3{columns:3} .none{color:#777;font-style:italic}
     .cols-pick{display:inline-flex;gap:6px;align-items:center;margin-left:12px} .sw{width:22px!important;height:22px;padding:0!important;margin:0!important;border-radius:50%!important;border:2px solid #fff!important} .cols-pick input{width:34px;height:24px;border:0;padding:0;vertical-align:middle}
     .bar{position:sticky;top:0;background:var(--c1);color:#fff;padding:10px;text-align:center;font:600 15px system-ui;z-index:5} .bar button{font:700 15px system-ui;padding:8px 18px;margin-left:10px;border-radius:8px;border:0;cursor:pointer}
+    .measure .gtit{margin-top:0!important}
     @media print{body{background:#fff} .bar{display:none} .page{margin:0} .land{break-after:page;page-break-after:always}}
     </style></head><body>
     <div class="bar">Hoja 1 horizontal y hoja 2 vertical, tamaño carta ${rost.some(x => x.r.k === 'pa') ? `<label style="margin-left:12px"><input type="checkbox" id="pa" ${withPA ? 'checked' : ''}> Incluir precursores auxiliares del mes</label>` : ''} <span class="cols-pick">Colores: ${PAL.map(x => `<button type="button" class="sw" title="${x.n}" style="background:${x.p}" data-p="${x.p}" data-g="${x.g}"></button>`).join('')} <label>Principal <input type="color" id="cp" value="${col.p}"></label> <label>Grupos <input type="color" id="cg" value="${col.g}"></label></span> <button onclick="print()">🖨 Imprimir / Guardar PDF</button></div>
@@ -196,7 +197,8 @@ export function printOrg() {
       <div class="foot">Página 2 de 2 · Actualizado el ${fmtShort(today())} · Mi Agenda Teocrática</div></section>
     <script>
       // Letra grande (15 pt en la hoja 1 y 16 pt en la 2); si algo no cabe se achica poco a poco (mínimo 9 y 13 pt)
-      function fit(){document.querySelectorAll('.page').forEach(function(pg){var land=pg.classList.contains('land'),f=pg.querySelector('.fit'),s=land?15:16,min=land?9:13;pg.style.fontSize=s+'pt';f.style.zoom='';while(f.scrollHeight>f.clientHeight-8&&s>min){s-=.5;pg.style.fontSize=s+'pt';}if(f.scrollHeight>f.clientHeight-8){f.style.zoom=((f.clientHeight-10)/f.scrollHeight).toFixed(3);}});}
+      // Se mide lo que ocupa el contenido (scrollHeight nunca es menor que la caja, por eso no sirve para esto)
+      function fit(){document.body.classList.add('measure');document.querySelectorAll('.page').forEach(function(pg){var land=pg.classList.contains('land'),f=pg.querySelector('.fit'),s=land?15:16,min=land?9:13;var used=function(){var l=f.lastElementChild;return l?l.getBoundingClientRect().bottom-f.getBoundingClientRect().top:0};pg.style.fontSize=s+'pt';f.style.zoom='';while(used()>f.clientHeight-8&&s>min){s-=.5;pg.style.fontSize=s+'pt';}if(used()>f.clientHeight-8){f.style.zoom=((f.clientHeight-10)/used()).toFixed(3);}});document.body.classList.remove('measure');}
       function pa(){var c=document.getElementById('pa'),on=c&&c.checked;document.querySelectorAll('.ros.pa').forEach(function(e){e.style.display=on?'':'none'});try{opener&&opener.localStorage.setItem('org-print-pa',on?'1':'0')}catch(e){}fit();}
       function setCol(p,g){var r=document.documentElement.style;r.setProperty('--c2',p);r.setProperty('--g',g);document.getElementById('cp').value=p;document.getElementById('cg').value=g;try{opener&&opener.localStorage.setItem('org-print-col',JSON.stringify({p:p,g:g}))}catch(e){}}
       document.querySelectorAll('.sw').forEach(function(b){b.onclick=function(){setCol(b.dataset.p,b.dataset.g)}});

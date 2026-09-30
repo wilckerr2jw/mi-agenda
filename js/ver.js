@@ -80,13 +80,34 @@ function visitaHtml(v) {
     ${v.groups.map(g => `<h3>${esc(g.ic)} ${esc(g.n)}${g.who?.length ? ` <span class="meta">· ${esc(g.who.join(', '))}</span>` : ''}</h3>
       ${g.items.map(it => `<div class="row"><span class="pill ${pillCls(it.st)}">${esc(it.st)}</span><span class="t">${esc(it.t)}${it.due ? ` <span class="meta ${it.st === 'Falta' && it.due < t ? 'late-t' : ''}">· antes del ${esc(fShort(it.due))}</span>` : ''}${it.note ? `<br><span class="meta">${esc(it.note).replace(/\n/g, '<br>')}</span>` : ''}</span></div>`).join('')}`).join('')}`;
 }
+const ROLE_IC = { Acomodador: '🪑', Puerta: '🚪', Audio: '🎚️', Video: '🎥', 'Micrófonos': '🎤', Plataforma: '🎙️', Zoom: '💻', Estacionamiento: '🅿️' };
+const DOW3 = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 function mecasHtml(m) {
   if (!m) return '<p class="meta">No hay un arreglo cargado.</p>';
-  return `${m.arreglos.map(a => `<h3>${esc(a.t)}${a.from ? ` <span class="meta">· ${esc(fShort(a.from))} – ${esc(fShort(a.to))}</span>` : ''}</h3>
-    ${a.days.map(d => `<div class="day"><b>${d.d ? esc(fLong(d.d)) : 'Sin fecha'}</b>${Object.entries(d.rows.reduce((o, r) => { (o[r.r] = o[r.r] || []).push(r.n); return o; }, {})).map(([r, ns]) => `<div class="meta">${esc(r)}: <span style="color:var(--ink)">${esc(ns.join(', '))}</span></div>`).join('')}</div>`).join('')}`).join('')}
+  const t = todayISO();
+  return `${m.arreglos.map(a => { const next = a.days.find(d => d.d >= t)?.d; const roles = a.roles?.length ? a.roles : [...new Set(a.days.flatMap(d => d.rows.map(r => r.r)))];
+    return `<h3>${esc(a.t)}${a.from ? ` <span class="meta">· ${esc(fShort(a.from))} – ${esc(fShort(a.to))}</span>` : ''}</h3>
+    <div class="mc-grid">${a.days.filter(d => !d.d || d.d >= t || a.days.every(x => x.d < t)).map(d => { const dt = d.d ? parse(d.d) : null; const by = d.rows.reduce((o, r) => { (o[r.r] = o[r.r] || []).push(r.n); return o; }, {});
+      return `<div class="mc-day${d.d === next ? ' next' : ''}"><div class="mc-date">${dt ? `<small>${DOW3[dt.getDay()]}</small><b>${dt.getDate()}</b><small>${MESES[dt.getMonth()].slice(0, 3)}</small>` : '<b>—</b>'}${d.d === next ? `<em>${d.d === t ? 'Hoy' : 'Próxima'}</em>` : ''}</div>
+        <div class="mc-cells">${roles.filter(r => by[r]).map(r => `<div><small>${ROLE_IC[r] || '📌'} ${esc(r)}</small><b>${esc(by[r].join(', '))}</b></div>`).join('')}</div></div>`; }).join('')}</div>`; }).join('')}
     ${m.notUsed?.length ? `<h3>⚠️ Sin asignación en los últimos 3 meses (${m.notUsed.length})</h3><div class="chips">${m.notUsed.map(n => `<span class="chip warn">${esc(n)}</span>`).join('')}</div>` : ''}
     ${m.heavy?.length ? `<h3>🔁 Los que más se repiten</h3><div class="chips">${m.heavy.map(n => `<span class="chip">${esc(n)}</span>`).join('')}</div>` : ''}`;
 }
+// Agenda de la próxima reunión: cada punto con su hora, quién lo presenta y los minutos
+function agendaHtml(a) {
+  if (!a) return '<p class="meta">Todavía no hay una agenda preparada para la próxima reunión.</p>';
+  const when = [a.d ? fLong(a.d) : '', a.time ? fmtT(a.time) : '', a.place].filter(Boolean).join(' · ');
+  const row = (at, t, meta, extra = '') => `<div class="ag-row"><span class="ag-at">${esc(at || '')}</span><span class="ag-t"><b>${t}</b>${meta ? `<br><span class="meta">${meta}</span>` : ''}${extra}</span></div>`;
+  let lastK = '';
+  return `<p class="ag-when"><b>${esc(a.t)}</b><br><span class="meta">${esc(when.charAt(0).toUpperCase() + when.slice(1))}${a.end ? ` · termina ≈ ${esc(a.end)}` : ''}</span></p>
+    <div class="ag">${row(a.pStart?.at, 'Oración inicial', esc(a.pStart?.who || ''))}
+    ${a.items.map(x => { const head = x.k && x.k !== lastK ? `<div class="ag-k">${esc(x.k)}</div>` : ''; lastK = x.k;
+      return head + row(x.at, `${x.conf ? '🔒 ' : ''}${esc(x.t)}`, [x.by ? `👤 ${esc(x.by)}` : '', x.min ? `${x.min} min` : ''].filter(Boolean).join(' · '),
+        `${x.ref ? `<br><span class="meta">📖 ${esc(x.ref)}</span>` : ''}${x.subs?.length ? `<ol type="a">${x.subs.map(s => `<li class="meta">${esc(s)}</li>`).join('')}</ol>` : ''}`); }).join('')}
+    ${row(a.pEnd?.at, 'Oración final', esc(a.pEnd?.who || ''))}</div>
+    ${a.items.some(x => x.conf) ? '<p class="meta">🔒 Los detalles de los puntos confidenciales se tratarán en la reunión.</p>' : ''}`;
+}
+const fmtT = t => { const [h, m] = String(t).split(':').map(Number); if (Number.isNaN(h)) return ''; return `${h % 12 || 12}:${String(m || 0).padStart(2, '0')} ${h < 12 ? 'a. m.' : 'p. m.'}`; };
 function orgHtml(list) {
   if (!list?.length) return '<p class="meta">Todavía no hay departamentos.</p>';
   const node = n => `<li><b>${esc(n.n)}</b>${n.g ? ' <span class="meta">· pertenecen a la congregación</span>' : n.h?.length ? `<br><span class="meta">★ ${esc(n.h.join(', '))}</span>` : '<br><span class="meta"><i>Sin responsable</i></span>'}${n.a?.length ? `<br><span class="meta">Ayudan: ${esc(n.a.join(', '))}</span>` : ''}${n.c?.length ? `<ul>${n.c.map(node).join('')}</ul>` : ''}</li>`;
@@ -97,6 +118,7 @@ function render(d) {
   const sec = (key, title, html, open = true) => (d[key] !== null && d[key] !== undefined ? `<details class="card" ${open ? 'open' : ''}><summary><h2>${title}</h2></summary>${html}</details>` : '');
   $app.innerHTML = `<h1>Para el cuerpo de ancianos</h1>
     <p class="sub">${d.congre ? `${esc(d.congre)} · ` : ''}${at ? `Actualizado el ${esc(fShort(at.toISOString().slice(0, 10)))} a las ${esc(at.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' }))}` : ''}${d.by ? ` · lo comparte ${esc(d.by)}` : ''}</p>
+    ${sec('agenda', '🗓 Próxima reunión', agendaHtml(d.agenda))}
     ${sec('acuerdos', '📋 Acuerdos y tareas', acuerdosHtml(d.acuerdos))}
     ${sec('visita', '🧳 Visita del superintendente de circuito', visitaHtml(d.visita))}
     ${sec('mecas', '🎛 Asignaciones mecánicas', mecasHtml(d.mecas))}

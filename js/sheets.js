@@ -133,8 +133,8 @@ export function eventSheet(id, preset = {}, back) {
   const others = sh ? (v.members || []).filter(u => u !== account.user?.uid).map(u => v.memberNames?.[u] || 'otra cuenta') : [];
   open({
     title: e ? (M.isAssignment(e) ? 'Editar asignación' : 'Editar evento') : src ? 'Duplicar evento' : v.category === 'asignacion' ? 'Nueva asignación' : 'Nuevo evento', back, focus: e ? null : '#title',
-    body: `${sh ? `<p class="shared-note">👥 ${owner ? `Lo compartes con <b>${esc(others.join(', '))}</b>` : `Te lo compartió <b>${esc(v.ownerName || 'otra cuenta')}</b>`}. Todos pueden cambiarlo y los cambios les llegan a los demás.${v.updatedByName && v.updatedBy !== account.user?.uid ? ` <span class="hint">Último cambio: ${esc(v.updatedByName)}.</span>` : ''}</p>` : ''}
-      ${formTag('event', e?.id)}
+    body: `${sh ? `<p class="shared-note">👥 ${owner ? `Lo compartes con <b>${esc(others.join(', '))}</b>` : `Te lo compartió <b>${esc(v.ownerName || 'otra cuenta')}</b>`}. ${owner ? 'Solo tú puedes cambiarlo o borrarlo; los demás lo ven y marcan su ✓.' : 'Solo quien lo creó puede cambiarlo. Si algo está mal, avísale. Puedes quitarlo de tu agenda: a los demás no se les borra.'}${v.updatedByName && v.updatedBy !== account.user?.uid ? ` <span class="hint">Último cambio: ${esc(v.updatedByName)}.</span>` : ''}</p>` : ''}
+      ${formTag('event', e?.id)}${owner ? '' : '<fieldset disabled class="ro">'}
       ${fld('Título', `<input id="title" name="title" required maxlength="120" value="${esc(v.title)}" placeholder="Ej. Reunión de entre semana">`, 'title')}
       ${fld('Tipo', typeSelect('category', M.eventCats(v.category), v.category, 'events', M.CATEGORIAS), 'category')}
       ${typeOtro('category', 'Ej. Reunión de circuito')}
@@ -172,14 +172,15 @@ export function eventSheet(id, preset = {}, back) {
         <p class="hint">Si no la marcas como hecha, te llega «¿Ya lo hiciste?» media hora después de que termina y un último aviso a las 9:00 p. m. (texto diario, lectura, estudio…).</p>
       </div>
       ${fld('Notas', `<textarea id="notes" name="notes" rows="3">${esc(v.notes || '')}</textarea>`, 'notes')}
+      ${owner ? '' : '</fieldset>'}
       ${isCloud && owner ? `<div class="f" id="share-box"><span class="lbl">Compartir con <span class="hint">(otras cuentas de la app)</span></span><p class="hint">Cargando cuentas…</p></div>` : ''}
     </form>
     ${src ? '<p class="hint pad-top">Es una copia: cambia lo que haga falta y guarda. El original no se toca.</p>' : ''}
-    ${showSkip && !skipped ? `<button type="button" class="btn pad-top" data-a="occ-edit" data-id="${e.id}" data-date="${occDate}">✏️ Cambiar solo el ${fmtShort(occDate)}</button>` : ''}
-    ${showSkip ? `<button type="button" class="btn ghost pad-top" data-a="${skipped ? 'unskip-occ' : 'skip-occ'}" data-id="${e.id}" data-date="${occDate}">${skipped ? `Restaurar el ${fmtShort(occDate)}` : `Cancelar solo el ${fmtShort(occDate)}`}</button>` : ''}
+    ${showSkip && !skipped && owner ? `<button type="button" class="btn pad-top" data-a="occ-edit" data-id="${e.id}" data-date="${occDate}">✏️ Cambiar solo el ${fmtShort(occDate)}</button>` : ''}
+    ${showSkip && owner ? `<button type="button" class="btn ghost pad-top" data-a="${skipped ? 'unskip-occ' : 'skip-occ'}" data-id="${e.id}" data-date="${occDate}">${skipped ? `Restaurar el ${fmtShort(occDate)}` : `Cancelar solo el ${fmtShort(occDate)}`}</button>` : ''}
     ${e ? `<button type="button" class="btn ghost pad-top" data-a="ev-dup" data-id="${e.id}">⧉ Duplicar evento</button>` : ''}`,
     actions: owner ? foot('events', e?.id)
-      : `<button type="button" class="btn ghost danger" data-a="delete" data-col="events" data-id="${e.id}">Quitar de mi agenda</button><button type="submit" form="f" class="btn primary">Guardar</button>`,
+      : `<button type="button" class="btn ghost danger" data-a="delete" data-col="events" data-id="${e.id}">Quitar de mi agenda</button>`,
   });
   if (isCloud && owner) loadShareBox(v);
 }
@@ -504,6 +505,7 @@ function refreshPersonSelects(form, selectPersonId) {
 
 export function taskSheet(id, preset = {}, back) {
   const t = id ? store.get('tasks', id) : null;
+  if (t?.assignedFrom) return assignedSheet(id, back);
   const v = t || { title: preset.title || '', kind: preset.kind || 'visita', personId: preset.personId || '', companionId: '', due: preset.due || '', dueTime: '', status: 'pendiente', notes: preset.notes || '', log: [], meetingId: preset.meetingId || '', fromAgreement: preset.fromAgreement || '', responsibles: preset.responsibles || [], responsibleIds: preset.responsibleIds || [], mine: preset.mine !== false, repeat: preset.repeat || '', deptId: preset.deptId || '' };
   const meeting = v.meetingId ? store.get('meetings', v.meetingId) : null;
   const meetings = [...data.meetings].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -511,7 +513,7 @@ export function taskSheet(id, preset = {}, back) {
 
   const log = t ? `<section class="log"><h3 class="sub-h">Seguimiento</h3>
       ${(t.log || []).length
-        ? `<ul>${[...t.log].reverse().map(l => `<li><time>${fmtShort(l.d)}</time><span>${esc(l.t)}</span></li>`).join('')}</ul>`
+        ? `<ul>${[...t.log].reverse().map(logLine).join('')}</ul>`
         : '<p class="hint">Aún no hay anotaciones. Registra aquí cada avance.</p>'}
       <div class="log-add"><input id="log-text" maxlength="240" placeholder="Anota un avance" aria-label="Nuevo seguimiento"><button type="button" class="btn" data-a="log-add" data-id="${t.id}">Agregar</button></div>
     </section>` : '<p class="hint">Guarda la tarea para empezar a anotar seguimientos.</p>';
@@ -532,6 +534,7 @@ export function taskSheet(id, preset = {}, back) {
       ${!t && preset.subjectName && !v.personId ? `<p class="hint" id="subject-add">${esc(preset.subjectName)} no está en tus Personas. <button type="button" class="link sm" data-a="subject-add-person" data-name="${esc(preset.subjectName)}">Agregarla y elegirla</button></p>` : ''}
       ${fld('Persona que me acompaña', peopleSelect('companionId', v.companionId, 'Nadie'), 'companionId')}
       <div class="f"><span class="lbl">Responsables</span><div id="resp-box">${responsiblesHtml(splitResponsibles(v))}</div></div>
+      ${isCloud ? `<div class="f" id="send-box">${sendBoxHtml(v, preset.sendTo)}</div>` : ''}
       <input type="hidden" name="deptId" value="${esc(v.deptId || '')}">
       ${v.deptId && M.taskDept(v) ? `<p class="hint">📋 Asignada desde el departamento «${esc(M.taskDept(v).name)}».</p>` : ''}
       <div class="two">
@@ -546,6 +549,10 @@ export function taskSheet(id, preset = {}, back) {
     </form>${log}`,
     actions: foot('tasks', t?.id),
   });
+  // Al marcar responsables, se actualiza a quién se le puede enviar
+  const f = document.getElementById('f');
+  if (f && isCloud && !v.assignedId) f.addEventListener('change', e => { if (e.target.name === 'respPerson' || e.target.name === 'respMe') { const box = document.getElementById('send-box'); const cur = f.querySelector('#sendTo')?.value || ''; if (box) box.innerHTML = sendBoxHtml({ ...v, responsibleIds: readResponsibles(f).ids }, cur); } });
+  if (isCloud && !store.cachedMembers()) store.listMembers().catch(() => {});
 }
 
 // Devuelve la tarea con lo escrito en el formulario, o null si falta escribir el tipo
@@ -574,6 +581,13 @@ function collectTask(form, id) {
 function saveTask(id, form) {
   const t = collectTask(form, id);
   if (!t) { toast('Escribe el tipo de tarea'); return; }
+  // Enviarla a la app de la otra persona (tendrá que aceptarla)
+  const sendTo = String(new FormData(form).get('sendTo') || '');
+  if (sendTo && !t.assignedId) {
+    const p = data.people.find(x => x.accountUid === sendTo);
+    Object.assign(t, { assignedId: store.newAssignedId(), assignTo: sendTo, assignToName: p?.name || p?.accountName || '', assignState: 'nueva' });
+    toast(`Se le envió a ${p?.name || 'la otra cuenta'}: le llega para aceptarla`);
+  }
   rememberType('tasks', t.kind, M.KINDS);
   const prev = id ? store.get('tasks', id) : null;
   const again = t.status === 'hecha' && prev?.status !== 'hecha' ? M.repeatNext(t, uid()) : null;
@@ -625,6 +639,7 @@ export function personSheet(id, back) {
         </details>
       </div>
       ${fld('Grupos', `${groups.length ? `<div class="checklist">${groups.map(g => `<label class="check"><input type="checkbox" name="group" value="${g.id}" ${mine.includes(g.id) ? 'checked' : ''}> ${esc(g.name)}</label>`).join('')}</div>` : ''}<input id="newGroup" name="newGroup" maxlength="60" placeholder="${groups.length ? 'Agregar a un grupo nuevo' : 'Ej. Siervos ministeriales'}">`, 'newGroup')}
+      ${isCloud && !v.isMe ? `<div class="f" id="acct-box"><label for="accountUid">📲 Cuenta en la app <span class="hint">(para enviarle tareas)</span></label>${accountSelect(v)}<p class="hint" id="acct-hint">${esc(accountHint(v))}</p></div>` : ''}
       ${fld('También escrito como', `<input id="aliases" name="aliases" maxlength="120" value="${esc(v.aliases || '')}" placeholder="Apodos u otras formas, separadas por coma">`, 'aliases')}
       ${fld('Teléfono', `<input id="phone" name="phone" type="tel" maxlength="30" value="${esc(v.phone || '')}" placeholder="0414-1234567">`, 'phone')}
       ${fld('Dirección o referencia', `<input id="address" name="address" maxlength="160" value="${esc(v.address || '')}">`, 'address')}
@@ -632,7 +647,130 @@ export function personSheet(id, back) {
     </form>`,
     actions: foot('people', p?.id),
   });
+  if (isCloud && !v.isMe && !store.cachedMembers()) store.listMembers().then(() => { const box = document.getElementById('acct-box'); if (box && box.isConnected) { box.querySelector('#accountUid').outerHTML = accountSelect(v); document.getElementById('acct-hint').textContent = accountHint(v); } }).catch(() => {});
 }
+
+// ───── Cuenta en la app de una persona (para enviarle tareas) ─────
+// La app sugiere la cuenta cuyo nombre se parece al de la persona (por ejemplo «Yovanna de Rubio» ↔ «Yovanna Rubio»)
+const nameTokens = t => norm(t).split(/\s+/).filter(w => w && !['de', 'del', 'la', 'las', 'los', 'y'].includes(w));
+function sameName(a, b) {
+  const x = nameTokens(a), y = nameTokens(b);
+  if (!x.length || !y.length || x[0] !== y[0]) return false;
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  return short.every(w => long.includes(w));
+}
+export const suggestAccount = p => (store.cachedMembers() || []).find(m => sameName(m.name, p.name) || nameTokens(p.aliases || '').length && String(p.aliases || '').split(',').some(a => sameName(m.name, a)));
+function accountSelect(v) {
+  const list = store.cachedMembers();
+  const cur = v.accountUid || '';
+  const sug = !cur && v.name ? suggestAccount(v) : null;
+  if (!list) return `<select id="accountUid" name="accountUid">${cur ? `<option value="${esc(cur)}" selected>${esc(v.accountName || 'Cuenta vinculada')}</option>` : ''}<option value="">Cargando cuentas…</option></select>`;
+  const taken = new Set(data.people.filter(p => p.accountUid && p.id !== v.id).map(p => p.accountUid));
+  return `<select id="accountUid" name="accountUid"><option value="">Sin cuenta</option>${list.filter(m => !taken.has(m.uid) || m.uid === cur)
+    .map(m => `<option value="${esc(m.uid)}" ${m.uid === cur || (!cur && m.uid === sug?.uid) ? 'selected' : ''}>${esc(m.name)}${m.uid === sug?.uid ? ' (sugerida)' : ''}</option>`).join('')}</select>`;
+}
+function accountHint(v) {
+  if (v.accountUid) return 'Al asignarle una tarea puedes enviársela a su app. Ella la acepta o la rechaza.';
+  const sug = v.name ? suggestAccount(v) : null;
+  return sug ? `Parece que usa la app como «${sug.name}». Si es ella, guarda para vincularla.` : 'Si también usa la app, elige su cuenta.';
+}
+function accountFields(r, prev) {
+  if (r.accountUid === undefined) return {};
+  const m = (store.cachedMembers() || []).find(x => x.uid === r.accountUid);
+  return { accountUid: r.accountUid || '', accountName: r.accountUid ? (m?.name || prev.accountName || '') : '' };
+}
+
+// ───── Enviar una tarea a la app de su responsable ─────
+const ASSIGN_STATE = { nueva: '⏳ Esperando que la acepte', aceptada: '✓ La aceptó', rechazada: '✗ La rechazó' };
+function sendBoxHtml(v, pre = '') {
+  if (v.assignedFrom) return '';
+  if (v.assignedId) {
+    return `<span class="lbl">📲 Enviada a su app</span>
+      <p class="assign-state ${esc(v.assignState || 'nueva')}"><b>${esc(v.assignToName || 'Otra cuenta')}</b> · ${esc(ASSIGN_STATE[v.assignState || 'nueva'])}</p>
+      <p class="hint">Lo que cambies aquí (título, fecha, notas) le llega a su app. Ella solo puede anotar avances y marcarla hecha.${v.assignState === 'rechazada' ? ' Como la rechazó, puedes hacerla tú o asignarla a otra persona.' : ''}</p>
+      <button type="button" class="btn small ghost" data-a="assign-stop" data-id="${esc(v.id || '')}">Dejar de enviársela</button>`;
+  }
+  const ids = new Set(v.responsibleIds || []);
+  (v.responsibles || []).forEach(n => { const h = M.resolveName(n); if (h?.id) ids.add(h.id); });
+  const withAcct = [...ids].map(id => M.person(id)).filter(p => p?.accountUid);
+  if (!withAcct.length) {
+    const linkable = [...ids].map(id => M.person(id)).filter(p => p && !p.isMe);
+    return linkable.length ? `<p class="hint">📲 Para enviarle la tarea a su app, en su ficha de Personas elige su «Cuenta en la app».</p>` : '';
+  }
+  return `<label for="sendTo" class="lbl">📲 Enviarla a su app</label>
+    <select id="sendTo" name="sendTo"><option value="">No, solo en mi agenda</option>${withAcct.map(p => `<option value="${esc(p.accountUid)}" ${p.accountUid === pre ? 'selected' : ''}>Enviársela a ${esc(p.name)}</option>`).join('')}</select>
+    <p class="hint">Le llega para aceptarla o rechazarla. Tú ves sus avances y cuando la termine.</p>`;
+}
+export function assignStop(id) {
+  store.assignedStop(id);
+  toast('Ya no se le envía. La tarea sigue en tu agenda.');
+  taskSheet(id, {}, backFn);
+}
+
+// ───── Tarea que te asignaron (en tu app) ─────
+// Solo puedes anotar avances y marcarla hecha; lo demás lo cambia quien te la asignó.
+function logLine(l) {
+  const other = l.by && l.by !== store.myUid();
+  return `<li><time>${fmtShort(l.d)}</time><span>${other ? `<b>${esc(l.byName || '')}:</b> ` : ''}${esc(l.t)}</span></li>`;
+}
+function assignedSheet(id, back) {
+  const t = store.get('tasks', id);
+  if (!t) return;
+  const due = M.dueInfo(t);
+  const done = t.status === 'hecha';
+  open({
+    title: 'Tarea asignada', back,
+    body: `<p class="shared-note">📥 Te la asignó <b>${esc(t.fromName)}</b>. Puedes anotar tus avances y marcarla hecha; el título, la fecha y las notas los cambia ${esc(t.fromName)}.</p>
+      <h3 class="as-title">${M.taskPrio(t) === 'alta' ? '<span class="prio-tag">Alta</span> ' : ''}${esc(t.title)}</h3>
+      <p class="hint">${t.due ? `📅 ${esc(fmtShort(t.due))}${t.dueTime ? `, ${esc(fmtTime(t.dueTime))}` : ''}${due.cls === 'late' ? ' · <b class="late">atrasada</b>' : ''}` : 'Sin fecha límite'}${M.taskPrio(t) === 'baja' ? ' · ⬇ Baja prioridad' : ''}</p>
+      ${t.notes ? `<p class="as-notes">${esc(t.notes).replace(/\n/g, '<br>')}</p>` : ''}
+      <section class="log"><h3 class="sub-h">Seguimiento</h3>
+        ${(t.log || []).length ? `<ul>${[...t.log].reverse().map(logLine).join('')}</ul>` : '<p class="hint">Aún no hay avances. Lo que anotes aquí lo ve quien te la asignó.</p>'}
+        <div class="log-add"><input id="log-text" maxlength="240" placeholder="Anota un avance" aria-label="Nuevo avance"><button type="button" class="btn" data-a="as-log" data-id="${t.id}">Agregar</button></div>
+      </section>`,
+    actions: `<button type="button" class="btn ghost danger" data-a="as-reject" data-id="${esc(t.assignedFrom)}">No la puedo hacer</button><button type="button" class="btn primary" data-a="as-toggle" data-id="${t.id}">${done ? 'Volver a pendiente' : '✓ Marcar hecha'}</button>`,
+  });
+}
+export function assignedToggle(id) {
+  const t = store.get('tasks', id);
+  if (!t) return;
+  const done = t.status === 'hecha';
+  store.upsert('tasks', { ...t, status: done ? ((t.log || []).length ? 'seguimiento' : 'pendiente') : 'hecha', doneAt: done ? '' : today() });
+  toast(done ? 'Vuelve a estar pendiente' : `¡Hecha! ${t.fromName} lo verá`);
+  closeOrBack();
+}
+export function assignedLog(id) {
+  const t = store.get('tasks', id);
+  const input = document.getElementById('log-text');
+  const text = (input?.value || '').trim();
+  if (!t || !text) { input?.focus(); return; }
+  store.upsert('tasks', { ...t, log: [...(t.log || []), { d: today(), t: text }] });
+  const b = backFn;
+  setTimeout(() => assignedSheet(id, b), 50);
+  toast(`Avance anotado. ${t.fromName} lo verá.`);
+}
+// Tareas nuevas que te asignaron: aceptarlas o rechazarlas
+export function assignedInboxSheet() {
+  const list = store.assignedNew();
+  if (!list.length) { toast('No tienes tareas nuevas por aceptar'); return close(); }
+  open({
+    title: '📥 Tareas nuevas para ti',
+    body: `<p class="hint">Si la aceptas, entra en tus Tareas: puedes anotar avances y marcarla hecha, y quien te la envió lo ve. Si la rechazas, se le avisa.</p>
+      <div class="stack">${list.map(d => `<div class="card mini as-new">
+        <strong>${esc(d.title)}</strong>
+        <span class="meta">De <b>${esc(d.ownerName || 'otra cuenta')}</b>${d.due ? ` · para el ${esc(fmtShort(d.due))}` : ''}${d.priority === 'alta' ? ' · 🔴 Prioridad alta' : ''}</span>
+        ${d.notes ? `<span class="meta">${esc(String(d.notes).slice(0, 220))}${String(d.notes).length > 220 ? '…' : ''}</span>` : ''}
+        <div class="quick pad-top"><button class="btn small primary" data-a="as-accept" data-id="${esc(d.id)}">✓ Aceptar</button><button class="btn small ghost" data-a="as-reject" data-id="${esc(d.id)}">Rechazar</button></div>
+      </div>`).join('')}</div>`,
+  });
+}
+export function assignedAnswer(id, accept) {
+  const d = store.assignedNew().find(x => x.id === id) || null;
+  store.assignedRespond(id, accept);
+  toast(accept ? `Aceptada: ya está en tus Tareas${d ? `. ${d.ownerName} lo verá` : ''}` : 'Rechazada: se le avisa a quien te la envió');
+  if (store.assignedNew().length) assignedInboxSheet(); else close();
+}
+
 
 // Casillas de privilegios con forma de etiqueta (las marcadas se ven resaltadas)
 function privChipsHtml(selected, extra = []) {
@@ -681,7 +819,7 @@ function savePerson(id, r, form) {
   const known = [...M.PRIVILEGES, ...M.savedTypes('privileges')].map(norm);
   const fresh = privileges.filter(x => !known.includes(norm(x)));
   if (fresh.length) store.upsert('profile', { ...M.profile(), id: 'me', customPrivileges: [...M.savedTypes('privileges'), ...fresh] });
-  const saved = store.upsert('people', { ...prev, id: id || uid(), name: r.name, role: r.role, phone: r.phone, address: r.address, notes: r.notes, groupIds: gids, groupLeftAt, isMe, photo: r.photo, aliases: r.aliases || '', privileges }, { explicit: true });
+  const saved = store.upsert('people', { ...prev, id: id || uid(), name: r.name, role: r.role, phone: r.phone, address: r.address, notes: r.notes, groupIds: gids, groupLeftAt, isMe, photo: r.photo, aliases: r.aliases || '', privileges, ...accountFields(r, prev) }, { explicit: true });
   if (backFn) closeOrBack(); else personDetail(saved.id);   // al crear, se muestra su ficha
 }
 
@@ -959,7 +1097,9 @@ export function deptAssign(id, i = '') {
   const d = store.get('depts', id);
   if (!d) return;
   const s = i === '' ? null : M.deptSuggestions(d)[Number(i)];
-  taskSheet(null, M.deptTaskPreset(d, s), () => deptSheet(id));
+  const pre = M.deptTaskPreset(d, s);
+  const linked = pre.responsibleIds.map(x => M.person(x)).filter(p => p?.accountUid);
+  taskSheet(null, { ...pre, sendTo: linked.length === 1 ? linked[0].accountUid : '' }, () => deptSheet(id));
 }
 
 // ───── Asignar varias tareas sugeridas a la vez (todos los departamentos) ─────
