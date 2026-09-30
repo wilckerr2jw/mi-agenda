@@ -903,6 +903,7 @@ export function deptSheet(id, preset = {}) {
       ${fld('Nombre', `<input id="name" name="name" required maxlength="80" value="${esc(v.name)}" placeholder="Ej. Audio y video">`, 'name')}
       ${fld('Depende de', `<select id="parentId" name="parentId"><option value="">Nadie (arriba de todo)</option>${parents.map(x => `<option value="${x.id}" ${x.id === v.parentId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`, 'parentId')}
       ${v.info ? `<p class="hint">ℹ️ ${esc(v.info)}</p>` : ''}
+      ${M.deptRule(v) ? `<p class="hint">👤 ${esc(M.deptRule(v).note ? `${M.deptRule(v).note}. ` : '')}${M.deptRule(v).who === 'anc' ? 'Responsable: un anciano.' : 'Responsable: anciano o siervo ministerial.'} Los demás hermanos pueden ir como ayudantes.</p><p class="warn-box" id="dept-warn" ${M.deptWarnings(v).length ? '' : 'hidden'}>⚠️ ${esc(M.deptWarnings(v).join(' '))}</p>` : ''}
       ${M.isGroupBox(v) ? '<p class="hint">Los grupos para el servicio del campo pertenecen a la congregación: no llevan responsable. Cada grupo de abajo tiene su superintendente y su auxiliar.</p>' : ''}
       ${M.canAutoHeads(v) ? `<label class="check"><input type="checkbox" id="auto-heads" name="autoHeads" ${M.autoHeads(v) ? 'checked' : ''}> ${M.isComite(v) ? 'Llenar solo con el coordinador, el secretario y el superintendente de servicio' : 'Llenar solo con todos los ancianos (el coordinador primero)'}</label>
         <p class="hint" id="auto-heads-list" ${M.autoHeads(v) ? '' : 'hidden'}>★ ${esc(M.deptHeadsLabeled(v).join(', ') || '—')}. Si cambias a alguno en su departamento o en Personas, aquí se actualiza solo.</p>` : ''}
@@ -925,6 +926,12 @@ export function deptSheet(id, preset = {}) {
     ${kids ? `<p class="hint pad-top">Tiene ${kids} ${kids === 1 ? 'departamento' : 'departamentos'} debajo. Si lo eliminas, esos suben un nivel.</p>` : ''}`,
     actions: foot('depts', d?.id),
   });
+  // Revisa en vivo quién está marcado como responsable
+  const f = document.getElementById('f'), box = document.getElementById('dept-warn');
+  if (f && box) f.addEventListener('change', () => {
+    const w = M.deptWarnings({ ...v, name: f.querySelector('#name')?.value || v.name }, [...f.querySelectorAll('input[name="headIds"]:checked')].map(x => x.value));
+    box.hidden = !w.length; box.textContent = w.length ? `⚠️ ${w.join(' ')}` : '';
+  });
 }
 function saveDept(id, r, form) {
   const prev = id ? store.get('depts', id) : {};
@@ -939,6 +946,8 @@ function saveDept(id, r, form) {
   store.upsert('depts', M.withHistory(id ? prev : null, { ...prev, ...auto, id: id || uid(), name: r.name, ic: r.ic || 'flag', parentId: r.parentId || '', headIds, headNames: r.headNames || '', headId: null, headName: null, helperIds, helperRoles, helperNames: r.helperNames || '', notes: r.notes || '',
     reviewAt: r.reviewAt || '', reviewNote: (r.reviewNote || '').trim(),
     order: prev.order ?? (siblings.reduce((m, x) => Math.max(m, Number(x.order) || 0), 0) + 1) }));
+  const w = M.deptWarnings({ ...prev, name: r.name }, headIds);
+  if (w.length) toast(`Guardado, pero revisa: ${w[0]}`);
   closeOrBack();
 }
 // Si se elimina uno, los que dependían de él pasan a depender de su «padre»

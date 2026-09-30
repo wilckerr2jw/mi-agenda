@@ -103,7 +103,7 @@ const TOPICS = [
     b: () => `En Informe, la gráfica «Tu año de servicio» muestra tus horas por mes, tu promedio, tu mejor mes y cuántas tendrías al final del año si sigues así.` },
 
   { g: 'Personas y notas', t: 'Organigrama de la congregación', when: c => c.on('congregacion'),
-    b: () => `En ${k('Congregación')} toca ${k('Cargar departamentos sugeridos')}, luego cada departamento para poner a su responsable y ayudantes. ${k('Compartir imagen')} lo manda por WhatsApp y ${k('🖨 Imprimir carta (2 hojas)')} lo deja listo para imprimir con letra grande (organigrama y nombramientos).` },
+    b: () => `En ${k('Congregación')} toca ${k('Cargar departamentos sugeridos')}, luego cada departamento para poner a su responsable y ayudantes. ${k('Compartir imagen')} lo manda por WhatsApp y ${k('🖨 Imprimir carta (2 hojas)')} lo deja listo para imprimir con letra grande (organigrama y nombramientos). Al elegir responsables, la app te avisa si esa responsabilidad es para ancianos o si hay más auxiliares de los indicados.` },
 
   // ───── Mi Informe
   { g: 'Mi Informe', t: 'Registrar tiempo', when: c => c.on('informe'),

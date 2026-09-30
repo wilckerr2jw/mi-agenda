@@ -1117,3 +1117,43 @@ export function toSupervise() {
     return { task: x, quiet: diffDays(t, last), late: !!x.due && x.due < t };
   }).filter(x => x.late || x.quiet >= SUPERVISE_DAYS).sort((a, b) => b.quiet - a.quiet);
 }
+
+// ───── Quién puede atender cada responsabilidad (sin referencias en pantalla) ─────
+// who: 'anc' = solo ancianos · 'anc-sm' = anciano o siervo ministerial · max = cuántos responsables como máximo
+// Si no hay regla, el responsable puede ser anciano o siervo ministerial. Los demás hermanos van como ayudantes.
+const DEPT_RULES = {
+  coord: { who: 'anc', max: 1 }, secre: { who: 'anc', max: 1 }, serv: { who: 'anc', max: 1 }, vym: { who: 'anc', max: 1 }, atalaya: { who: 'anc', max: 1 },
+  'aux-coord': { who: 'anc', max: 2, note: '1 o 2 auxiliares ancianos' },
+  'aux-secre': { who: 'anc', max: 1, note: '1 auxiliar anciano' },
+  'aux-serv':  { who: 'anc', max: 1, note: '1 auxiliar anciano' },
+  'aux-vym':   { who: 'anc-sm', max: 1, note: '1 auxiliar anciano, o un siervo ministerial con permisos limitados' },
+  'aux-atal':  { who: 'anc', max: 1, note: '1 auxiliar anciano' },
+  terr:     { note: 'No lleva auxiliares' },
+  pubs:     { note: 'Puede tener varios ayudantes bautizados' },
+  cuentas:  { note: 'No lleva auxiliares' },
+  mant:     { note: 'No lleva auxiliares' },
+  limpieza: { note: 'No lleva auxiliares' },
+};
+const isSM = p => [...String(p?.role || '').split(','), ...(p?.privileges || [])].some(x => /^\s*siervo ministerial/i.test(x));
+function ruleKey(d) {
+  if (!d) return '';
+  if (d.sk && DEPT_RULES[d.sk]) return d.sk;
+  const n = norm2(d.name);
+  const s = DEPT_SUGGESTED.find(x => norm2(x.n) === n || (x.old || []).some(o => norm2(o) === n));
+  return s && DEPT_RULES[s.k] ? s.k : '';
+}
+const norm2 = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+export function deptRule(d) {
+  if (!d || isGroupBox(d) || isCuerpo(d) || isComite(d) || /^grupo\b/i.test(d.name || '')) return null;
+  return { who: 'anc-sm', ...(DEPT_RULES[ruleKey(d)] || {}) };
+}
+// Avisos (no bloquean): responsables que no cumplen o demasiados auxiliares
+export function deptWarnings(d, headIds = deptHeadIds(d)) {
+  const r = deptRule(d); if (!r) return [];
+  const w = [];
+  const ps = headIds.map(person).filter(Boolean);
+  const bad = ps.filter(p => !(isElder(p) || (r.who === 'anc-sm' && isSM(p))));
+  if (bad.length) w.push(`${bad.map(p => p.name).join(', ')}: ${r.who === 'anc' ? 'esta responsabilidad es para ancianos' : 'el responsable debe ser anciano o siervo ministerial'}. Si ayuda, anótalo como ayudante.`);
+  if (r.max && headIds.length > r.max) w.push(`Son ${headIds.length}; lo indicado es ${r.max === 1 ? 'uno solo' : `hasta ${r.max}`}.`);
+  return w;
+}
