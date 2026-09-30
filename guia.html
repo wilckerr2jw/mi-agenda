@@ -139,7 +139,7 @@ footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
     <a class="btn primary" href="./">Abrir la app</a>
     <a class="btn" href="#empezar">Empezar por aquí</a>
   </div>
-  <p class="ver">Versión de la app <b id="guia-version">9.7</b> · Guía actualizada el <span id="guia-fecha">30 de septiembre de 2026</span></p>
+  <p class="ver">Versión de la app <b id="guia-version">9.8</b> · Guía actualizada el <span id="guia-fecha">30 de septiembre de 2026</span></p>
 </header>
 
 <div class="toc"><nav aria-label="Secciones de la guía">
@@ -271,10 +271,20 @@ footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
   <ol class="steps">
     <li>Abre o crea el evento y, al final, en <b>Compartir con</b>, marca a quién (salen las cuentas aprobadas de la app, solo con su nombre).</li>
     <li>Toca <b class="ui">Guardar</b>. A la otra persona le aparece en su Agenda con <b>👥 De (tu nombre)</b> y, si tiene los avisos activos, le llega un aviso.</li>
-    <li>Los dos pueden cambiar la fecha, la hora, el tema o las notas: el cambio le llega al otro y recibe un aviso. Solo quien lo creó cambia con quién se comparte o lo borra para todos.</li>
-    <li>Quien lo recibió puede tocar <b class="ui">Quitar de mi agenda</b>; en Ajustes aparece <b class="ui">Volver a mostrarlos</b> por si se arrepiente.</li>
+    <li><b>Solo quien lo creó</b> cambia la fecha, la hora, el tema o las notas, cambia con quién se comparte o lo borra para todos. Los cambios les llegan a los demás con un aviso.</li>
+    <li>Quien lo recibió lo ve y marca su propio ✓, pero no lo puede cambiar. Puede tocar <b class="ui">Quitar de mi agenda</b>: a los demás <b>no se les borra</b>. En Ajustes aparece <b class="ui">Volver a mostrarlos</b> por si se arrepiente.</li>
   </ol>
+  <div class="tip"><span class="i">🔒</span><span><b>Mínimo privilegio:</b> cada quien solo puede cambiar lo suyo. Así nadie le borra o le cambia datos a otro por error y, si alguien se metiera en una cuenta, solo podría tocar lo de esa cuenta. El servidor lo exige aunque se use otra versión de la app.</span></div>
   <div class="tip"><span class="i">💡</span><span>Para que tu nombre salga bien en la lista de los demás, escríbelo en <b class="ui">Editar mi perfil</b> → <b>Tu nombre</b>. Una cuenta aparece en la lista después de abrir la app con esta versión.</span></div>
+
+  <h3>Enviarle una tarea a otra cuenta</h3>
+  <ol class="steps">
+    <li>En <b>Personas</b>, abre su ficha y en <b>📲 Cuenta en la app</b> elige su cuenta. Si el nombre se parece (por ejemplo, «Yovanna Rubio» y «Yovanna de Rubio»), la app ya te la sugiere: solo guarda.</li>
+    <li>Crea la tarea, márcala como responsable y en <b>📲 Enviarla a su app</b> elige <b class="ui">Enviársela a …</b>. Al asignar desde un departamento, ya viene elegida si su responsable tiene la cuenta vinculada.</li>
+    <li>A la otra persona le aparece <b>«📥 Tienes 1 tarea nueva»</b> en Hoy y en Tareas, con <b class="ui">✓ Aceptar</b> o <b class="ui">Rechazar</b>.</li>
+    <li>Si la acepta, entra en sus Tareas como <b>📥 De (tu nombre)</b>. Ella puede anotar avances y marcarla hecha, pero no cambiarla ni borrarla.</li>
+    <li>Tú la ves con <b>📲 (su nombre) · esperando / la aceptó / la rechazó</b>, con sus avances en el Seguimiento. Lo que cambies (título, fecha, notas) le llega a ella. Si la borras o tocas <b class="ui">Dejar de enviársela</b>, se le quita de su app.</li>
+  </ol>
 </section>
 
 <!-- ───────────── 5. TAREAS ───────────── -->
@@ -288,6 +298,7 @@ footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
     <li>Arriba filtras por <i>Activas</i>, <i>En seguimiento</i> o <i>Hechas</i>, y también por persona.</li>
     <li><b>Ordenadas por grupos:</b> las activas se ven en <b>Atrasadas</b>, <b>Hoy</b>, <b>Próximos 7 días</b>, <b>Más adelante</b> y <b>Sin fecha</b>. Arriba, un resumen te dice cuántas están atrasadas, cuántas son para hoy y cuántas para la semana.</li>
     <li><b>Prioridad:</b> en la tarea elige <b class="ui">🔴 Alta</b>, <b class="ui">Normal</b> o <b class="ui">⬇ Baja</b>. Las de prioridad alta van primero en su grupo y llevan la marca <b>ALTA</b>. Las de baja prioridad quedan al final, en <b>«⬇ Baja prioridad»</b>: tócalo para verlas.</li>
+    <li><b class="ui">💬 Recordar por WhatsApp:</b> si otros hermanos tienen tareas atrasadas o que vencen pronto, arriba en Tareas (y en «Por supervisar» de Hoy) aparece este botón. Te muestra a cada responsable con sus tareas y, con <b class="ui">💬 Enviar</b>, abre WhatsApp con su número y un mensaje amable ya escrito. Puedes elegir solo las atrasadas o también las que vencen en 3 días o en la semana.</li>
     <li><b class="ui">☰ Lista</b> o <b class="ui">▦ Tarjetas</b>: elige cómo verlas. En tarjetas, cada una muestra su fecha arriba y el botón <b class="ui">✓ Marcar hecha</b> abajo. La app recuerda lo que elegiste.</li>
     <li><b>Tipos propios:</b> en «Tipo» elige <b class="ui">✏️ Nuevo tipo…</b> y escribe el tuyo (por ejemplo, <i>Pastoreo</i>). Queda guardado en la lista para la próxima vez. En Ajustes → <b>Tus tipos propios</b> puedes quitar los que no uses.</li>
     <li><b>Responsables:</b> marca <b>Yo</b> si te toca a ti. Para los demás toca la 🔍, escribe parte del nombre y marca a los que la harán; solo se ven los que ya marcaste. A quien no esté en tus Personas escríbelo en el campo de abajo y toca <b class="ui">+ Agregar a Personas</b> para guardarlo y dejarlo marcado. Si marcas a otros y no a ti, la tarea queda como <b>👁 Supervisas</b>.</li>
@@ -347,7 +358,7 @@ footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
   <h3>📋 Para el Cuerpo de ancianos</h3>
   <p>Arriba en Congregación tienes lo pendiente para la reunión del cuerpo de ancianos: los acuerdos de la última reunión (cuántos están hechos y cuáles faltan, con 🔴 los vencidos), las tareas que supervisas sin novedad, las capacitaciones por revisar, el pastoreo de tu grupo y los varones bautizados sin asignación mecánica. <b class="ui">📤 Compartir resumen</b> arma un mensaje para enviarlo a los ancianos (lleva nombres: solo a ellos).</p>
   <h3>🔗 Enlace para los ancianos</h3>
-  <p>En el mismo panel, <b class="ui">🔗 Enlace para los ancianos</b> crea un enlace y una <b>clave de 6 números</b> para que los otros ancianos vean, sin instalar la app ni tener cuenta: el <b>organigrama</b>, los <b>acuerdos y tareas</b> (de la última reunión con acuerdos, que cambia sola, o de las que elijas), la <b>visita del superintendente</b> con lo que falta y las <b>asignaciones mecánicas</b>. Tú eliges qué partes ven.</p>
+  <p>En el mismo panel, <b class="ui">🔗 Enlace para los ancianos</b> crea un enlace y una <b>clave de 6 números</b> para que los otros ancianos vean, sin instalar la app ni tener cuenta: el <b>organigrama</b>, los <b>acuerdos y tareas</b> (de la última reunión con acuerdos, que cambia sola, o de las que elijas), la <b>visita del superintendente</b> con lo que falta, las <b>asignaciones mecánicas</b> (en tarjetas por fecha, con la próxima resaltada) y la <b>agenda de la próxima reunión</b> del cuerpo de ancianos: cada punto con la hora en que empieza, quién lo presenta y los minutos, para que cada anciano la vea antes de llegar (los puntos privados no salen y de los confidenciales solo el título). Tú eliges qué partes ven; en los enlaces que ya habías creado la agenda se agrega sola.</p>
   <ul class="dots">
     <li>Todo va <b>cifrado con la clave</b> en tu teléfono: en la nube solo queda un texto ilegible. Manda el enlace y, en otro mensaje, la clave.</li>
     <li>Se <b>actualiza solo</b> cuando cambias algo en la app (unos segundos después). Quien lo abre toca 🔄 Actualizar para ver lo último.</li>
@@ -367,7 +378,12 @@ footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
   </ul>
   <h3>🎛 Asignaciones mecánicas</h3>
   <ul class="dots">
-    <li><b class="ui">📥 Importar arreglo:</b> toma una foto clara del programa que hizo el hermano encargado o elige el PDF. La app lo lee en tu teléfono (no se envía a nadie), reconoce las fechas, las asignaciones (acomodadores, audio, video, micrófonos, plataforma, Zoom) y a los hermanos. Revisa lo que encontró: si algún nombre se leyó mal, corrígelo en «Ver y corregir el texto leído» o agrégalo a Personas. Si una fecha no sale, escribe el mes en la primera línea («Octubre 2026»).</li>
+    <li><b class="ui">📥 Importar programa:</b> elige la foto, el PDF o el archivo de texto del programa que hizo el hermano encargado, o pega el texto que te mandaron por WhatsApp. La app lo lee en tu teléfono (no se envía a nadie) y entiende dos formas: una <b>tabla</b> (fecha y una columna por asignación) o <b>una asignación por renglón</b>, con la fecha arriba:
+      <br><code>01-10-2026</code><br><code>Acomodador: Juan Pérez</code><br><code>Puerta: Mario Paz</code>
+      <br>Reconoce acomodador, puerta, audio, video, micrófonos, plataforma, Zoom y estacionamiento (y cualquier otra etiqueta que venga así, como «Anfitrión:»). Los hermanos que no están en tus Personas se guardan igual (salen en <i>cursiva</i>): toca <b class="ui">+ Agregar a todos</b> para sumarlos como varones bautizados. Si algún nombre se leyó mal, corrígelo en «Ver y corregir el texto leído».</li>
+    <li><b>El programa en tarjetas:</b> cada fecha es una tarjeta con sus asignaciones; la <b>próxima</b> sale resaltada y las pasadas se esconden en «Ver fechas pasadas». Con <b class="ui">👤 Hermanos</b> ves a cada uno con sus fechas y cuántas veces le toca. Tu nombre sale marcado, y tus asignaciones de las próximas 2 semanas aparecen también en <b>Hoy</b>.</li>
+    <li><b class="ui">🖼 Compartir imagen</b> manda el programa como un cuadro (fechas en filas y asignaciones en columnas) por WhatsApp. <b class="ui">🖨 Imprimir carta</b> lo deja en una hoja carta con los colores que elijas; la letra se ajusta sola para que quepa y se lea bien.</li>
+    <li><b class="ui">💬 Avisar a los hermanos</b> arma para cada uno un mensaje con sus asignaciones (de los próximos 7 días, del mes o de todo el programa) y lo abre en WhatsApp con su número.</li>
     <li><b class="ui">✔ Varones bautizados:</b> marca a quiénes se les puede asignar. Los ancianos y siervos ministeriales ya cuentan. En «No disponibles por ahora» pon a los que no pueden (salud, trabajo, viaje).</li>
     <li>Con los arreglos importados ves <b>quiénes no se están usando</b>, <b>los que más se repiten</b> y cuántas veces tuvo cada uno (último mes, 3 meses, 6 meses o 1 año).</li>
     <li>Por omisión no se cuentan los ancianos; toca <b class="ui">Incluir ancianos</b> si también quieres verlos.</li>
@@ -658,7 +674,7 @@ footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
 </section>
 
 <footer>
-  <p><b>Mi Agenda Teocrática</b> · Guía de uso · versión <span>3.14</span></p>
+  <p><b>Mi Agenda Teocrática</b> · Guía de uso · versión <span>9.8</span></p>
   <p>¿Tienes una duda que no está aquí? Pregúntale a quien te compartió la app.</p>
 </footer>
 </div>

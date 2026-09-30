@@ -15,7 +15,14 @@
       "mi-agenda-app-855f1-*.json",
       "*.key.json",
       "app-android/**",
-      "*.apk"
+      "*.apk",
+      ".publicar/**",
+      "**/.*/**",
+      "*.md",
+      "*.txt",
+      "asignaciones-*.json",
+      "Claude outputs/**",
+      "vendor/LEEME.txt"
     ],
     "headers": [
       {

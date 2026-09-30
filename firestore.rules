@@ -38,20 +38,60 @@ service cloud.firestore {
       allow delete: if isSelf(uid) || isAdmin();
     }
 
-    // Eventos compartidos: los ven y editan quienes están en «members»;
-    // solo quien lo creó (owner) cambia con quién se comparte o lo borra.
+    // Eventos compartidos: los ven quienes están en «members».
+    // Mínimo privilegio: solo quien lo creó (owner) lo cambia, cambia con quién se comparte o lo borra.
+    // Los demás solo pueden marcar su propio ✓ (doneLog) en un día.
     match /shared/{id} {
       function member() { return signedIn() && request.auth.uid in resource.data.members; }
       function ok(d) {
         return d.members is list && d.members.size() >= 2 && d.members.size() <= 30
           && d.owner in d.members && d.title is string && d.title.size() <= 120;
       }
+      function onlyMyMark() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['doneLog', 'doneAt', 'doneBy', 'doneDay'])
+          && request.resource.data.doneBy == request.auth.uid;
+      }
       allow read: if member();
       allow create: if signedIn() && (approved(request.auth.uid) || isAdmin())
         && request.resource.data.owner == request.auth.uid && ok(request.resource.data);
       allow update: if member() && ok(request.resource.data)
         && request.resource.data.owner == resource.data.owner
-        && (request.auth.uid == resource.data.owner || request.resource.data.members == resource.data.members);
+        && (request.auth.uid == resource.data.owner || onlyMyMark());
+      allow delete: if signedIn() && request.auth.uid == resource.data.owner;
+    }
+
+    // Tareas asignadas a otra cuenta. Las ven solo quien la asignó (owner) y quien la recibe (to).
+    // Mínimo privilegio: quien asigna cambia el contenido o la borra; quien recibe solo la acepta o la rechaza,
+    // anota avances y la marca hecha. Los avances ya anotados no se pueden borrar ni cambiar.
+    match /assigned/{id} {
+      function aOk(d) {
+        return d.keys().hasOnly(['owner', 'ownerName', 'to', 'toName', 'title', 'notes', 'kind', 'priority', 'due', 'dueTime',
+            'state', 'done', 'doneAt', 'log', 'createdAt', 'updatedAt', 'updatedBy'])
+          && d.owner is string && d.to is string && d.owner != d.to
+          && d.title is string && d.title.size() > 0 && d.title.size() <= 140
+          && (!('notes' in d) || (d.notes is string && d.notes.size() <= 4000))
+          && d.state in ['nueva', 'aceptada', 'rechazada'] && d.done is bool
+          && (!d.done || d.state == 'aceptada')
+          && d.log is list && d.log.size() <= 200;
+      }
+      function sameBase() {
+        return request.resource.data.owner == resource.data.owner && request.resource.data.to == resource.data.to
+          && request.resource.data.updatedBy == request.auth.uid
+          && request.resource.data.log.size() >= resource.data.log.size()
+          && request.resource.data.log[0:resource.data.log.size()] == resource.data.log;
+      }
+      allow read: if signedIn() && (request.auth.uid == resource.data.owner || request.auth.uid == resource.data.to);
+      allow create: if signedIn() && (approved(request.auth.uid) || isAdmin())
+        && request.resource.data.owner == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.state == 'nueva' && request.resource.data.done == false && request.resource.data.log.size() == 0
+        && aOk(request.resource.data);
+      allow update: if signedIn() && aOk(request.resource.data) && sameBase()
+        && ((request.auth.uid == resource.data.owner
+              && request.resource.data.state == resource.data.state
+              && request.resource.data.ownerName == resource.data.ownerName && request.resource.data.toName == resource.data.toName)
+          || (request.auth.uid == resource.data.to
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'done', 'doneAt', 'log', 'updatedAt', 'updatedBy'])
+              && request.resource.data.state in ['aceptada', 'rechazada']));
       allow delete: if signedIn() && request.auth.uid == resource.data.owner;
     }
 

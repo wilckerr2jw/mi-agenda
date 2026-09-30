@@ -1,8 +1,8 @@
 {
-  "version": "9.7",
+  "version": "9.8",
   "notes": [
-    "Tareas más ordenadas: atrasadas, hoy, esta semana, más adelante y sin fecha",
-    "Prioridad en cada tarea: las altas van primero y las bajas quedan al final",
-    "Ver las tareas en lista o en tarjetas"
+    "Asignaciones mecánicas: lee el programa en texto («Audio: Nombre»), lo muestra en tarjetas, se imprime, se comparte como imagen y avisa a cada hermano",
+    "Recordar por WhatsApp las tareas atrasadas a cada responsable",
+    "El enlace para los ancianos trae la agenda de la próxima reunión · diseño renovado"
   ]
 }

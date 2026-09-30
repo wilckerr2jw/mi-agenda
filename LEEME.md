@@ -160,6 +160,29 @@ administrador) y `directory/{uid}` (correo y nombre de cada cuenta, para la list
   GitHub → Settings → Secrets and variables → Actions: `ANDROID_KEYSTORE_PASS` y `ANDROID_KEYSTORE_B64`.
   Guarda también `.publicar/miagenda.jks`: **sin esa llave no se pueden publicar actualizaciones de la app**.
 
+## Novedades de la v9.8: mínimo privilegio y tareas enviadas a otra cuenta
+
+- **Mecánicas** (`js/mecas.js`): `parseMecas` reconoce además el formato «una asignación por renglón» (`labeledParts`: «Audio: Nombre», con la
+  fecha sola arriba o al comienzo); las filas de quien no está en Personas se guardan con `pid: ''` y su nombre, y `rowPerson(r)` las enlaza
+  por nombre o alias cuando lo agregas. `programHtml` (tarjetas por fecha / por hermano), `printProgram` (hoja carta), `drawProgram` +
+  `shareProgram` (PNG), `remindSheet`/`remindSend` (WhatsApp por hermano) y `myMecas` (tarjeta en Hoy).
+- **Recordar por WhatsApp** (`js/recordar.js`): `remindList(días)` junta por responsable las tareas de otros atrasadas o por vencer;
+  `messageFor` arma el texto y `send` lo abre con `waLink(teléfono)`.
+- **Enlace para los ancianos**: sección nueva `agenda` (`nextAgendaMeeting`/`agendaSnap` en `js/compartir.js`, `agendaHtml` en `js/ver.js`);
+  sin puntos privados y sin subpuntos de los confidenciales. `sectionsOf(c)` la agrega a los enlaces ya creados salvo que `agendaOff`.
+- **Publicación**: `firebase.json` ya no publica `*.md`, `*.txt` de la raíz, `.publicar/**`, `Claude outputs/**` ni `asignaciones-*.json`.
+
+- **Eventos compartidos** (`shared/{id}`): solo el dueño (`owner`) cambia el contenido, los miembros o lo borra. Los demás
+  solo tocan su ✓ (`doneLog`, `doneAt`, `doneBy`, `doneDay`, con `doneBy` = su uid). En la app, quien no lo creó lo ve
+  bloqueado y solo tiene «Quitar de mi agenda» (`profile.sharedHidden`); `sharedWrite` no envía cambios de quien no es el dueño.
+- **Tareas asignadas** (`assigned/{id}` → `owner`, `to`, `title`, `notes`, `kind`, `priority`, `due`, `dueTime`, `state`
+  `nueva|aceptada|rechazada`, `done`, `doneAt`, `log[{d,t,by,byName}]`…): las leen solo `owner` y `to`. El dueño cambia el
+  contenido o la borra (no el estado); quien la recibe solo cambia `state`, `done`, `doneAt` y `log`. `done` exige
+  `state == 'aceptada'`. Los avances ya anotados no se pueden quitar ni cambiar (`log[0:n]` igual al anterior).
+- En la app: la persona lleva `accountUid`/`accountName` (su cuenta, sugerida por el nombre). La tarea enviada lleva
+  `assignedId`, `assignTo`, `assignToName`, `assignState`; las recibidas y aceptadas se muestran en Tareas con id `as_…`
+  y `assignedFrom` (no se guardan en `users/{uid}/tasks` ni en el respaldo).
+
 ## Novedades de la v9.3: enlace para los ancianos y Google Calendar automático
 
 - **Enlace para los ancianos** (`js/compartir.js` y `ver.html` + `js/ver.js`): el contenido (organigrama, acuerdos y tareas,
