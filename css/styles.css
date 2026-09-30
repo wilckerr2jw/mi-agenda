@@ -1165,3 +1165,7 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 .gc-steps li { overflow-wrap: anywhere; }
 .gc-steps code { font-size: 12px; }
 #gcal-url { width: 100%; font-size: 14px; }
+
+/* Aviso suave en el formulario de departamento */
+.warn-box{background:#FFF4E0;color:#7A4A06;border:1px solid #F0C27A;border-radius:10px;padding:8px 10px;font-size:.9em;margin:6px 0}
+@media (prefers-color-scheme:dark){.warn-box{background:#3A2A10;color:#F5D39A;border-color:#7A5A20}}
