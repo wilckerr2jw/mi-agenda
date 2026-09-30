@@ -1,7 +1,8 @@
 {
-  "version": "9.5",
+  "version": "9.6",
   "notes": [
-    "Tareas de los departamentos que supervisas: en Tareas («De mis departamentos»), en Hoy y en cada departamento",
-    "Campo «Departamento» en las tareas: se elige solo según el responsable o lo eliges tú"
+    "Asignar tareas desde cada departamento a su responsable",
+    "Tareas sugeridas por departamento (por ejemplo, «Montar el programa de audio y video»), una o varias a la vez",
+    "Tus tareas vuelven a verse como antes, sin agruparse por departamento"
   ]
 }

@@ -1118,63 +1118,96 @@ export function toSupervise() {
   }).filter(x => x.late || x.quiet >= SUPERVISE_DAYS).sort((a, b) => b.quiet - a.quiet);
 }
 
-// ───── Tareas de los departamentos que supervisas ─────
-// Supervisas los departamentos donde eres responsable y todos los que dependen de ellos.
-// El Cuerpo de ancianos y el Comité se llenan solos (todos los ancianos están ahí), así que no cuentan: si no, todo el organigrama sería tuyo.
-const broadDept = d => canAutoHeads(d) || isGroupBox(d);
+// ───── Tareas asignadas a los departamentos ─────
+// Una tarea es de un departamento solo si se asignó desde él (deptId). Las demás tareas no cambian.
+// Departamentos donde eres responsable y los que dependen de ellos (sin el Cuerpo ni el Comité, que incluyen a todos)
 export function mySupervisedDepts() {
   const me = data.people.find(p => p.isMe);
   if (!me) return [];
   const ids = new Set();
-  (data.depts || []).filter(d => !broadDept(d) && deptHeadIds(d).includes(me.id))
+  (data.depts || []).filter(d => !canAutoHeads(d) && !isGroupBox(d) && deptHeadIds(d).includes(me.id))
     .forEach(d => { ids.add(d.id); deptDescendants(d.id).forEach(x => ids.add(x)); });
-  // En el orden del organigrama
-  const out = [];
-  const walk = list => list.forEach(n => { if (ids.has(n.d.id) && !isGroupBox(n.d)) out.push(n.d); walk(n.children); });
-  walk(deptTree());
-  return out;
-}
-// Personas responsables de una tarea (sin ti)
-const taskPeopleIds = t => {
-  const ids = new Set(t.responsibleIds || []);
-  (t.responsibles || []).forEach(n => { const h = resolveName(n); if (h?.id && !h.isMe) ids.add(h.id); });
   return [...ids];
+}
+export const taskDept = t => (t.deptId ? (data.depts || []).find(d => d.id === t.deptId) || null : null);
+// ───── Tareas sugeridas para cada departamento ─────
+// t = qué hacer · r = cómo se repite (TASK_REPEATS) · d = en cuántos días vence la primera
+const M_ = (t, d = 7) => ({ t, r: 'mensual', d }), W_ = (t, d = 3) => ({ t, r: 'semanal', d }), Y_ = (t, d = 30) => ({ t, r: 'anual', d }), O_ = (t, d = 30) => ({ t, r: '', d });
+export const DEPT_TASKS = {
+  coord:      [M_('Preparar la agenda de la reunión del cuerpo de ancianos', 10)],
+  mecanicas:  [M_('Hacer el programa de asignaciones mecánicas del mes'), M_('Enviar el programa de asignaciones mecánicas a los hermanos', 10)],
+  acom:       [M_('Hacer el programa de acomodadores'), O_('Repasar las pautas de acomodadores con los hermanos')],
+  discursos:  [M_('Confirmar los oradores del próximo mes'), M_('Enviar la lista de oradores de la congregación', 14)],
+  hospital:   [W_('Organizar la hospitalidad para el orador visitante', 5)],
+  av:         [M_('Montar el programa de audio y video'), M_('Revisar que el equipo de audio y video funcione', 14), O_('Capacitar a un hermano nuevo en audio y video')],
+  sonido:     [W_('Revisar el equipo de sonido antes de la reunión')],
+  video:      [W_('Probar la videoconferencia antes de la reunión'), M_('Revisar quiénes se conectan por videoconferencia', 14)],
+  micros:     [M_('Hacer el programa de micrófonos')],
+  plataforma: [M_('Hacer el programa de plataforma')],
+  presid:     [M_('Hacer el programa de presidentes')],
+  lectores:   [M_('Hacer el programa de lectores')],
+  anuncios:   [W_('Revisar los anuncios de la semana')],
+  auditoria:  [O_('Hacer la auditoría de las cuentas')],
+  nobaut:     [O_('Reunirse con quienes desean ser publicadores', 14)],
+  bautismo:   [O_('Programar las sesiones con los candidatos al bautismo', 14)],
+  secre:      [W_('Revisar la correspondencia de la sucursal')],
+  jwhub:      [W_('Revisar las cartas y avisos nuevos en JW Hub')],
+  cuentas:    [M_('Preparar el informe de cuentas del mes', 10), M_('Leer el informe de cuentas en la reunión', 14)],
+  asamblea:   [O_('Pasar a la congregación la información de la asamblea regional')],
+  informe:    [M_('Enviar el informe de actividad de la congregación', 20)],
+  registros:  [M_('Recordar a los publicadores que entreguen su informe', 3), M_('Actualizar los registros de los publicadores', 15)],
+  serv:       [M_('Programar la visita al próximo grupo del servicio', 14), M_('Revisar la actividad de la congregación en el servicio', 20)],
+  pubs:       [M_('Hacer el pedido de publicaciones', 10), O_('Hacer el inventario de publicaciones')],
+  terr:       [M_('Revisar los territorios que llevan más de 4 meses sin predicarse', 14), M_('Anotar los territorios entregados y devueltos')],
+  campanas:   [O_('Organizar la próxima campaña especial')],
+  ppub:       [M_('Hacer el programa de predicación pública'), M_('Revisar los exhibidores y sus publicaciones', 14)],
+  vym:        [M_('Hacer el programa de la reunión Vida y Ministerio', 10), W_('Revisar las asignaciones de los estudiantes')],
+  sala:       [M_('Revisar el programa de la sala auxiliar', 10)],
+  atalaya:    [W_('Preparar el Estudio de La Atalaya')],
+  mant:       [M_('Revisar el programa de mantenimiento del Salón', 14), Y_('Hacer la inspección del Salón del Reino')],
+  limpieza:   [M_('Hacer el programa de limpieza por grupos'), M_('Revisar que haya artículos de limpieza', 14)],
+  seguridad:  [Y_('Revisar los extintores y las salidas de emergencia')],
+  emergencia: [Y_('Actualizar las listas de contacto por grupo')],
+  conmem:     [Y_('Organizar la Conmemoración'), Y_('Organizar la campaña de invitaciones a la Conmemoración')],
+  enlace:     [O_('Actualizar la lista de hermanos hospitalizados', 14)],
+  visitapac:  [W_('Visitar a los hermanos hospitalizados', 5)],
+  circuito:   [O_('Preparar la visita del superintendente de circuito')],
+  'c-prec':   [M_('Revisar la actividad de los precursores regulares', 20)],
+  'c-reun':   [M_('Hacer el programa de las reuniones para el servicio del campo')],
+  'c-salon':  [O_('Revisar las solicitudes para usar el Salón', 14)],
+  grupo:      [M_('Visitar a los publicadores del grupo', 14), M_('Recordar al grupo que entregue su informe', 3)],
 };
-// Departamentos posibles según sus responsables (primero donde son responsables)
-export function taskDeptCandidates(t, heads = false) {
-  const out = [];
-  taskPeopleIds(t).forEach(pid => deptsOfPerson(pid).forEach(({ d, head }) => { if ((head || !heads) && !broadDept(d) && !out.includes(d)) out.push(d); }));
-  return out;
+// Clave del departamento en la lista sugerida (por su clave, su nombre o un nombre anterior)
+function deptKey(d) {
+  if (!d) return '';
+  if (d.sk && DEPT_TASKS[d.sk]) return d.sk;
+  const n = norm2(d.name);
+  const s = DEPT_SUGGESTED.find(x => norm2(x.n) === n || (x.old || []).some(o => norm2(o) === n));
+  if (s && DEPT_TASKS[s.k]) return s.k;
+  if (/^grupo\b/.test(n) && !isGroupBox(d)) return 'grupo';
+  if (/audio|video/.test(n)) return 'av';
+  if (/acomodador/.test(n)) return 'acom';
+  if (/limpieza/.test(n)) return 'limpieza';
+  if (/territorio/.test(n)) return 'terr';
+  if (/publicaciones|literatura/.test(n)) return 'pubs';
+  return '';
 }
-// Departamento de la tarea: el que elegiste o, si no elegiste, el de su responsable
-// (primero donde es responsable; si está en varios, uno de los que supervisas).
-export function taskDept(t, sup = null) {
-  if (t.deptId) return (data.depts || []).find(d => d.id === t.deptId) || null;
-  const c = taskDeptCandidates(t);
-  if (c.length <= 1) return c[0] || null;
-  const h = taskDeptCandidates(t, true);
-  if (h.length === 1) return h[0];
-  const mine = new Set((sup || mySupervisedDepts()).map(d => d.id));
-  return (h.length ? h : c).find(d => mine.has(d.id)) || null;
+// Sugerencias de un departamento; «taken» = ya tiene una tarea pendiente con ese título
+export function deptSuggestions(d) {
+  const list = DEPT_TASKS[deptKey(d)] || [];
+  const open = data.tasks.filter(t => t.status !== 'hecha' && t.deptId === d.id).map(t => norm2(t.title));
+  return list.map((s, i) => ({ ...s, i, taken: open.includes(norm2(s.t)) }));
 }
-// Pendientes de tus departamentos, agrupadas: [{ d, tasks, late }]
-export function deptTasks(onlyId = '') {
-  const sup = mySupervisedDepts();
-  const want = onlyId ? sup.filter(d => d.id === onlyId) : sup;
-  const byId = new Map(want.map(d => [d.id, { d, tasks: [], late: 0 }]));
-  const t0 = today();
-  data.tasks.filter(t => t.status !== 'hecha').forEach(t => {
-    const g = byId.get(taskDept(t, sup)?.id);
-    if (!g) return;
-    g.tasks.push(t);
-    if (t.due && t.due < t0) g.late++;
-  });
-  return [...byId.values()].filter(g => g.tasks.length).map(g => ({ ...g, tasks: sortActive(g.tasks) }));
+// Datos para crear la tarea: el responsable del departamento, el departamento y la repetición
+export function deptTaskPreset(d, s = null) {
+  const me = data.people.find(p => p.isMe);
+  const ids = deptHeadIds(d).filter(id => id !== me?.id && person(id));
+  const mine = !ids.length || deptHeadIds(d).includes(me?.id);
+  return { title: s?.t || '', kind: 'otro', deptId: d.id, responsibleIds: ids, responsibles: ids.map(personName), mine, repeat: s?.r || '', due: s ? addDays(today(), s.d) : '' };
 }
 // Pendientes de un departamento cualquiera (para verlas al abrirlo)
 export function tasksOfDept(id) {
-  const sup = mySupervisedDepts();
-  return sortActive(data.tasks.filter(t => t.status !== 'hecha' && taskDept(t, sup)?.id === id));
+  return sortActive(data.tasks.filter(t => t.status !== 'hecha' && t.deptId === id));
 }
 
 // ───── Quién puede atender cada responsabilidad (sin referencias en pantalla) ─────

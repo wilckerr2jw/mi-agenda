@@ -504,7 +504,7 @@ function refreshPersonSelects(form, selectPersonId) {
 
 export function taskSheet(id, preset = {}, back) {
   const t = id ? store.get('tasks', id) : null;
-  const v = t || { title: preset.title || '', kind: preset.kind || 'visita', personId: preset.personId || '', companionId: '', due: preset.due || '', dueTime: '', status: 'pendiente', notes: preset.notes || '', log: [], meetingId: preset.meetingId || '', fromAgreement: preset.fromAgreement || '', responsibles: preset.responsibles || [], mine: preset.mine !== false, repeat: preset.repeat || '' };
+  const v = t || { title: preset.title || '', kind: preset.kind || 'visita', personId: preset.personId || '', companionId: '', due: preset.due || '', dueTime: '', status: 'pendiente', notes: preset.notes || '', log: [], meetingId: preset.meetingId || '', fromAgreement: preset.fromAgreement || '', responsibles: preset.responsibles || [], responsibleIds: preset.responsibleIds || [], mine: preset.mine !== false, repeat: preset.repeat || '', deptId: preset.deptId || '' };
   const meeting = v.meetingId ? store.get('meetings', v.meetingId) : null;
   const meetings = [...data.meetings].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const meetingSelect = `<select id="meetingId" name="meetingId"><option value="">Ninguna</option>${meetings.map(m => `<option value="${m.id}" ${m.id === v.meetingId ? 'selected' : ''}>${esc(m.title)} — ${fmtShort(m.date)}</option>`).join('')}</select>`;
@@ -530,7 +530,8 @@ export function taskSheet(id, preset = {}, back) {
       ${!t && preset.subjectName && !v.personId ? `<p class="hint" id="subject-add">${esc(preset.subjectName)} no está en tus Personas. <button type="button" class="link sm" data-a="subject-add-person" data-name="${esc(preset.subjectName)}">Agregarla y elegirla</button></p>` : ''}
       ${fld('Persona que me acompaña', peopleSelect('companionId', v.companionId, 'Nadie'), 'companionId')}
       <div class="f"><span class="lbl">Responsables</span><div id="resp-box">${responsiblesHtml(splitResponsibles(v))}</div></div>
-      ${(data.depts || []).length ? `${fld('Departamento', deptSelect(v.deptId), 'deptId')}<p class="hint" id="dept-auto">${esc(deptAutoHint(v))}</p>` : ''}
+      <input type="hidden" name="deptId" value="${esc(v.deptId || '')}">
+      ${v.deptId && M.taskDept(v) ? `<p class="hint">📋 Asignada desde el departamento «${esc(M.taskDept(v).name)}».</p>` : ''}
       <div class="two">
         ${fld('Fecha límite', `<input id="due" name="due" type="date" value="${v.due || ''}">`, 'due')}
         ${fld('Hora', `<input id="dueTime" name="dueTime" type="time" value="${v.dueTime || ''}">`, 'dueTime')}
@@ -543,22 +544,6 @@ export function taskSheet(id, preset = {}, back) {
     </form>${log}`,
     actions: foot('tasks', t?.id),
   });
-  // Al cambiar los responsables, se actualiza el departamento automático
-  const f = document.getElementById('f'), hint = document.getElementById('dept-auto');
-  if (f && hint) f.addEventListener('change', () => { hint.textContent = deptAutoHint({ ...responsiblesFrom(f), deptId: f.querySelector('#deptId')?.value || '' }); });
-}
-
-// Departamento de una tarea: «Automático» usa el de su responsable
-function deptSelect(cur = '') {
-  const sup = new Set(M.mySupervisedDepts().map(d => d.id));
-  const all = (data.depts || []).filter(d => !M.isGroupBox(d)).sort((a, b) => (sup.has(b.id) ? 1 : 0) - (sup.has(a.id) ? 1 : 0) || a.name.localeCompare(b.name, 'es'));
-  return `<select id="deptId" name="deptId"><option value="">Automático (según el responsable)</option>${all.map(d => `<option value="${d.id}" ${d.id === cur ? 'selected' : ''}>${sup.has(d.id) ? '👁 ' : ''}${esc(d.name)}</option>`).join('')}</select>`;
-}
-function deptAutoHint(t) {
-  if (t.deptId) return M.mySupervisedDepts().some(d => d.id === t.deptId) ? '👁 Es de un departamento que supervisas.' : '';
-  const d = M.taskDept(t);
-  if (d) return `Automático: ${d.name}.`;
-  return M.taskDeptCandidates(t).length > 1 ? 'El responsable está en varios departamentos: elige uno.' : 'Sin departamento. Elige uno si quieres verla en «De mis departamentos».';
 }
 
 // Devuelve la tarea con lo escrito en el formulario, o null si falta escribir el tipo
@@ -951,16 +936,64 @@ export function deptSheet(id, preset = {}) {
     box.hidden = !w.length; box.textContent = w.length ? `⚠️ ${w.join(' ')}` : '';
   });
 }
-// Tareas pendientes del departamento (las que anotaste para sus responsables o con este departamento)
+// Tareas del departamento: las pendientes, asignar una nueva y las sugeridas
 function deptTasksHtml(d) {
   const list = M.tasksOfDept(d.id);
-  if (!list.length) return '';
+  const sug = M.deptSuggestions(d).filter(s => !s.taken);
+  const heads = M.deptHeads(d);
   const t0 = today();
-  return `<h3 class="sub-h">📋 Tareas pendientes <span class="hint">${list.length}</span></h3>
-    <div class="stack">${list.map(t => `<button type="button" class="card mini" data-a="dept-task" data-id="${t.id}" data-dept="${d.id}">
+  return `<h3 class="sub-h">📋 Tareas${list.length ? ` pendientes <span class="hint">${list.length}</span>` : ''}</h3>
+    ${list.length ? `<div class="stack">${list.map(t => `<button type="button" class="card mini" data-a="dept-task" data-id="${t.id}" data-dept="${d.id}">
       <strong>${esc(t.title)}</strong>
       <span class="meta">${(t.responsibles || []).length ? `${esc(t.responsibles.join(', '))}` : ''}${t.due ? `${(t.responsibles || []).length ? ' · ' : ''}${t.due < t0 ? `<b class="late">venció el ${esc(fmtShort(t.due))}</b>` : `para el ${esc(fmtShort(t.due))}`}` : ''}${t.status === 'seguimiento' ? ' · En seguimiento' : ''}</span>
-    </button>`).join('')}</div>`;
+    </button>`).join('')}</div>` : ''}
+    <button type="button" class="btn pad-top" data-a="dept-assign" data-id="${d.id}">＋ Asignar una tarea${heads.length ? ` a ${esc(heads.join(', '))}` : ''}</button>
+    ${sug.length ? `<p class="hint pad-top">💡 Sugeridas para este departamento. Tócala para revisarla y guardarla:</p>
+      <div class="stack">${sug.map(s => `<button type="button" class="card mini" data-a="dept-assign" data-id="${d.id}" data-v="${s.i}">
+        <strong>＋ ${esc(s.t)}</strong><span class="meta">${s.r ? `${esc(M.TASK_REPEATS[s.r])} · ` : ''}la primera vence en ${s.d} días</span></button>`).join('')}</div>` : ''}`;
+}
+// Abre una tarea nueva para el departamento (vacía o con una sugerida); al guardar vuelve al departamento
+export function deptAssign(id, i = '') {
+  const d = store.get('depts', id);
+  if (!d) return;
+  const s = i === '' ? null : M.deptSuggestions(d)[Number(i)];
+  taskSheet(null, M.deptTaskPreset(d, s), () => deptSheet(id));
+}
+
+// ───── Asignar varias tareas sugeridas a la vez (todos los departamentos) ─────
+export function deptSuggestSheet() {
+  const me = data.people.find(p => p.isMe);
+  const groups = [];
+  const walk = list => list.forEach(n => { const sug = M.deptSuggestions(n.d).filter(s => !s.taken); if (sug.length) groups.push({ d: n.d, sug }); walk(n.children); });
+  walk(M.deptTree());
+  const sup = new Set(M.mySupervisedDepts());
+  groups.sort((a, b) => (sup.has(b.d.id) ? 1 : 0) - (sup.has(a.d.id) ? 1 : 0));
+  open({
+    title: '💡 Tareas sugeridas',
+    body: groups.length ? `<form id="f" onsubmit="return false">
+      <p class="hint">Marca las que quieres asignar. Cada una se crea para el responsable de su departamento, con su repetición y su fecha. Después puedes cambiar cualquier detalle en la tarea.${sup.size ? ' Primero salen los departamentos que supervisas (👁).' : ''}</p>
+      ${groups.map(g => { const heads = [...(M.deptHeadIds(g.d).includes(me?.id) ? ['Tú'] : []), ...M.deptHeads(g.d).filter(n => n !== me?.name)]; return `<h3 class="sub-h">${sup.has(g.d.id) ? '👁 ' : ''}${esc(g.d.name)} <span class="hint">${heads.length ? `★ ${esc(heads.join(', '))}` : 'sin responsable'}</span></h3>
+        <div class="checklist">${g.sug.map(s => `<label class="check"><input type="checkbox" name="sug" value="${g.d.id}|${s.i}"> <span>${esc(s.t)} <span class="hint">${s.r ? `${esc(M.TASK_REPEATS[s.r])} · ` : ''}en ${s.d} días</span></span></label>`).join('')}</div>`; }).join('')}
+    </form>` : '<p class="hint">No hay sugerencias pendientes: todos tus departamentos ya tienen sus tareas sugeridas, o aún no hay departamentos en el organigrama.</p>',
+    actions: groups.length ? `<button class="btn primary" data-a="dept-suggest-save">Asignar las marcadas</button>` : '',
+  });
+}
+export function deptSuggestSave() {
+  const form = document.getElementById('f');
+  if (!form) return;
+  const picked = new FormData(form).getAll('sug');
+  if (!picked.length) { toast('Marca al menos una tarea'); return; }
+  let n = 0;
+  picked.forEach(v => {
+    const [id, i] = String(v).split('|');
+    const d = store.get('depts', id);
+    const s = d && M.deptSuggestions(d)[Number(i)];
+    if (!s || s.taken) return;
+    store.upsert('tasks', { id: uid(), ...M.deptTaskPreset(d, s), personId: '', companionId: '', dueTime: '', status: 'pendiente', notes: '', log: [], meetingId: '', fromAgreement: '', doneAt: '' });
+    n++;
+  });
+  close();
+  toast(n === 1 ? 'Se asignó 1 tarea' : `Se asignaron ${n} tareas`);
 }
 function saveDept(id, r, form) {
   const prev = id ? store.get('depts', id) : {};

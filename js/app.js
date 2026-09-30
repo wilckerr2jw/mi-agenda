@@ -193,7 +193,9 @@ document.addEventListener('click', e => {
     // tareas
     case 'task': return S.taskSheet(id);
     case 'dept-task': return S.taskSheet(id, {}, () => S.deptSheet(el.dataset.dept || ''));
-    case 'dept-tasks': ui.tareas = { ...ui.tareas, f: 'activas', m: '__dept', p: '' }; return go('tareas');
+    case 'dept-assign': return S.deptAssign(id, el.dataset.v ?? '');
+    case 'dept-suggest-tasks': return S.deptSuggestSheet();
+    case 'dept-suggest-save': return S.deptSuggestSave();
     case 'new-task': return S.taskSheet(null);
     case 'toggle-task': return toggleTask(id);
     case 'filter-tasks': ui.tareas.f = v; return render();
