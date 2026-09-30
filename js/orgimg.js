@@ -123,7 +123,7 @@ export function printOrg() {
   const has = d => M.deptHeads(d).length || M.deptHelpers(d).length;
   // Hoja 1 (horizontal): arriba el Cuerpo de ancianos y el Comité; abajo 4 columnas con los departamentos que tienen a alguien
   const COLS = [
-    { t: 'Coordinación general', k: ['coord'], re: /^coordinador del cuerpo/i },
+    { t: 'Coordinación', k: ['coord'], re: /^coordinador del cuerpo/i },
     { t: 'Secretaría', k: ['secre'], re: /^secretario$/i },
     { t: 'Servicio', k: ['serv'], re: /^superintendente de servicio$/i },
     { t: 'Reuniones y mantenimiento', k: ['vym', 'atalaya', 'mant'], re: /vida y ministerio|la atalaya|mantenimiento/i },
@@ -150,7 +150,7 @@ export function printOrg() {
     *{box-sizing:border-box} body{margin:0;background:#e9ece8;font-family:Arial,"Helvetica Neue",system-ui,sans-serif;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .page{background:#fff;margin:10mm auto;overflow:hidden;display:flex;flex-direction:column}
     .fit{flex:1;overflow:hidden;display:flex;flex-direction:column}
-    .land{page:horiz;width:261.4mm;height:197.9mm}
+    .land{page:horiz;width:259mm;height:190mm}
     .port{page:vert;width:193.9mm;height:256mm}
     /* Hoja 1 */
     .hdr{background:#174B47;color:#fff;display:flex;justify-content:space-between;align-items:flex-end;padding:.45em .8em}
@@ -190,8 +190,8 @@ export function printOrg() {
       ${rost.map(({ r, l }) => `<div class="ros${r.k === 'pa' ? ' pa' : ''}"><h2>${escH(r.k === 'pa' ? `${r.n} · ${mes}` : r.n)} <span>${l.length}</span></h2>${l.length ? `<div class="names${l.length > 24 ? ' c3' : ''}">${l.map(p => `<div>${escH(p.name)}</div>`).join('')}</div>` : '<div class="none">Nadie anotado todavía</div>'}</div>`).join('')}</div>
       <div class="foot">Página 2 de 2 · Actualizado el ${fmtShort(today())} · Mi Agenda Teocrática</div></section>
     <script>
-      // Letra grande (15 pt en la hoja 1 y 16 pt en la 2); si algo no cabe se achica poco a poco (mínimo 10,5 y 13 pt)
-      function fit(){document.querySelectorAll('.page').forEach(function(pg){var land=pg.classList.contains('land'),f=pg.querySelector('.fit'),s=land?15:16,min=land?10.5:13;pg.style.fontSize=s+'pt';while(f.scrollHeight>f.clientHeight+1&&s>min){s-=.5;pg.style.fontSize=s+'pt';}});}
+      // Letra grande (15 pt en la hoja 1 y 16 pt en la 2); si algo no cabe se achica poco a poco (mínimo 9 y 13 pt)
+      function fit(){document.querySelectorAll('.page').forEach(function(pg){var land=pg.classList.contains('land'),f=pg.querySelector('.fit'),s=land?15:16,min=land?9:13;pg.style.fontSize=s+'pt';while(f.scrollHeight>f.clientHeight-8&&s>min){s-=.5;pg.style.fontSize=s+'pt';}});}
       function pa(){var c=document.getElementById('pa'),on=c&&c.checked;document.querySelectorAll('.ros.pa').forEach(function(e){e.style.display=on?'':'none'});try{opener&&opener.localStorage.setItem('org-print-pa',on?'1':'0')}catch(e){}fit();}
       var cb=document.getElementById('pa');if(cb)cb.onchange=pa;pa();
       setTimeout(function(){fit();print();},400);
