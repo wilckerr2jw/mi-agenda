@@ -114,6 +114,20 @@ function assignmentsHoy() {
       <span class="meta">${inDays === 0 ? '<b>Hoy</b>' : inDays === 1 ? '<b>Mañana</b>' : `${esc(fmtShort(date))} · en ${inDays} días`}${e.time ? `, ${fmtTime(e.time)}` : ''}${e.theme ? ` · ${esc(e.theme)}` : ''}</span>
       ${prep && inDays > 0 ? '<span class="meta prep-tag">✍️ Es tiempo de prepararla</span>' : ''}</button>`; }).join('')}</div></section>`;
 }
+// Hoy: cuántas tareas pendientes tiene cada departamento que supervisas
+function deptsHoy() {
+  if (!M.isModuleVisible('tareas')) return '';
+  const groups = M.deptTasks().sort((a, b) => b.late - a.late || b.tasks.length - a.tasks.length);
+  if (!groups.length) return '';
+  const late = groups.reduce((n, g) => n + g.late, 0);
+  return `<section><div class="sec-h"><h2>👁 Mis departamentos</h2><button class="btn small ghost" data-a="dept-tasks">Ver todas</button></div>
+    ${late ? `<p class="hint pad"><b class="late">${late} ${late === 1 ? 'tarea atrasada' : 'tareas atrasadas'}</b> en los departamentos que supervisas.</p>` : ''}
+    <div class="stack">${groups.slice(0, 5).map(g => `<button class="card mini" data-a="dept-tasks">
+      <strong>${esc(g.d.name)}</strong>
+      <span class="meta">${g.tasks.length} ${g.tasks.length === 1 ? 'pendiente' : 'pendientes'}${g.late ? ` · <b class="late">${g.late} ${g.late === 1 ? 'atrasada' : 'atrasadas'}</b>` : ''}${M.deptHeads(g.d).length ? ` · ★ ${esc(M.deptHeads(g.d).join(', '))}` : ''}</span>
+    </button>`).join('')}</div>
+    ${groups.length > 5 ? `<p class="hint pad">Y ${groups.length - 5} más.</p>` : ''}</section>`;
+}
 // Hoy: capacitaciones del organigrama que toca revisar (desde 3 días antes)
 function reviewsHoy() {
   if (!M.isModuleVisible('congregacion')) return '';
@@ -235,6 +249,7 @@ export function hoy() {
       <strong>${esc(x.title)}</strong>
       <span class="meta">${(x.responsibles || []).length ? `${esc(x.responsibles.join(', '))} · ` : ''}${late ? `<b class="late">venció ${relDays(x.due)}</b>` : `sin novedades hace ${quiet} días`}</span>
     </button>`).join('')}</div></section>` : ''}
+  ${deptsHoy()}
   ${next.length ? `<section><div class="sec-h"><h2>Próximas reuniones</h2></div><div class="stack">${next.map(meetCard).join('')}</div></section>` : ''}`;
 }
 
@@ -400,7 +415,10 @@ export function agenda(ui) {
 export function tareas(ui) {
   const f = ui.tareas.f;
   const pid = ui.tareas.p || '';
-  const mid = ui.tareas.m || '';   // '' = todas · '__any' = de reuniones · '__mine' = me tocan · '__sup' = superviso · id = una reunión
+  const mid = ui.tareas.m || '';   // '' = todas · '__any' = de reuniones · '__mine' = me tocan · '__sup' = superviso · '__dept' = de mis departamentos · id = una reunión
+  const supDepts = M.mySupervisedDepts();
+  if (mid === '__dept' && !supDepts.length) ui.tareas.m = '';
+  if (ui.tareas.m === '__dept') return tareasDept(ui, supDepts);
   const byOrigin = t => !mid || (mid === '__any' ? !!t.meetingId : mid === '__mine' ? M.isMineTask(t) : mid === '__sup' ? !M.isMineTask(t) : t.meetingId === mid);
   const base = data.tasks.filter(t => (!pid || t.personId === pid) && byOrigin(t));
   const act = base.filter(t => t.status !== 'hecha');
@@ -417,8 +435,8 @@ export function tareas(ui) {
   const supervised = data.tasks.some(t => !M.isMineTask(t));
   const personSel = withTasks.length
     ? `<select id="tareas-person" aria-label="Filtrar por persona"><option value="">Todas las personas</option>${withTasks.map(p => `<option value="${p.id}" ${p.id === pid ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : '';
-  const meetingSel = withMeetings.length || supervised
-    ? `<select id="tareas-meeting" aria-label="Filtrar por origen"><option value="">Todas las tareas</option>${supervised ? `<option value="__mine" ${mid === '__mine' ? 'selected' : ''}>Me tocan a mí</option><option value="__sup" ${mid === '__sup' ? 'selected' : ''}>Las que superviso</option>` : ''}${withMeetings.length ? `<option value="__any" ${mid === '__any' ? 'selected' : ''}>Solo de reuniones</option>` : ''}${withMeetings.map(m => `<option value="${m.id}" ${m.id === mid ? 'selected' : ''}>${esc(m.title)} — ${fmtShort(m.date)}</option>`).join('')}</select>` : '';
+  const meetingSel = withMeetings.length || supervised || supDepts.length
+    ? `<select id="tareas-meeting" aria-label="Filtrar por origen">${originOptions(mid, supervised, supDepts.length)}${withMeetings.length ? `<option value="__any" ${mid === '__any' ? 'selected' : ''}>Solo de reuniones</option>` : ''}${withMeetings.map(m => `<option value="${m.id}" ${m.id === mid ? 'selected' : ''}>${esc(m.title)} — ${fmtShort(m.date)}</option>`).join('')}</select>` : '';
   const personFilter = personSel || meetingSel ? `<div class="pad filters ${personSel && meetingSel ? 'two' : ''}">${personSel}${meetingSel}</div>` : '';
   const msg = {
     activas: 'No tienes tareas activas. Agrega una para darle seguimiento.',
@@ -429,6 +447,23 @@ export function tareas(ui) {
   <div class="chips">${chips}</div>
   ${personFilter}
   ${list.length ? `<div class="stack">${list.map(taskRow).join('')}</div>` : empty(msg, f === 'hechas' ? '' : `<button class="btn" data-a="new-task">Nueva tarea</button>`, 'tasks')}`;
+}
+const originOptions = (mid, supervised, hasDepts) => `<option value="">Todas las tareas</option>${supervised ? `<option value="__mine" ${mid === '__mine' ? 'selected' : ''}>Me tocan a mí</option><option value="__sup" ${mid === '__sup' ? 'selected' : ''}>Las que superviso</option>` : ''}${hasDepts ? `<option value="__dept" ${mid === '__dept' ? 'selected' : ''}>De mis departamentos</option>` : ''}`;
+
+// Tareas: pendientes de los departamentos que supervisas, por departamento (los que tienen atrasadas primero)
+function tareasDept(ui, supDepts) {
+  const groups = M.deptTasks().sort((a, b) => (b.late ? 1 : 0) - (a.late ? 1 : 0));
+  const total = groups.reduce((n, g) => n + g.tasks.length, 0), late = groups.reduce((n, g) => n + g.late, 0);
+  const sel = `<div class="pad filters"><select id="tareas-meeting" aria-label="Filtrar por origen">${originOptions('__dept', data.tasks.some(t => !M.isMineTask(t)), true)}</select></div>`;
+  const quiet = supDepts.filter(d => !groups.some(g => g.d.id === d.id));
+  return `${head('Tareas', actions())}
+  ${sel}
+  <p class="hint pad">👁 Supervisas ${supDepts.length} ${supDepts.length === 1 ? 'departamento' : 'departamentos'}: ${total} ${total === 1 ? 'tarea pendiente' : 'tareas pendientes'}${late ? ` · <b class="late">${late} ${late === 1 ? 'atrasada' : 'atrasadas'}</b>` : ''}.</p>
+  ${groups.length ? groups.map(g => `<section><div class="sec-h"><h2><button class="link" data-a="dept" data-id="${g.d.id}">${esc(g.d.name)}</button></h2><span class="hint">${g.tasks.length}${g.late ? ` · <b class="late">${g.late} ${g.late === 1 ? 'atrasada' : 'atrasadas'}</b>` : ''}</span></div>
+    ${M.deptHeads(g.d).length ? `<p class="hint pad">★ ${esc(M.deptHeads(g.d).join(', '))}</p>` : ''}
+    <div class="stack">${g.tasks.map(taskRow).join('')}</div></section>`).join('')
+    : empty('No hay tareas pendientes en tus departamentos. Al crear una tarea, marca a su responsable o elige su departamento.', `<button class="btn" data-a="new-task">Nueva tarea</button>`, 'tasks')}
+  ${groups.length && quiet.length ? `<p class="hint pad">✓ Sin pendientes: ${esc(quiet.map(d => d.name).join(', '))}.</p>` : ''}`;
 }
 
 // ───────────── PERSONAS Y GRUPOS ─────────────

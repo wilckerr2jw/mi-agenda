@@ -1,7 +1,7 @@
 {
-  "version": "9.4",
+  "version": "9.5",
   "notes": [
-    "Organigrama para imprimir en hoja carta: 2 hojas con letra grande (organigrama y nombramientos)",
-    "Departamentos: aviso si el responsable o los auxiliares no son los indicados"
+    "Tareas de los departamentos que supervisas: en Tareas («De mis departamentos»), en Hoy y en cada departamento",
+    "Campo «Departamento» en las tareas: se elige solo según el responsable o lo eliges tú"
   ]
 }

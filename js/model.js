@@ -1118,6 +1118,65 @@ export function toSupervise() {
   }).filter(x => x.late || x.quiet >= SUPERVISE_DAYS).sort((a, b) => b.quiet - a.quiet);
 }
 
+// ───── Tareas de los departamentos que supervisas ─────
+// Supervisas los departamentos donde eres responsable y todos los que dependen de ellos.
+// El Cuerpo de ancianos y el Comité se llenan solos (todos los ancianos están ahí), así que no cuentan: si no, todo el organigrama sería tuyo.
+const broadDept = d => canAutoHeads(d) || isGroupBox(d);
+export function mySupervisedDepts() {
+  const me = data.people.find(p => p.isMe);
+  if (!me) return [];
+  const ids = new Set();
+  (data.depts || []).filter(d => !broadDept(d) && deptHeadIds(d).includes(me.id))
+    .forEach(d => { ids.add(d.id); deptDescendants(d.id).forEach(x => ids.add(x)); });
+  // En el orden del organigrama
+  const out = [];
+  const walk = list => list.forEach(n => { if (ids.has(n.d.id) && !isGroupBox(n.d)) out.push(n.d); walk(n.children); });
+  walk(deptTree());
+  return out;
+}
+// Personas responsables de una tarea (sin ti)
+const taskPeopleIds = t => {
+  const ids = new Set(t.responsibleIds || []);
+  (t.responsibles || []).forEach(n => { const h = resolveName(n); if (h?.id && !h.isMe) ids.add(h.id); });
+  return [...ids];
+};
+// Departamentos posibles según sus responsables (primero donde son responsables)
+export function taskDeptCandidates(t, heads = false) {
+  const out = [];
+  taskPeopleIds(t).forEach(pid => deptsOfPerson(pid).forEach(({ d, head }) => { if ((head || !heads) && !broadDept(d) && !out.includes(d)) out.push(d); }));
+  return out;
+}
+// Departamento de la tarea: el que elegiste o, si no elegiste, el de su responsable
+// (primero donde es responsable; si está en varios, uno de los que supervisas).
+export function taskDept(t, sup = null) {
+  if (t.deptId) return (data.depts || []).find(d => d.id === t.deptId) || null;
+  const c = taskDeptCandidates(t);
+  if (c.length <= 1) return c[0] || null;
+  const h = taskDeptCandidates(t, true);
+  if (h.length === 1) return h[0];
+  const mine = new Set((sup || mySupervisedDepts()).map(d => d.id));
+  return (h.length ? h : c).find(d => mine.has(d.id)) || null;
+}
+// Pendientes de tus departamentos, agrupadas: [{ d, tasks, late }]
+export function deptTasks(onlyId = '') {
+  const sup = mySupervisedDepts();
+  const want = onlyId ? sup.filter(d => d.id === onlyId) : sup;
+  const byId = new Map(want.map(d => [d.id, { d, tasks: [], late: 0 }]));
+  const t0 = today();
+  data.tasks.filter(t => t.status !== 'hecha').forEach(t => {
+    const g = byId.get(taskDept(t, sup)?.id);
+    if (!g) return;
+    g.tasks.push(t);
+    if (t.due && t.due < t0) g.late++;
+  });
+  return [...byId.values()].filter(g => g.tasks.length).map(g => ({ ...g, tasks: sortActive(g.tasks) }));
+}
+// Pendientes de un departamento cualquiera (para verlas al abrirlo)
+export function tasksOfDept(id) {
+  const sup = mySupervisedDepts();
+  return sortActive(data.tasks.filter(t => t.status !== 'hecha' && taskDept(t, sup)?.id === id));
+}
+
 // ───── Quién puede atender cada responsabilidad (sin referencias en pantalla) ─────
 // who: 'anc' = solo ancianos · 'anc-sm' = anciano o siervo ministerial · max = cuántos responsables como máximo
 // Si no hay regla, el responsable puede ser anciano o siervo ministerial. Los demás hermanos van como ayudantes.

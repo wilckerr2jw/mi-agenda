@@ -192,6 +192,8 @@ document.addEventListener('click', e => {
     case 'cal-today': ui.agenda = { ...ui.agenda, ym: today().slice(0, 7), sel: today() }; return render();
     // tareas
     case 'task': return S.taskSheet(id);
+    case 'dept-task': return S.taskSheet(id, {}, () => S.deptSheet(el.dataset.dept || ''));
+    case 'dept-tasks': ui.tareas = { ...ui.tareas, f: 'activas', m: '__dept', p: '' }; return go('tareas');
     case 'new-task': return S.taskSheet(null);
     case 'toggle-task': return toggleTask(id);
     case 'filter-tasks': ui.tareas.f = v; return render();
