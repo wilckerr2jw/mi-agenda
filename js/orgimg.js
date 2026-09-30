@@ -145,41 +145,46 @@ export function printOrg() {
   const mes = new Date().toLocaleDateString('es', { month: 'long', year: 'numeric' });
   const meet = [cg.midweek ? `<span><b>Entre semana:</b> ${escH(cg.midweek)}</span>` : '', cg.weekend ? `<span><b>Fin de semana:</b> ${escH(cg.weekend)}</span>` : '', cg.address ? `<span><b>Salón:</b> ${escH(cg.address)}</span>` : ''].filter(Boolean).join('');
   const cg2 = cgLine.replace(' — ', ' · ');
+  // Colores elegidos por ti (se recuerdan): uno principal y otro para los grupos; los tonos claros salen solos
+  const PAL = [{ n: 'Verde', p: '#1D5F5A', g: '#4E9A5B' }, { n: 'Azul', p: '#1F4E8C', g: '#3A8FB7' }, { n: 'Vino', p: '#7A2E3A', g: '#B5763C' }, { n: 'Morado', p: '#4B3A7A', g: '#7A6BB8' }, { n: 'Gris', p: '#3B4652', g: '#7A8794' }];
+  let col = PAL[0]; try { col = { ...PAL[0], ...JSON.parse(localStorage.getItem('org-print-col') || '{}') }; } catch {}
   const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Organigrama · hoja carta</title><style>
     @page horiz{size:letter landscape;margin:9mm} @page vert{size:letter portrait;margin:11mm}
+    :root{--c2:${col.p};--c1:color-mix(in srgb,var(--c2) 78%,#000);--c3:color-mix(in srgb,var(--c2) 9%,#fff);--c4:color-mix(in srgb,var(--c2) 38%,#fff);--g:${col.g};--g1:color-mix(in srgb,var(--g) 45%,#fff);--g2:color-mix(in srgb,var(--g) 8%,#fff)}
     *{box-sizing:border-box} body{margin:0;background:#e9ece8;font-family:Arial,"Helvetica Neue",system-ui,sans-serif;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .page{background:#fff;margin:10mm auto;overflow:hidden;display:flex;flex-direction:column}
     .fit{flex:1;overflow:hidden;display:flex;flex-direction:column}
     .land{page:horiz;width:259mm;height:190mm}
     .port{page:vert;width:193.9mm;height:256mm}
     /* Hoja 1 */
-    .hdr{background:#174B47;color:#fff;display:flex;justify-content:space-between;align-items:flex-end;padding:.45em .8em}
+    .hdr{background:var(--c1);color:#fff;display:flex;justify-content:space-between;align-items:flex-end;padding:.45em .8em}
     .hdr h1{margin:0;font-size:1.75em;letter-spacing:.01em} .hdr .s{font-weight:700;font-size:.9em;margin-top:.1em} .hdr .r{text-align:right;font-weight:700;font-size:.9em}
     .tops{display:flex;gap:1.2em;justify-content:center;padding:.6em .8em 0}
-    .big{flex:1;max-width:48%;border:2px solid #174B47;background:#EAF3F1;border-radius:10px;padding:.35em .6em;text-align:center;line-height:1.3;font-size:.9em}
-    .bt{font-weight:800;color:#174B47;text-transform:uppercase;font-size:1.1em;margin-bottom:.1em} .ba{font-size:.9em;color:#333}
-    .tree{height:1.3em;margin:0 12.5%;border-bottom:2px solid #8FB5AE;position:relative} .tree:before{content:"";position:absolute;left:50%;top:0;height:100%;border-left:2px solid #8FB5AE}
+    .big{flex:1;max-width:48%;border:2px solid var(--c1);background:var(--c3);border-radius:10px;padding:.35em .6em;text-align:center;line-height:1.3;font-size:.9em}
+    .bt{font-weight:800;color:var(--c1);text-transform:uppercase;font-size:1.1em;margin-bottom:.1em} .ba{font-size:.9em;color:#333}
+    .tree{height:1.3em;margin:0 12.5%;border-bottom:2px solid var(--c4);position:relative} .tree:before{content:"";position:absolute;left:50%;top:0;height:100%;border-left:2px solid var(--c4)}
     .cols{display:grid;grid-template-columns:repeat(4,1fr);gap:.55em;padding:0 .8em;align-items:start}
-    .col{display:flex;flex-direction:column;gap:.35em;position:relative;padding-top:.7em} .col:before{content:"";position:absolute;left:50%;top:0;height:.7em;border-left:2px solid #8FB5AE}
-    .ct{background:#1D5F5A;color:#fff;font-weight:800;text-align:center;text-transform:uppercase;border-radius:6px;padding:.3em .2em;font-size:.85em}
-    .card{border:1.5px solid #A9C9C3;border-radius:7px;padding:.25em .45em;line-height:1.25;break-inside:avoid}
-    .cn{font-weight:800;color:#174B47;font-size:.88em} .ch{font-weight:600;font-size:.95em} .ca{font-size:.82em;color:#333}
-    .gtit{font-weight:800;color:#174B47;text-transform:uppercase;padding:.5em .8em .25em;font-size:.95em;margin-top:auto}
+    .col{display:flex;flex-direction:column;gap:.35em;position:relative;padding-top:.7em} .col:before{content:"";position:absolute;left:50%;top:0;height:.7em;border-left:2px solid var(--c4)}
+    .ct{background:var(--c2);color:#fff;font-weight:800;text-align:center;text-transform:uppercase;border-radius:6px;padding:.3em .2em;font-size:.85em}
+    .card{border:1.5px solid var(--c4);border-radius:7px;padding:.25em .45em;line-height:1.25;break-inside:avoid}
+    .cn{font-weight:800;color:var(--c1);font-size:.88em} .ch{font-weight:600;font-size:.95em} .ca{font-size:.82em;color:#333}
+    .gtit{font-weight:800;color:var(--c1);text-transform:uppercase;padding:.5em .8em .25em;font-size:.95em;margin-top:auto}
     .grp{display:grid;grid-template-columns:repeat(auto-fit,minmax(8em,1fr));gap:.35em;padding:0 .8em}
-    .g{border:1.5px solid #B5D3B9;background:#F2F7F2;border-radius:6px;padding:.2em .4em;font-size:.85em;line-height:1.25} .g b{color:#174B47}
+    .g{border:1.5px solid var(--g1);background:var(--g2);border-radius:6px;padding:.2em .4em;font-size:.85em;line-height:1.25} .g b{color:var(--c1)}
     .foot{text-align:right;color:#666;font-size:8.5pt;padding:.3em .8em .2em}
     /* Hoja 2 (nombramientos) */
-    .top{text-align:center;border-bottom:3px solid #1D5F5A;padding-bottom:.25em;margin-bottom:.45em}
-    .top h1{font-size:1.45em;margin:0;color:#1D5F5A;letter-spacing:.02em;text-transform:uppercase}
+    .top{text-align:center;border-bottom:3px solid var(--c2);padding-bottom:.25em;margin-bottom:.45em}
+    .top h1{font-size:1.45em;margin:0;color:var(--c2);letter-spacing:.02em;text-transform:uppercase}
     .cg{font-size:1.05em;font-weight:800;margin-top:.1em} .meet{font-size:.8em;display:flex;gap:1.2em;justify-content:center;flex-wrap:wrap;margin-top:.15em}
-    .ros{border:2px solid #1D5F5A;border-radius:10px;padding:.35em .6em .45em;margin-bottom:.6em;break-inside:avoid}
-    .ros h2{margin:0 0 .3em;font-size:1.15em;display:flex;justify-content:space-between;color:#1D5F5A;text-transform:uppercase;letter-spacing:.04em} .ros h2 span{background:#1D5F5A;color:#fff;border-radius:99px;padding:0 .6em;font-size:.85em}
+    .ros{border:2px solid var(--c2);border-radius:10px;padding:.35em .6em .45em;margin-bottom:.6em;break-inside:avoid}
+    .ros h2{margin:0 0 .3em;font-size:1.15em;display:flex;justify-content:space-between;color:var(--c2);text-transform:uppercase;letter-spacing:.04em} .ros h2 span{background:var(--c2);color:#fff;border-radius:99px;padding:0 .6em;font-size:.85em}
     .names{columns:2;column-gap:1.4em} .names div{break-inside:avoid;padding:.12em 0;border-bottom:1px solid #e3e6e1;font-size:1.05em;font-weight:600}
     .names.c3{columns:3} .none{color:#777;font-style:italic}
-    .bar{position:sticky;top:0;background:#174B47;color:#fff;padding:10px;text-align:center;font:600 15px system-ui;z-index:5} .bar button{font:700 15px system-ui;padding:8px 18px;margin-left:10px;border-radius:8px;border:0;cursor:pointer}
+    .cols-pick{display:inline-flex;gap:6px;align-items:center;margin-left:12px} .sw{width:22px!important;height:22px;padding:0!important;margin:0!important;border-radius:50%!important;border:2px solid #fff!important} .cols-pick input{width:34px;height:24px;border:0;padding:0;vertical-align:middle}
+    .bar{position:sticky;top:0;background:var(--c1);color:#fff;padding:10px;text-align:center;font:600 15px system-ui;z-index:5} .bar button{font:700 15px system-ui;padding:8px 18px;margin-left:10px;border-radius:8px;border:0;cursor:pointer}
     @media print{body{background:#fff} .bar{display:none} .page{margin:0} .land{break-after:page;page-break-after:always}}
     </style></head><body>
-    <div class="bar">Hoja 1 horizontal y hoja 2 vertical, tamaño carta ${rost.some(x => x.r.k === 'pa') ? `<label style="margin-left:12px"><input type="checkbox" id="pa" ${withPA ? 'checked' : ''}> Incluir precursores auxiliares del mes</label>` : ''} <button onclick="print()">🖨 Imprimir / Guardar PDF</button></div>
+    <div class="bar">Hoja 1 horizontal y hoja 2 vertical, tamaño carta ${rost.some(x => x.r.k === 'pa') ? `<label style="margin-left:12px"><input type="checkbox" id="pa" ${withPA ? 'checked' : ''}> Incluir precursores auxiliares del mes</label>` : ''} <span class="cols-pick">Colores: ${PAL.map(x => `<button type="button" class="sw" title="${x.n}" style="background:${x.p}" data-p="${x.p}" data-g="${x.g}"></button>`).join('')} <label>Principal <input type="color" id="cp" value="${col.p}"></label> <label>Grupos <input type="color" id="cg" value="${col.g}"></label></span> <button onclick="print()">🖨 Imprimir / Guardar PDF</button></div>
     <section class="page land"><div class="fit">
       <div class="hdr"><div><h1>ORGANIGRAMA DE LA CONGREGACIÓN</h1>${cgLine ? `<div class="s">${escH(cgLine)}</div>` : ''}</div><div class="r">${reun ? `Reuniones: ${escH(reun)}` : ''}</div></div>
       <div class="tops">${bigBox(cuerpo, 'Cuerpo de ancianos')}${bigBox(comite, 'Comité de Servicio de la Congregación')}</div>
@@ -191,8 +196,12 @@ export function printOrg() {
       <div class="foot">Página 2 de 2 · Actualizado el ${fmtShort(today())} · Mi Agenda Teocrática</div></section>
     <script>
       // Letra grande (15 pt en la hoja 1 y 16 pt en la 2); si algo no cabe se achica poco a poco (mínimo 9 y 13 pt)
-      function fit(){document.querySelectorAll('.page').forEach(function(pg){var land=pg.classList.contains('land'),f=pg.querySelector('.fit'),s=land?15:16,min=land?9:13;pg.style.fontSize=s+'pt';while(f.scrollHeight>f.clientHeight-8&&s>min){s-=.5;pg.style.fontSize=s+'pt';}});}
+      function fit(){document.querySelectorAll('.page').forEach(function(pg){var land=pg.classList.contains('land'),f=pg.querySelector('.fit'),s=land?15:16,min=land?9:13;pg.style.fontSize=s+'pt';f.style.zoom='';while(f.scrollHeight>f.clientHeight-8&&s>min){s-=.5;pg.style.fontSize=s+'pt';}if(f.scrollHeight>f.clientHeight-8){f.style.zoom=((f.clientHeight-10)/f.scrollHeight).toFixed(3);}});}
       function pa(){var c=document.getElementById('pa'),on=c&&c.checked;document.querySelectorAll('.ros.pa').forEach(function(e){e.style.display=on?'':'none'});try{opener&&opener.localStorage.setItem('org-print-pa',on?'1':'0')}catch(e){}fit();}
+      function setCol(p,g){var r=document.documentElement.style;r.setProperty('--c2',p);r.setProperty('--g',g);document.getElementById('cp').value=p;document.getElementById('cg').value=g;try{opener&&opener.localStorage.setItem('org-print-col',JSON.stringify({p:p,g:g}))}catch(e){}}
+      document.querySelectorAll('.sw').forEach(function(b){b.onclick=function(){setCol(b.dataset.p,b.dataset.g)}});
+      document.getElementById('cp').oninput=function(){setCol(this.value,document.getElementById('cg').value)};
+      document.getElementById('cg').oninput=function(){setCol(document.getElementById('cp').value,this.value)};
       var cb=document.getElementById('pa');if(cb)cb.onchange=pa;pa();
       setTimeout(function(){fit();print();},400);
     <\/script></body></html>`;
