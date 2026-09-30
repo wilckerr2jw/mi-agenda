@@ -15,11 +15,12 @@ const PDF_WORKER = base + 'pdf/pdf.worker.min.mjs';
 
 // ───── Tipos de asignación que se reconocen en el arreglo ─────
 export const MECA_ROLES = [
-  ['Acomodador', /acomod|auditorio|puerta|entrada|recepci/],
+  ['Acomodador', /acomod|auditorio/],
   ['Audio', /\baudio|sonido|consola/],
-  ['Video', /\bv[ií]deo|proyecc|pantalla/],
+  ['Video', /\b(v[ií]deo|video)\b|proyecc|pantalla/],
   ['Micrófonos', /micr[oó]f|\bmicros?\b|microfon|pasa ?micr/],
   ['Plataforma', /plataforma|escenario/],
+  ['Puerta', /puerta|entrada|recepci/],
   ['Zoom', /\bzoom\b|videoconfer|anfitri/],
   ['Estacionamiento', /estacionam|parqueo|parking/],
 ];
