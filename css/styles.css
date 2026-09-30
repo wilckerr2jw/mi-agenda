@@ -1169,3 +1169,50 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 /* Aviso suave en el formulario de departamento */
 .warn-box{background:#FFF4E0;color:#7A4A06;border:1px solid #F0C27A;border-radius:10px;padding:8px 10px;font-size:.9em;margin:6px 0}
 @media (prefers-color-scheme:dark){.warn-box{background:#3A2A10;color:#F5D39A;border-color:#7A5A20}}
+
+/* ───── Tareas: prioridad, grupos, resumen y vista de tarjetas ───── */
+.seg.four.three { grid-template-columns: repeat(3, 1fr); }
+.prio-tag { display: inline-block; font-size: 11px; font-weight: 750; letter-spacing: .02em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; vertical-align: 2px;
+  background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+.prio-tag.baja { background: var(--surface-2); color: var(--ink-2); }
+.row.task.prio-alta { border-left: 4px solid var(--danger); }
+.row.task.prio-baja:not(.is-done) .title { color: var(--ink-2); font-weight: 550; }
+.tbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin: 2px 0 4px; }
+.tview { margin: 0 0 0 auto; flex: none; }
+.tview button { padding: 7px 10px; font-size: 14px; }
+.tsums { display: flex; flex-wrap: wrap; gap: 6px; }
+.tsum { font-size: 13px; padding: 5px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
+.tsum b { color: var(--ink); }
+.tsum.late { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.tsum.late b { color: var(--danger); }
+.tsum.soon { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.tsum.soon b { color: var(--warn); }
+.tsum.hi b { color: var(--danger); }
+.tgroup.late .sec-h h2 { color: var(--danger); }
+.tgroup.today .sec-h h2 { color: var(--warn); }
+.tgroup.low { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 4px; }
+.tgroup.low summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; }
+.tgroup.low summary::-webkit-details-marker { display: none; }
+.tgroup.low summary h2 { font: 600 18px/1.2 var(--serif); color: var(--ink-2); }
+.tgroup.low summary::after { content: '+'; color: var(--primary); font-size: 22px; line-height: 1; }
+.tgroup.low[open] summary::after { content: '−'; }
+.tgroup.low[open] summary .hint { visibility: hidden; }
+.tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.tcard { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--primary); border-radius: var(--radius); overflow: hidden; min-width: 0; }
+.tcard.prio-alta { border-top-color: var(--danger); }
+.tcard.prio-baja { border-top-color: var(--line); }
+.tcard.is-done { opacity: .7; }
+.tcard.is-done strong { text-decoration: line-through; }
+.tcard-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 10px 12px 0; }
+.due-pill { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+.due-pill.late { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+.due-pill.soon { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.due-pill.none { font-weight: 600; }
+.tcard-main { flex: 1; display: grid; align-content: start; gap: 4px; text-align: left; padding: 8px 12px 10px; min-width: 0; }
+.tcard-main strong { font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.tcard-main .meta { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--ink-2); overflow-wrap: anywhere; }
+.tcard-main .meta.follow { color: var(--primary); font-weight: 650; }
+.tcard-done { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border-top: 1px solid var(--line); font-size: 14px; font-weight: 650; color: var(--primary); }
+.tcard-done[aria-pressed="true"] { color: var(--ink-2); }
+@media (max-width: 520px) { .tgrid { grid-template-columns: 1fr 1fr; gap: 8px; } .tcard-main { padding: 6px 10px 8px; } .tcard-top { padding: 8px 10px 0; } }
+@media (max-width: 360px) { .tgrid { grid-template-columns: 1fr; } }

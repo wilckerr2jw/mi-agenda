@@ -23,7 +23,7 @@ import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays, uid, fmtSh
 const ui = {
   route: 'hoy',
   agenda: { span: (() => { try { return Number(localStorage.getItem('miagenda.semanaDias')) || 0; } catch { return 0; } })(), ym: today().slice(0, 7), sel: today(), mode: (() => { try { return localStorage.getItem('miagenda.agendaVista') || 'mes'; } catch { return 'mes'; } })() },
-  tareas: { f: 'activas', p: '', m: '' },
+  tareas: { f: 'activas', p: '', m: '', view: (() => { try { return localStorage.getItem('miagenda.tareasVista') || 'lista'; } catch { return 'lista'; } })() },
   personas: { q: '', seg: 'personas', g: '', pv: '' },
   notas: { seg: 'notas', q: '', tag: '' },
   informe: { sy: 0, sm: '' },
@@ -199,6 +199,7 @@ document.addEventListener('click', e => {
     case 'new-task': return S.taskSheet(null);
     case 'toggle-task': return toggleTask(id);
     case 'filter-tasks': ui.tareas.f = v; return render();
+    case 'tasks-view': ui.tareas.view = v; try { localStorage.setItem('miagenda.tareasVista', v); } catch { /* sin almacenamiento */ } return render();
     case 'log-add': return S.addLog(id);
     case 'task-in-sheet': {
       const { bk, bid } = el.dataset;
@@ -544,6 +545,8 @@ document.addEventListener('change', e => {
   file.text().then(txt => S.importPreview(txt));   // primero muestra qué se va a restaurar y pide confirmar
 });
 
+// Tareas: recordar si la sección «Baja prioridad» está abierta
+document.addEventListener('toggle', e => { if (e.target.matches?.('details.tgroup.low')) ui.tareas.lowOpen = e.target.open; }, true);
 document.addEventListener('submit', e => {
   const form = e.target.closest('form[data-form]');
   if (!form) return;

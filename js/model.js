@@ -820,6 +820,28 @@ export const sortActive = list =>
   [...list].sort((a, b) => ((a.due || '9999') + (a.dueTime || '')).localeCompare((b.due || '9999') + (b.dueTime || '')) || (a.createdAt || '').localeCompare(b.createdAt || ''));
 export const sortDone = list => [...list].sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || ''));
 
+// Prioridad de una tarea: alta, normal (si no dice nada) o baja
+export const PRIORITIES = { alta: '🔴 Alta', normal: 'Normal', baja: '⬇ Baja' };
+export const taskPrio = t => (t.priority === 'alta' || t.priority === 'baja' ? t.priority : 'normal');
+// Tareas por grupo, para la vista de Tareas: por fecha y, al final, las de baja prioridad.
+// Dentro de cada grupo van primero las de prioridad alta.
+export function taskBuckets(list, t0 = today()) {
+  const week = addDays(t0, 7);
+  const defs = [
+    ['late', 'Atrasadas', t => t.due && t.due < t0],
+    ['today', 'Hoy', t => t.due === t0],
+    ['week', 'Próximos 7 días', t => t.due && t.due > t0 && t.due <= week],
+    ['later', 'Más adelante', t => t.due && t.due > week],
+    ['nodate', 'Sin fecha', t => !t.due],
+  ];
+  const low = list.filter(t => taskPrio(t) === 'baja');
+  const rest = list.filter(t => taskPrio(t) !== 'baja');
+  const hiFirst = l => { const s = sortActive(l); return [...s.filter(t => taskPrio(t) === 'alta'), ...s.filter(t => taskPrio(t) !== 'alta')]; };
+  const out = defs.map(([k, n, fn]) => ({ k, n, tasks: hiFirst(rest.filter(fn)) })).filter(b => b.tasks.length);
+  if (low.length) out.push({ k: 'low', n: 'Baja prioridad', tasks: sortActive(low) });
+  return out;
+}
+
 // Participantes de una reunión: grupos y personas elegidos + los nombres escritos a mano
 export function attendeesText(m) {
   const g = (m.attendeeGroupIds || []).map(id => data.groups.find(x => x.id === id)?.name).filter(Boolean);

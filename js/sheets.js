@@ -526,6 +526,8 @@ export function taskSheet(id, preset = {}, back) {
         ${fld('Estado', `<select id="status" name="status">${options(M.STATUS, v.status)}</select>`, 'status')}
       </div>
       ${typeOtro('kind', 'Ej. Estudio con la familia')}
+      <div class="f"><span class="lbl">Prioridad</span><div class="seg four three prio-pick" role="radiogroup" aria-label="Prioridad">${Object.entries(M.PRIORITIES).map(([k, n]) => `<label><input type="radio" name="priority" value="${k}" ${k === M.taskPrio(v) ? 'checked' : ''}><span>${n}</span></label>`).join('')}</div>
+        <p class="hint">Las de baja prioridad quedan al final de la lista.</p></div>
       ${fld('Persona a atender', peopleSelect('personId', v.personId, 'Sin persona'), 'personId')}
       ${!t && preset.subjectName && !v.personId ? `<p class="hint" id="subject-add">${esc(preset.subjectName)} no está en tus Personas. <button type="button" class="link sm" data-a="subject-add-person" data-name="${esc(preset.subjectName)}">Agregarla y elegirla</button></p>` : ''}
       ${fld('Persona que me acompaña', peopleSelect('companionId', v.companionId, 'Nadie'), 'companionId')}
@@ -564,7 +566,7 @@ function collectTask(form, id) {
   const kind = M.resolveType(r.kind, r.kindOtro, M.KINDS);
   if (kind === null) return null;
   const prev = id ? store.get('tasks', id) : null;
-  const t = { ...(prev || {}), id: id || uid(), title: r.title, kind, personId: r.personId, companionId: r.companionId, due: r.due, dueTime: r.due ? r.dueTime : '', status: r.status, notes: r.notes, meetingId: r.meetingId || '', fromAgreement: r.meetingId ? (r.fromAgreement || '') : '', ...responsiblesFrom(form), deptId: r.deptId ?? prev?.deptId ?? '', log: prev?.log || [], repeat: r.repeat || '' };
+  const t = { ...(prev || {}), id: id || uid(), title: r.title, kind, personId: r.personId, companionId: r.companionId, due: r.due, dueTime: r.due ? r.dueTime : '', status: r.status, notes: r.notes, meetingId: r.meetingId || '', fromAgreement: r.meetingId ? (r.fromAgreement || '') : '', ...responsiblesFrom(form), deptId: r.deptId ?? prev?.deptId ?? '', priority: r.priority || prev?.priority || 'normal', log: prev?.log || [], repeat: r.repeat || '' };
   t.doneAt = t.status === 'hecha' ? (prev?.doneAt || today()) : '';
   return t;
 }

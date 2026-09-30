@@ -72,13 +72,39 @@ export function taskRow(t) {
   const kind = M.kindLabel(t.kind);
   const comp = M.person(t.companionId);
   const mtg = t.meetingId ? data.meetings.find(m => m.id === t.meetingId) : null;
-  return `<div class="row task ${done ? 'is-done' : ''}">
+  const prio = M.taskPrio(t);
+  return `<div class="row task ${done ? 'is-done' : ''} prio-${prio}">
     <button class="chk" data-a="toggle-task" data-id="${t.id}" aria-pressed="${done}" aria-label="${done ? 'Marcar como pendiente' : 'Marcar como hecha'}">${ic('check')}</button>
     <button class="row-main" data-a="task" data-id="${t.id}">
-      <span class="title">${esc(t.title)}</span>
+      <span class="title">${prio === 'alta' && !done ? '<span class="prio-tag" title="Prioridad alta">Alta</span> ' : ''}${esc(t.title)}</span>
       <span class="meta-line">${p ? `<span class="who">${esc(p.name)}</span>` : ''}${kind ? `<span>${esc(kind)}</span>` : ''}${comp ? `<span>Con ${esc(comp.name)}</span>` : ''}${t.repeat && !done ? `<span title="${esc(M.repeatLabel(t.repeat, t.due))}">🔁 ${esc(M.repeatLabel(t.repeat, t.due))}</span>` : ''}${t.status === 'seguimiento' ? '<span class="follow">En seguimiento</span>' : ''}${mtg ? `<span class="from-mtg" title="Sale de la reunión «${esc(mtg.title)}»">${ic('clip', 'sm')}${esc(mtg.title)}</span>` : ''}${!M.isMineTask(t) ? `<span class="sup">👁 Supervisas${(t.responsibles || []).length ? ` · ${esc(t.responsibles.join(', '))}` : ''}</span>` : (mtg && (t.responsibles || []).length ? '<span class="mine">👉 Te toca</span>' : '')}</span>
     </button>
     ${due.label ? `<span class="due ${due.cls}">${due.label}${due.time ? `<small>${due.time}</small>` : ''}</span>` : ''}
+  </div>`;
+}
+
+// Tarea como tarjeta (vista de tarjetas en Tareas)
+function taskCard(t) {
+  const p = M.person(t.personId);
+  const due = M.dueInfo(t);
+  const done = t.status === 'hecha';
+  const prio = M.taskPrio(t);
+  const mtg = t.meetingId ? data.meetings.find(m => m.id === t.meetingId) : null;
+  const resp = !M.isMineTask(t) && (t.responsibles || []).length ? t.responsibles.join(', ') : '';
+  return `<div class="tcard prio-${prio} ${done ? 'is-done' : ''}">
+    <div class="tcard-top">
+      ${due.label ? `<span class="due-pill ${due.cls}">${esc(due.label)}${due.time ? ` · ${esc(due.time)}` : ''}</span>` : '<span class="due-pill none">Sin fecha</span>'}
+      ${prio !== 'normal' && !done ? `<span class="prio-tag ${prio}">${prio === 'alta' ? 'Alta' : 'Baja'}</span>` : ''}
+    </div>
+    <button class="tcard-main" data-a="task" data-id="${t.id}">
+      <strong>${esc(t.title)}</strong>
+      ${p ? `<span class="meta">${ic('users', 'sm')}${esc(p.name)}</span>` : ''}
+      ${resp ? `<span class="meta sup">👁 ${esc(resp)}</span>` : ''}
+      ${mtg ? `<span class="meta">${ic('clip', 'sm')}${esc(mtg.title)}</span>` : ''}
+      ${t.status === 'seguimiento' ? '<span class="meta follow">En seguimiento</span>' : ''}
+      ${t.repeat && !done ? `<span class="meta">🔁 ${esc(M.repeatLabel(t.repeat, t.due))}</span>` : ''}
+    </button>
+    <button class="tcard-done" data-a="toggle-task" data-id="${t.id}" aria-pressed="${done}">${ic('check', 'sm')} ${done ? 'Hecha' : 'Marcar hecha'}</button>
   </div>`;
 }
 
@@ -425,10 +451,34 @@ export function tareas(ui) {
     seguimiento: 'Aquí verás las tareas a las que ya les anotaste un seguimiento.',
     hechas: 'Todavía no has completado ninguna tarea.',
   }[f];
+  const cards = ui.tareas.view === 'tarjetas';
+  const item = cards ? taskCard : taskRow;
+  const wrap = l => `<div class="${cards ? 'tgrid' : 'stack'}">${l.map(item).join('')}</div>`;
+  const viewSeg = `<div class="seg small tview" role="group" aria-label="Cómo ver las tareas"><button data-a="tasks-view" data-v="lista" aria-pressed="${!cards}">☰ Lista</button><button data-a="tasks-view" data-v="tarjetas" aria-pressed="${cards}">▦ Tarjetas</button></div>`;
+  // Activas y en seguimiento: por grupos (atrasadas, hoy, semana, más adelante, sin fecha y, al final, baja prioridad)
+  let body = '';
+  if (!list.length) body = empty(msg, f === 'hechas' ? '' : `<button class="btn" data-a="new-task">Nueva tarea</button>`, 'tasks');
+  else if (f === 'hechas') body = wrap(list);
+  else {
+    const buckets = M.taskBuckets(list);
+    const n = k => buckets.find(b => b.k === k)?.tasks.length || 0;
+    const hi = list.filter(t => M.taskPrio(t) === 'alta').length;
+    const sum = [
+      n('late') ? `<span class="tsum late"><b>${n('late')}</b> ${n('late') === 1 ? 'atrasada' : 'atrasadas'}</span>` : '',
+      n('today') ? `<span class="tsum soon"><b>${n('today')}</b> para hoy</span>` : '',
+      n('week') ? `<span class="tsum"><b>${n('week')}</b> esta semana</span>` : '',
+      hi ? `<span class="tsum hi"><b>${hi}</b> de prioridad alta</span>` : '',
+    ].filter(Boolean).join('');
+    body = `<div class="tbar"><div class="tsums">${sum}</div>${viewSeg}</div>
+      ${buckets.map(b => b.k === 'low'
+        ? `<details class="tgroup low" ${ui.tareas.lowOpen ? 'open' : ''}><summary><h2>⬇ ${b.n}</h2><span class="hint">${b.tasks.length} · tócalo para verlas</span></summary>${wrap(b.tasks)}</details>`
+        : `<section class="tgroup ${b.k}"><div class="sec-h"><h2>${b.n}</h2><span class="hint">${b.tasks.length}</span></div>${wrap(b.tasks)}</section>`).join('')}`;
+  }
   return `${head('Tareas', actions())}
   <div class="chips">${chips}</div>
   ${personFilter}
-  ${list.length ? `<div class="stack">${list.map(taskRow).join('')}</div>` : empty(msg, f === 'hechas' ? '' : `<button class="btn" data-a="new-task">Nueva tarea</button>`, 'tasks')}`;
+  ${list.length && f === 'hechas' ? `<div class="tbar"><span></span>${viewSeg}</div>` : ''}
+  ${body}`;
 }
 
 // ───────────── PERSONAS Y GRUPOS ─────────────

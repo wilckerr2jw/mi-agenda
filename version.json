@@ -1,8 +1,8 @@
 {
-  "version": "9.6",
+  "version": "9.7",
   "notes": [
-    "Asignar tareas desde cada departamento a su responsable",
-    "Tareas sugeridas por departamento (por ejemplo, «Montar el programa de audio y video»), una o varias a la vez",
-    "Tus tareas vuelven a verse como antes, sin agruparse por departamento"
+    "Tareas más ordenadas: atrasadas, hoy, esta semana, más adelante y sin fecha",
+    "Prioridad en cada tarea: las altas van primero y las bajas quedan al final",
+    "Ver las tareas en lista o en tarjetas"
   ]
 }
