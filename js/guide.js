@@ -30,6 +30,8 @@ const TOPICS = [
   // ───── Lo básico (para todos)
   { g: 'Lo básico', t: 'Moverte por la app', when: () => true,
     b: c => `Usa la barra de abajo para cambiar de sección. El botón verde ${k('+')} agrega algo donde estás. Arriba: 🔍 buscar, 🌙 tema y ${k('⋯')} Ajustes. Si borras algo por error, toca ${k('Deshacer')}.` },
+  { g: 'Lo básico', t: '🖥 En la computadora', when: () => true,
+    b: () => `Abre la app en el navegador de la computadora con tu mismo correo. Verás un menú a la izquierda, las listas en columnas y las ventanas en el centro. Atajos: ${k('1')}–${k('7')} secciones, ${k('N')} agregar, ${k('/')} buscar, ${k('Esc')} cerrar.` },
   { g: 'Lo básico', t: 'Accesos rápidos', when: () => true,
     b: () => `En Hoy tienes botones para lo que más usas (registrar tiempo, nueva tarea, nueva reunión…). Elige cuáles en Ajustes → ${k('Accesos rápidos')}. En Android también aparecen al mantener presionado el ícono de la app.` },
   { g: 'Lo básico', t: 'Recorrido por la app', when: () => true,
@@ -118,6 +120,8 @@ const TOPICS = [
   // ───── Mi Informe
   { g: 'Mi Informe', t: 'Registrar tiempo', when: c => c.on('informe'),
     b: () => `En Informe toca ${k('+')}, elige la categoría, ajusta con ${k('+1h')} ${k('+5m')}, agrega tus cursos bíblicos y ${k('Guardar')}. Con ${k('➕ Campos adicionales')} anotas también cartas, publicaciones, kilómetros o lo que quieras llevar.` },
+  { g: 'Mi Informe', t: '✏️ Corregir un mes anterior', when: c => c.on('informe'),
+    b: () => `En Informe toca ${k('✏️ Corregir un mes anterior')}, elige el mes (también de años pasados) y escribe el total correcto de horas, crédito, cursos u otros datos. ${k('Guardar cambios')} ajusta solo ese mes y puedes ${k('Deshacer')}.` },
   { g: 'Mi Informe', t: 'Tiempo de crédito', when: c => c.on('informe'),
     b: () => `LDC, Betel y las categorías que marques como crédito no cuentan para tu meta, pero se ven aparte en un tono más claro.` },
   { g: 'Mi Informe', t: 'Tus propias categorías (ej. CEH)', when: c => c.on('informe'),

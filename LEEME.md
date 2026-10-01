@@ -110,7 +110,17 @@ Ejemplos de cambios sencillos:
 - **Semana que empieza en domingo:** en `js/views.js`, función `agenda`, cambia `(getDay() + 6) % 7` por `getDay()` y ajusta las letras de los días.
 - **Colores:** variables `--primary`, `--bg`, etc. al inicio de `css/styles.css`.
 
-Después de cambiar archivos, sube el número de `VERSION` en `sw.js` (por ejemplo `agenda-v2`) y vuelve a publicar con `firebase deploy --only hosting`.
+Después de cambiar archivos, sube el número de versión **en todos lados a la vez** y vuelve a publicar:
+
+```
+node herramientas/version.mjs parche   # 9.8.1 → 9.8.2  (un módulo o un arreglo)
+node herramientas/version.mjs menor    # 9.8.1 → 9.9.0  (varios módulos)
+node herramientas/version.mjs mayor    # 9.8.1 → 10.0.0 (cambio grande)
+node herramientas/version.mjs          # solo revisa que coincida en version.json, js/model.js, sw.js y guia.html
+```
+
+El formato es siempre **MAYOR.MENOR.PARCHE** (3 números). Luego escribe las novedades en `version.json`.
+La publicación automática (`Publicar`) revisa la versión antes de subir y se detiene si no coincide.
 Si agregas archivos nuevos a `js/` o `css/`, añádelos también a la lista `SHELL` de `sw.js`.
 
 ## Ideas para la siguiente versión

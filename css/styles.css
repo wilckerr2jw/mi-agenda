@@ -1329,3 +1329,85 @@ button.card:active, .tile:active, .btn:active, .chip:active, .log-now:active { t
 /* Selector segmentado: el elegido se nota más */
 .seg button[aria-pressed="true"] { color: var(--primary); }
 .sec-h > .link { white-space: nowrap; flex: none; font-weight: 650; }
+
+/* Agenda: en el teléfono el calendario y el día van uno debajo del otro */
+.cal-split, .cal-col { display: contents; }
+
+/* ───────────── ✏️ Corregir un mes anterior (9.8.1) ───────────── */
+.fix-cta { margin: 10px 0 18px; display: grid; gap: 2px; border-left: 4px solid var(--primary); }
+.fx-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+.fx-nav select { flex: 1; font-weight: 650; }
+.fx-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.fx-sum span { display: grid; justify-items: center; padding: 10px 6px; border-radius: 14px; background: var(--surface-2); }
+.fx-sum b { font: 600 22px/1.1 var(--serif); font-variant-numeric: tabular-nums; }
+.fx-sum small { font-size: 12.5px; color: var(--ink-2); }
+.fx-list { display: grid; gap: 6px; }
+.fx-row { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 4px 4px 4px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.fx-row .grow { flex: 1; min-width: 0; font-weight: 600; }
+.fx-row .dot { width: 10px; height: 10px; flex: none; }
+.fx-in { width: 96px; flex: none; text-align: right; font-variant-numeric: tabular-nums; padding: 8px 10px; }
+.fx-in.changed { outline: 2px solid var(--primary); background: var(--primary-soft); }
+.entry-row.is-adj { border-style: dashed; }
+
+/* ═════════════ 🖥 Versión para computadora (pantallas de 1024 px o más) ═════════════
+   La misma app y los mismos datos: menú a la izquierda, contenido más ancho con las listas en columnas
+   y las hojas como ventanas centradas. En el teléfono no cambia nada. */
+@media (min-width: 1024px) {
+  :root { --side-w: 248px; --nav-h: 0px; }
+  #app { max-width: none; margin: 0; padding-left: var(--side-w); }
+  #view { max-width: 1120px; margin: 0 auto; padding: 32px 40px 72px; }
+  .top h1 { font-size: 34px; }
+
+  /* Menú lateral */
+  #tabs {
+    top: 0; bottom: 0; left: 0; transform: none; width: var(--side-w); max-width: none;
+    display: flex; flex-direction: column; gap: 4px; padding: 20px 14px;
+    border-top: 0; border-right: 1px solid var(--line); overflow-y: auto;
+  }
+  #tabs::before {
+    content: "Mi Agenda\A Teocrática"; white-space: pre; display: block;
+    padding: 6px 12px 22px 58px; min-height: 46px; font: 600 19px/1.15 var(--serif); color: var(--ink);
+    background: url(../icons/icon-192.png) 10px 4px / 38px 38px no-repeat;
+  }
+  .tab { display: flex; align-items: center; gap: 12px; justify-items: start; padding: 6px 10px; border-radius: 12px; font-size: 15px; text-align: left; }
+  .tab:hover { background: var(--surface-2); }
+  .tab .pill { width: 36px; height: 32px; flex: none; border-radius: 10px; }
+  .tab > span:last-child { font-size: 15px; letter-spacing: 0; hyphens: none; }
+  .tab[aria-current="page"] { background: var(--primary-soft); }
+  .tab[aria-current="page"] .pill { background: transparent; }
+  #tabs::after { content: "Atajos: 1–7 secciones · N nuevo · / buscar"; margin-top: auto; padding: 12px; font-size: 12px; line-height: 1.4; color: var(--ink-2); }
+
+  /* Botón + y avisos */
+  .fab { right: 40px; bottom: 32px; }
+  #toast { left: calc(50% + var(--side-w) / 2); bottom: 32px; }
+  #junta-mini { left: calc(var(--side-w) + 16px); bottom: 24px; }
+
+  /* Listas y tarjetas en columnas */
+  #view .stack { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+  #view .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  #view .quick-row { margin: -4px 0 22px; padding: 2px 0; flex-wrap: wrap; }
+  #view .quick-row button { width: 92px; }
+  #view .two.pad { max-width: 640px; }
+  #view .fix-cta { max-width: 640px; }
+  .year-chart, .stats-chart { max-height: 260px; }
+
+  /* Agenda: el mes a la izquierda y el día elegido a la derecha */
+  .cal-split { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); gap: 28px; align-items: start; }
+  .cal-col { display: block; }
+  .cal-day { position: sticky; top: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 4px 18px 16px; }
+  .cal-day .sec-h { margin-top: 14px; }
+  #view .cal-day .stack { grid-template-columns: 1fr; }
+  .day { aspect-ratio: 1 / .82; }
+
+  /* Hojas: ventanas centradas en lugar de subir desde abajo */
+  .scrim { align-items: center; padding: 24px; }
+  .sheet { max-width: 680px; max-height: min(88dvh, 920px); border-radius: 22px; animation: pop .18s ease-out; }
+  .sheet-h::before { display: none; }
+  .sheet-h { padding-top: 16px; }
+  @keyframes pop { from { transform: scale(.97); opacity: 0; } }
+
+  /* Bloqueo de la pantalla y de la sesión: centrados en toda la ventana */
+  #login, .lock-card { margin-left: auto; margin-right: auto; }
+}
+@media (min-width: 1024px) and (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+@media (min-width: 1440px) { #view { max-width: 1240px; } #view .tiles { grid-template-columns: repeat(5, minmax(0, 1fr)); } }

@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '9.4';
+export const APP_VERSION = '9.8.1';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -360,13 +360,17 @@ export function paceStatus(mid, minutesDone, goalMonthlyHours) {
 // Entradas de un mes ("YYYY-MM"), más recientes primero
 export const entriesForMonth = mid => data.entries.filter(e => (e.date || '').startsWith(mid)).sort((a, b) => b.date.localeCompare(a.date));
 
+// Cursos bíblicos de un registro: los nombres anotados; los registros viejos traen solo un número («studies»)
+// y los ajustes de «✏️ Corregir un mes» suman su número aparte (adj)
+export const studiesIn = e => (Array.isArray(e.studyNames) ? e.studyNames.length + (e.adj ? Number(e.studies) || 0 : 0) : Number(e.studies) || 0);
+
 // Suma de un mes: minutos de servicio (y de crédito si se pide), y cursos bíblicos
 export function monthTotals(mid, withCredit = false) {
   let minutes = 0, studies = 0;
   entriesForMonth(mid).forEach(e => {
     const cat = catServicioOf(e.category);
     if (!cat.credito || withCredit) minutes += Number(e.minutes) || 0;
-    studies += Array.isArray(e.studyNames) ? e.studyNames.length : (Number(e.studies) || 0);
+    studies += studiesIn(e);
   });
   return { minutes, studies };
 }

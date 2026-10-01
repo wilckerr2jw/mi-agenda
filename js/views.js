@@ -443,12 +443,16 @@ export function agenda(ui) {
     </div>
   </header>
   ${agendaSeg('mes')}
+  <div class="cal-split">
+  <div class="cal-col">
   <div class="cal-wd" aria-hidden="true">${['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div>
   <div class="cal">${cells}</div>
-  <section>
+  </div>
+  <section class="cal-day">
     <div class="sec-h"><h2>${fmtLong(st.sel)}</h2><button class="btn small" data-a="new-event" data-date="${st.sel}">Agregar</button></div>
     ${list}
-  </section>`;
+  </section>
+  </div>`;
 }
 
 // ───────────── TAREAS ─────────────
@@ -982,6 +986,7 @@ export function informe(ui = {}) {
     <div><strong>${M.roleText(v) ? esc(M.roleText(v)) : 'Sin rol indicado'}</strong><p class="role">Toca para editar tu perfil y tus metas</p></div>
   </div>
   <div class="two pad"><button type="button" class="btn ghost" data-a="profile">Editar mi perfil</button><button type="button" class="btn ghost" data-a="info-fields">➕ Campos adicionales</button></div>
+  <button type="button" class="card mini fix-cta" data-a="fix-open"><strong>✏️ Corregir un mes anterior</strong><span class="meta">Vuelve a cualquier mes para arreglar horas, crédito, cursos u otros datos</span></button>
   ${isCur ? pioneerHint : ''}
   ${isCur ? goal : ''}
   ${isCur ? weekCard(v) : ''}

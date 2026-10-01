@@ -17,6 +17,7 @@ import * as Bor from './borrador.js';
 import * as Vi from './visita.js';
 import * as Sh from './compartir.js';
 import * as Gc from './gcal.js';
+import * as Fx from './corregir.js';
 import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays, uid, fmtShort } from './util.js';
 
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
@@ -368,7 +369,12 @@ document.addEventListener('click', e => {
     case 'profile': return S.profileSheet();
     case 'month': return S.monthSheet(id, el.dataset.credit === '1');
     case 'cat-pick': return S.catPickSheet(el.dataset.mid, () => S.monthSheet(el.dataset.mid));
-    case 'new-entry': return S.entrySheet(null, { cat: el.dataset.cat, mid: el.dataset.mid }, () => S.monthSheet(el.dataset.mid));
+    case 'new-entry': return S.entrySheet(null, { cat: el.dataset.cat, mid: el.dataset.mid }, el.dataset.from === 'fix' ? () => Fx.fixMonthSheet(el.dataset.mid) : () => S.monthSheet(el.dataset.mid));
+    // ✏️ corregir un mes anterior
+    case 'fix-open': return Fx.fixMonthSheet(id || undefined);
+    case 'fix-month': return id ? Fx.fixMonthSheet(id) : undefined;
+    case 'fix-entry': return S.entrySheet(id, {}, () => Fx.fixMonthSheet(el.dataset.mid));
+    case 'fix-add': return S.catPickSheet(el.dataset.mid, () => Fx.fixMonthSheet(el.dataset.mid), 'fix');
     case 'entry': return S.entrySheet(id, {}, () => S.monthSheet(el.dataset.mid));
     case 'adj': return S.adjustMinutes(Number(el.dataset.delta));
     case 'study-add': return S.studyAdd();
@@ -425,7 +431,8 @@ document.addEventListener('click', e => {
 });
 
 document.addEventListener('input', e => {
-  if (e.target.form?.id === 'f') Bor.track(e.target.form);   // borrador por si la app se recarga antes de guardar
+  if (e.target.form?.id === 'f') Bor.track(e.target.form);
+  if (e.target.classList?.contains('fx-in')) e.target.classList.toggle('changed', e.target.value.trim() !== (e.target.defaultValue || '').trim());   // borrador por si la app se recarga antes de guardar
   if (e.target.id === 'q') { ui[ui.route].q = e.target.value; refreshList(); }
   else if (e.target.id === 'cat-name') S.catNameInput(e.target.value);
   else if (e.target.id === 'meca-text') Mc.textEdited(e.target);
@@ -453,6 +460,16 @@ document.addEventListener('input', e => {
 
 // Al volver de los ajustes del teléfono (batería, avisos), la revisión de avisos se actualiza sola
 document.addEventListener('visibilitychange', () => { if (!document.hidden && $('.hc-list')) setTimeout(() => S.avisosCheck(), 600); });
+
+// 🖥 Atajos de teclado en la computadora: 1–7 cambian de sección, N agrega, / busca (no actúan mientras escribes)
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+  const t = e.target;
+  if (t.closest?.('input, textarea, select, [contenteditable="true"]') || $('#sheet-root .scrim') || $('#app').hidden || document.body.classList.contains('locked')) return;
+  if (/^[1-7]$/.test(e.key)) { const tab = $$('#tabs .tab').filter(b => !b.hidden)[Number(e.key) - 1]; if (tab) { e.preventDefault(); tab.click(); } }
+  else if (e.key === 'n' || e.key === 'N') { const f = $('#fab'); if (f && !f.hidden) { e.preventDefault(); f.click(); } }
+  else if (e.key === '/') { e.preventDefault(); S.searchSheet(); }
+});
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.id === 'log-text') { e.preventDefault(); $('[data-a="log-add"]')?.click(); }
@@ -500,6 +517,7 @@ document.addEventListener('change', e => {
   if (t.dataset?.adminSend) return S.adminSend(t);
   if (t.dataset?.visitStart) return Vi.startChanged(t);
   if (t.id === 'stats-month') { ui.informe.sm = t.value; return render(); }
+  if (t.id === 'fix-month') return Fx.fixMonthSheet(t.value);
   if (t.name === 'visitPast') return Vi.pastPicked(t);
   if (t.id === 'auto-heads') {   // comité / cuerpo de ancianos: se llena solo o a mano
     const hb = document.getElementById('heads-box'), hl = document.getElementById('auto-heads-list');

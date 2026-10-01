@@ -27,6 +27,10 @@ jobs:
         with:
           node-version: 22
 
+      # Revisa que el número de versión (X.Y.Z) sea el mismo en version.json, model.js, sw.js y la guía
+      - name: Revisar la versión
+        run: node herramientas/version.mjs
+
       - name: Iniciar sesión en Google Cloud
         uses: google-github-actions/auth@v2
         with:

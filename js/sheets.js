@@ -17,6 +17,7 @@ import * as J from './junta.js';
 import { hhmm } from './weekcal.js';
 import * as N from './notify.js';
 import * as Nat from './native.js';
+import { saveFixMonth } from './corregir.js';
 
 // Permite que app.js reaccione a lo guardado (p. ej. saltar a esa fecha en el calendario)
 export const hooks = { eventSaved: null, deptsChanged: null };
@@ -1685,11 +1686,11 @@ function saveProfile(r, form) {
 }
 
 // Elegir la categoría antes de registrar tiempo
-export function catPickSheet(mid, back) {
+export function catPickSheet(mid, back, from = '') {
   open({
     title: 'Mi Informe', back,
     body: `<div class="cat-list">${Object.entries(M.allServicioCats()).map(([k, c]) =>
-      `<button type="button" class="cat-btn" style="--c:${c.c}" data-a="new-entry" data-cat="${k}" data-mid="${mid || ''}">${ic(c.ic)}<span>${esc(c.n)}<small>${c.credito ? 'Tiempo de crédito' : 'Tiempo de servicio'}</small></span></button>`
+      `<button type="button" class="cat-btn" style="--c:${c.c}" data-a="new-entry" data-cat="${k}" data-mid="${mid || ''}"${from ? ` data-from="${from}"` : ''}>${ic(c.ic)}<span>${esc(c.n)}<small>${c.credito ? 'Tiempo de crédito' : 'Tiempo de servicio'}</small></span></button>`
     ).join('')}</div>`,
   });
 }
@@ -1768,7 +1769,10 @@ export function entrySheet(id, preset = {}, back) {
   const e = id ? store.get('entries', id) : null;
   const catKey = e ? e.category : preset.cat;
   const cat = M.catServicioOf(catKey);
-  const date = e ? e.date : (preset.mid ? `${preset.mid}-01` : today());
+  // Nuevo registro dentro de un mes: hoy si es el mes en curso; si no, el día 1 de ese mes (y la fecha no se sale del mes)
+  const date = e ? e.date : (preset.mid && preset.mid !== today().slice(0, 7) ? `${preset.mid}-01` : today());
+  const [py, pm] = (preset.mid || '').split('-').map(Number);
+  const range = !e && preset.mid ? ` min="${preset.mid}-01" max="${preset.mid}-${String(new Date(py, pm, 0).getDate()).padStart(2, '0')}"` : '';
   const minutes = e ? (e.minutes || 0) : 0;
   studyDraft = e?.studyNames ? [...e.studyNames] : [];
   const studentNames = sortedPeople().filter(p => norm(p.role || '').includes('estudiante')).map(p => p.name);
@@ -1789,7 +1793,8 @@ export function entrySheet(id, preset = {}, back) {
         </div>
         <input type="hidden" id="minutes" name="minutes" value="${minutes}">
       </div>
-      ${fld('Fecha', `<input id="date" name="date" type="date" required value="${date}">`, 'date')}
+      ${fld('Fecha', `<input id="date" name="date" type="date" required value="${date}"${range}>`, 'date')}
+      ${e?.adj ? '<p class="hint">✏️ Este registro lo creó «Corregir un mes» para ajustar el total. Puedes cambiarlo o borrarlo.</p>' : ''}
       <div class="f"><span class="lbl">Cursos bíblicos</span>
         <div id="studies-box">${studiesListHtml()}</div>
         <div class="log-add">
@@ -1881,7 +1886,7 @@ export function monthSheet(mid, withCredit = false) {
         const xt = M.extrasText(e.extra || {});
         return `<button class="card mini entry-row" data-a="entry" data-id="${e.id}" data-mid="${mid}"><span class="dot" style="--c:${c.c}"></span><span class="grow"><strong>${esc(c.n)}</strong><span class="meta">${fmtShort(e.date)}${e.notes ? ` · ${esc(e.notes)}` : ''}${names ? ` · ${esc(names)}` : ''}${xt ? ` · ${esc(xt)}` : ''}</span></span><span>${M.fmtHM(e.minutes)}</span></button>`;
       }).join('')}</div>` : '<p class="hint">Sin registros todavía. Toca «Agregar» para anotar tu primer tiempo.</p>'}`,
-    actions: `<button type="button" class="btn ghost" data-a="share-month" data-id="${mid}" data-credit="${withCredit ? 1 : 0}">Enviar</button><button type="button" class="btn primary" data-a="cat-pick" data-mid="${mid}">Agregar</button>`,
+    actions: `<button type="button" class="btn ghost" data-a="share-month" data-id="${mid}" data-credit="${withCredit ? 1 : 0}">Enviar</button><button type="button" class="btn ghost" data-a="fix-open" data-id="${mid}">✏️ Corregir</button><button type="button" class="btn primary" data-a="cat-pick" data-mid="${mid}">Agregar</button>`,
   });
 }
 
@@ -3260,7 +3265,7 @@ export function removeWithUndo(col, id) {
   const item = store.get(col, id);
   if (!item) return;
   store.remove(col, id);
-  close();
+  if (col === 'entries') closeOrBack(); else close();
   toast(DELETED[col] || 'Eliminado', 'Deshacer', () => store.restore(col, item));
 }
 
@@ -3293,6 +3298,7 @@ export function submit(form) {
     case 'note': return saveNote(id, r);
     case 'meeting': return saveMeeting(id, r, form);
     case 'entry': return saveEntry(id, r);
+    case 'fixmonth': return saveFixMonth(id, form);
     case 'infofields': return saveInfoFields(form);
     case 'profile': return saveProfile(r, form);
     case 'weekplan': return saveWeekPlan(r);

@@ -1,8 +1,8 @@
 {
-  "version": "9.8",
+  "version": "9.8.1",
   "notes": [
-    "Asignaciones mecánicas: lee el programa en texto («Audio: Nombre»), lo muestra en tarjetas, se imprime, se comparte como imagen y avisa a cada hermano",
-    "Recordar por WhatsApp las tareas atrasadas a cada responsable",
-    "El enlace para los ancianos trae la agenda de la próxima reunión · diseño renovado"
+    "✏️ Mi Informe: corrige un mes anterior (horas, crédito, cursos u otros datos) escribiendo el total correcto",
+    "🖥 Versión para computadora: menú a la izquierda, listas en columnas, ventanas centradas y atajos de teclado",
+    "Asignaciones mecánicas y recordatorio por WhatsApp de las tareas atrasadas · el enlace para los ancianos trae la agenda de la próxima reunión"
   ]
 }
