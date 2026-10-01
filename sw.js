@@ -1,66 +1,111 @@
 // Service worker: hace que la app abra rápido y funcione sin internet.
-//  · Archivos de la app: se muestran AL INSTANTE desde la copia guardada y, en segundo plano, se revisa si hay
-//    una versión nueva en internet (así la app no espera a la red para abrir, aunque la señal sea lenta).
-//    Cuando se publica una versión nueva (sube VERSION), se descarga completa y la app avisa «Actualizar».
+//  · Archivos de la app (SHELL): se guardan TODOS juntos al instalar cada versión, en su propia caché (VERSION),
+//    y se sirven desde ahí. Así nunca se mezclan archivos de dos versiones.
+//    Cuando se publica una versión nueva (sube VERSION), se descarga completa y queda «en espera»: la app muestra
+//    «Hay una versión nueva · Actualizar» y solo cambia cuando la persona toca Actualizar (mensaje SKIP_WAITING).
+//  · Lectores de fotos y PDF (vendor/, unos 10 MB): no se descargan al instalar; se guardan la primera vez que
+//    se usan (o con «Guardar para usar sin internet») en una caché aparte que no se borra con cada versión.
 //  · SDK de Firebase (gstatic.com): se guarda la primera vez y se reutiliza.
+//  · «Compartir» desde otra app (share_target): la foto o el PDF se guarda un momento y se abre el importador.
 //  · Datos y sesión (Firestore / Auth): no se tocan; Firestore tiene su propia caché sin conexión.
-// Al añadir archivos nuevos a la app, agrégalos a SHELL y sube el número de VERSION.
+// Al añadir archivos nuevos a la app, agrégalos a SHELL y sube el número de VERSION
+// (node herramientas/version.mjs revisa que todo js/*.js esté en SHELL y que cada archivo exista).
 
-const VERSION = 'agenda-v9.8.2';
+const VERSION = 'agenda-v10.0.0';
 const CDN = 'agenda-cdn';
+const VENDOR = 'vendor-v1';
+const SHARED = 'agenda-compartido';
+const RUNTIME = 'agenda-otros';
 const SHELL = [
-  './', 'index.html', 'guia.html', 'manifest.webmanifest',
+  './', 'index.html', 'guia.html', 'ver.html', 'manifest.webmanifest',
   'css/styles.css',
-  'js/agenda.js', 'js/app.js', 'js/config.js', 'js/guide.js', 'js/tour.js', 'js/junta.js', 'js/keep.js', 'js/lock.js', 'js/notify.js', 'js/reports.js', 'js/model.js', 'js/sheets.js', 'js/store.js', 'js/theme.js', 'js/util.js', 'js/views.js', 'js/weekimg.js', 'js/orgimg.js', 'js/weekcal.js', 'js/native.js', 'js/mecas.js', 'js/comite.js', 'js/ics.js', 'js/voz.js', 'js/borrador.js', 'js/visita.js', 'js/pastoreo.js', 'js/compartir.js', 'js/gcal.js', 'js/gcal-script.js', 'js/recordar.js', 'js/corregir.js',
+  'js/agenda.js', 'js/app.js', 'js/config.js', 'js/guide.js', 'js/tour.js', 'js/junta.js', 'js/keep.js', 'js/lock.js', 'js/notify.js', 'js/reports.js', 'js/model.js', 'js/sheets.js', 'js/store.js', 'js/theme.js', 'js/util.js', 'js/views.js', 'js/weekimg.js', 'js/orgimg.js', 'js/weekcal.js', 'js/native.js', 'js/mecas.js', 'js/comite.js', 'js/ics.js', 'js/voz.js', 'js/borrador.js', 'js/visita.js', 'js/pastoreo.js', 'js/compartir.js', 'js/gcal.js', 'js/gcal-script.js', 'js/recordar.js', 'js/corregir.js', 'js/ver.js', 'js/pwa.js',
+  'js/perms.js', 'js/admin.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/n-badge.png', 'sonidos/campanita.mp3',
 ];
+const KEEP = [VERSION, CDN, VENDOR, SHARED, RUNTIME];
+const SHELL_URLS = new Set(SHELL.map(f => new URL(f, self.registration.scope).href));
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' = directo del servidor (no de la caché HTTP), para que la versión quede completa y pareja.
+  // Sin skipWaiting: la versión nueva espera a que la persona toque «Actualizar».
+  e.waitUntil((async () => {
+    // Paso único desde las versiones de antes (se cambiaban solas): esas páginas no saben mostrar «Actualizar»,
+    // así que esta vez la versión nueva entra sola, como antes. La caché RUNTIME marca el sistema nuevo.
+    const fromOld = !!self.registration.active && !(await caches.has(RUNTIME));
+    await caches.open(VERSION).then(c => c.addAll(SHELL.map(f => new Request(f, { cache: 'reload' }))));
+    await caches.open(RUNTIME);
+    if (fromOld) self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== CDN).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => !KEEP.includes(k)).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
-self.addEventListener('fetch', e => {
-  const req = e.request;
-  if (req.method !== 'GET') return;
-  const url = new URL(req.url);
-  if (url.origin === location.origin) e.respondWith(staleWhileRevalidate(req, e));
-  else if (url.hostname === 'www.gstatic.com' && url.pathname.startsWith('/firebasejs/')) e.respondWith(cacheFirst(req));
+self.addEventListener('message', e => {
+  if (e.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
-// Responde con la copia guardada y actualiza la copia en segundo plano; si no hay copia, va a la red
-async function staleWhileRevalidate(req, e) {
+self.addEventListener('fetch', e => {
+  const req = e.request;
+  const url = new URL(req.url);
+  if (req.method === 'POST' && url.origin === location.origin && url.pathname.endsWith('/compartir-recibir')) return e.respondWith(receiveShare(req));
+  if (req.method !== 'GET') return;
+  if (url.origin === location.origin) {
+    if (url.pathname.includes('/vendor/')) e.respondWith(cacheFirst(req, VENDOR));
+    else if (req.mode === 'navigate' || SHELL_URLS.has(url.origin + url.pathname)) e.respondWith(fromShell(req));
+    else if (!url.pathname.endsWith('/version.json') && !url.pathname.endsWith('/sw.js')) e.respondWith(staleWhileRevalidate(req, e));
+  }
+  else if (url.hostname === 'www.gstatic.com' && url.pathname.startsWith('/firebasejs/')) e.respondWith(cacheFirst(req, CDN));
+});
+
+// Archivos de la app: siempre de la caché de ESTA versión (sin mezclar). Si falta, a la red; sin red, la portada.
+async function fromShell(req) {
   const cache = await caches.open(VERSION);
   const hit = await cache.match(req, { ignoreSearch: true });
-  const update = fetch(req).then(res => { if (res.ok) cache.put(req, res.clone()); return res; }).catch(() => null);
-  if (hit) { e.waitUntil(update); return hit; }
-  const res = await update;
-  return res || (await caches.match('index.html')) || Response.error();
-}
-
-async function networkFirst(req) {
+  if (hit) return hit;
   try {
     const res = await fetch(req);
-    if (res.ok) (await caches.open(VERSION)).put(req, res.clone());
-    return res;
-  } catch {
-    return (await caches.match(req, { ignoreSearch: true })) || (await caches.match('index.html')) || Response.error();
-  }
+    if (res.ok || req.mode !== 'navigate') return res;
+  } catch { /* sin conexión */ }
+  return (await cache.match('index.html')) || Response.error();
 }
 
-async function cacheFirst(req) {
-  const hit = await caches.match(req);
+// Otros archivos del sitio (sonidos, íconos de avisos…): copia guardada aparte y se actualiza en segundo plano
+async function staleWhileRevalidate(req, e) {
+  const cache = await caches.open(RUNTIME);
+  const hit = await cache.match(req, { ignoreSearch: true });
+  const update = fetch(req).then(res => { if (res.ok && res.type === 'basic') cache.put(req, res.clone()); return res; }).catch(() => null);
+  if (hit) { e.waitUntil(update); return hit; }
+  return (await update) || Response.error();
+}
+
+async function cacheFirst(req, name) {
+  const cache = await caches.open(name);
+  const hit = await cache.match(req, { ignoreSearch: true });
   if (hit) return hit;
   const res = await fetch(req);
-  if (res.ok) (await caches.open(CDN)).put(req, res.clone());
+  if (res.ok) cache.put(req, res.clone());
   return res;
+}
+
+// «Compartir» una foto o un PDF desde otra app: se guarda y se abre la app con ?compartido=1
+async function receiveShare(req) {
+  try {
+    const fd = await req.formData();
+    const files = fd.getAll('archivos').filter(f => f && typeof f === 'object' && f.size);
+    const cache = await caches.open(SHARED);
+    (await cache.keys()).forEach(k => cache.delete(k));
+    await Promise.all(files.slice(0, 5).map((f, i) => cache.put(`compartido/${i}`, new Response(f, {
+      headers: { 'Content-Type': f.type || 'application/octet-stream', 'X-Nombre': encodeURIComponent(f.name || `archivo-${i + 1}`) },
+    }))));
+  } catch (err) { console.warn('No se pudo recibir lo compartido', err); }
+  return Response.redirect(new URL('./?compartido=1', self.registration.scope).href, 303);
 }
 
 // ───── Avisos (notificaciones push) ─────

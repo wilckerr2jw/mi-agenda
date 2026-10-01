@@ -32,17 +32,29 @@ export function monthsList() {
 }
 const label = mid => { const [y, m] = mid.split('-').map(Number); return fmtMonth(y, m); };
 
-// ───── Lectura de horas: «12», «12:30», «12h 30», «12,5» (12 h y media) ─────
+// ───── Lectura de horas: «12», «12:30», «12h 30», «12,5» (12 h y media), «12.30» o «12,30» (12 h 30 min) ─────
 export function parseHM(s) {
   const t = String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
   if (!t) return 0;
   let m = t.match(/^(\d{1,4})\s*(?::|h|hrs?|horas?)\s*(\d{1,2})?\s*(?:m|min)?$/);
   if (m) { const mm = Number(m[2] || 0); return mm < 60 ? Number(m[1]) * 60 + mm : NaN; }
+  // Con punto o coma y exactamente dos cifras menores de 60: se lee como horas y minutos (así se suele escribir)
+  m = t.match(/^(\d{1,4})[.,](\d{2})$/);
+  if (m && Number(m[2]) < 60) return Number(m[1]) * 60 + Number(m[2]);
   m = t.match(/^(\d{1,4})(?:[.,](\d{1,2}))?$/);
   if (m) return Math.round(Number(`${m[1]}.${m[2] || 0}`) * 60);
   m = t.match(/^(\d{1,3})\s*(?:m|min|minutos?)$/);
   if (m) return Number(m[1]);
   return NaN;
+}
+
+// «= 12 h 30 min»: cómo se entendió lo escrito (se muestra al escribir, antes de guardar)
+export function hmPreview(raw) {
+  if (!String(raw ?? '').trim()) return '';
+  const v = parseHM(raw);
+  if (!Number.isFinite(v) || v < 0) return '¿?';
+  const h = Math.floor(v / 60), mi = v % 60;
+  return `= ${h} h${mi ? ` ${mi} min` : ''}`;
 }
 
 // Lo que hay en un mes: minutos por tipo, cursos y otros datos
@@ -78,7 +90,7 @@ export function fixMonthSheet(mid = prevMid(mid0())) {
   const i = list.indexOf(mid);
   const row = ([k, c]) => {
     const cur = st.mins[k] || 0;
-    return `<div class="fx-row"><span class="dot" style="--c:${c.c}"></span><span class="grow">${esc(c.n)}${cur ? '' : ' <span class="hint">· sin tiempo</span>'}</span>
+    return `<div class="fx-row"><span class="dot" style="--c:${esc(c.c)}"></span><span class="grow">${esc(c.n)}${cur ? '' : ' <span class="hint">· sin tiempo</span>'} <span class="hint fx-prev" data-prev="m_${esc(k)}" aria-live="polite"></span></span>
       <input class="fx-in" name="m_${esc(k)}" inputmode="decimal" autocomplete="off" value="${cur ? M.fmtHM(cur) : ''}" placeholder="0:00" data-cur="${cur}" aria-label="Total correcto de ${esc(c.n)} (horas:minutos)"></div>`;
   };
   const serv = cats.filter(([, c]) => !c.credito), cred = cats.filter(([, c]) => c.credito);
@@ -92,7 +104,7 @@ export function fixMonthSheet(mid = prevMid(mid0())) {
       </div>
       <div class="fx-sum"><span><b>${M.fmtHM(totS.minutes)}</b><small>servicio</small></span><span><b>${M.fmtHM(totC.minutes - totS.minutes)}</b><small>crédito</small></span><span><b>${totS.studies}</b><small>${totS.studies === 1 ? 'curso' : 'cursos'}</small></span></div>
       <p class="hint">Escribe el <b>total correcto</b> de lo que esté mal (por ejemplo <b>12:30</b> o <b>12,5</b>) y toca «Guardar cambios». La app ajusta los registros de ${esc(label(mid).toLowerCase())}${isCur ? '' : ' sin tocar los otros meses'}.</p>
-      <form id="f" data-form="fixmonth" data-id="${mid}" autocomplete="off">
+      <form id="f" data-form="fixmonth" data-id="${esc(mid)}" autocomplete="off">
         <h3 class="sub-h">Tiempo de servicio</h3><div class="fx-list">${serv.map(row).join('') || '<p class="hint">No hay tipos de servicio.</p>'}</div>
         ${cred.length ? `<h3 class="sub-h">Tiempo de crédito</h3><div class="fx-list">${cred.map(row).join('')}</div>` : ''}
         <h3 class="sub-h">Cursos bíblicos</h3>
@@ -106,9 +118,16 @@ export function fixMonthSheet(mid = prevMid(mid0())) {
         const names = (e.studyNames || []).join(', ');
         const xt = M.extrasText(e.extra || {});
         const n = studiesOf(e) - (e.studyNames?.length || 0);
-        return `<button type="button" class="card mini entry-row ${e.adj ? 'is-adj' : ''}" data-a="fix-entry" data-id="${e.id}" data-mid="${mid}"><span class="dot" style="--c:${c.c}"></span><span class="grow"><strong>${e.adj ? '✏️ ' : ''}${esc(c.n)}</strong><span class="meta">${fmtShort(e.date)}${e.notes ? ` · ${esc(e.notes)}` : ''}${names ? ` · ${esc(names)}` : ''}${n ? ` · ${n} ${n === 1 ? 'curso' : 'cursos'}` : ''}${xt ? ` · ${esc(xt)}` : ''}</span></span><span>${M.fmtHM(e.minutes)}</span></button>`;
+        return `<button type="button" class="card mini entry-row ${e.adj ? 'is-adj' : ''}" data-a="fix-entry" data-id="${esc(e.id)}" data-mid="${esc(mid)}"><span class="dot" style="--c:${esc(c.c)}"></span><span class="grow"><strong>${e.adj ? '✏️ ' : ''}${esc(c.n)}</strong><span class="meta">${fmtShort(e.date)}${e.notes ? ` · ${esc(e.notes)}` : ''}${names ? ` · ${esc(names)}` : ''}${n ? ` · ${n} ${n === 1 ? 'curso' : 'cursos'}` : ''}${xt ? ` · ${esc(xt)}` : ''}</span></span><span>${M.fmtHM(e.minutes)}</span></button>`;
       }).join('')}</div>` : '<p class="hint">Este mes no tiene registros. Escribe arriba los totales o agrega un registro.</p>'}`,
-    actions: `<button type="button" class="btn ghost" data-a="fix-add" data-mid="${mid}">＋ Registro</button><button type="submit" form="f" class="btn primary">Guardar cambios</button>`,
+    actions: `<button type="button" class="btn ghost" data-a="fix-add" data-mid="${esc(mid)}">＋ Registro</button><button type="submit" form="f" class="btn primary">Guardar cambios</button>`,
+  });
+  // Al escribir un total, al lado del tipo se ve cómo se entendió («= 12 h 30 min»)
+  document.querySelector('form[data-form="fixmonth"]')?.addEventListener('input', ev => {
+    const inp = ev.target;
+    if (!inp?.name?.startsWith('m_')) return;
+    const out = [...document.querySelectorAll('.fx-prev')].find(x => x.dataset.prev === inp.name);
+    if (out) out.textContent = String(inp.value) === String(inp.defaultValue) ? '' : hmPreview(inp.value);
   });
 }
 

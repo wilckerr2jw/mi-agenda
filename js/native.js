@@ -222,9 +222,12 @@ function planFor(iso, p, errs = []) {
       const v = M.profile();
       if (v.goalEnabled && Number(v.goalMonthly) > 0) {
         const mid = iso.slice(0, 7), done = M.monthTotals(mid).minutes, goal = Number(v.goalMonthly);
-        const ps = M.paceStatus(mid, done, goal);
-        const left = Math.max(0, goal * 60 - done), days = Math.max(1, M.daysLeftInMonth(mid));
-        if (ps) lines.push(left ? `${ps.emoji} Llevas ${M.fmtHM(done)} de ${goal} h; hoy te tocan unas ${M.fmtHM(Math.ceil(left / days / 5) * 5)} h` : `🎉 ¡Ya llegaste a tu meta de ${goal} h este mes!`);
+        // Se calcula para el día de ese aviso (los avisos se programan una semana por delante)
+        const [y, m, d] = iso.split('-').map(Number);
+        const isToday = iso === today();
+        const ps = isToday ? M.paceStatus(mid, done, goal) : { emoji: '🎯' };
+        const left = Math.max(0, goal * 60 - done), days = Math.max(1, new Date(y, m, 0).getDate() - d + 1);
+        if (ps) lines.push(left ? `${ps.emoji} Llevas ${M.fmtHM(done)} de ${goal} h; ${isToday ? 'hoy' : 'ese día'} te tocan unas ${M.fmtHM(Math.ceil(left / days / 5) * 5)} h` : `🎉 ¡Ya llegaste a tu meta de ${goal} h este mes!`);
       }
     } catch (e) { errs.push(`meta: ${e?.message || e}`); }
     if (lines.length) add(Number(p.hour) * 60, 'daily', lines.join('\n'), 'general', { kind: 'daily' }, 'Mi Agenda · tu día');
@@ -408,9 +411,15 @@ async function clearDoneDelivered(LN) {
   try {
     const t = today(), me = store.doneId();
     const ids = new Set();
-    M.agendaFor(t).events.filter(e => M.isRepeating(e) && M.isDoneBy(e, t, me)).forEach(e => ['rt', 'rl', 'st', 'ev'].forEach(k => ids.add(hash(`${k}:${e.id}:${t}`))));
+    const evs = M.agendaFor(t).events;
+    evs.filter(e => M.isRepeating(e) && M.isDoneBy(e, t, me)).forEach(e => ['rt', 'rl', 'ev'].forEach(k => ids.add(hash(`${k}:${e.id}:${t}`))));
     if (!ids.size) return;
-    const shown = ((await LN.getDeliveredNotifications()).notifications || []).filter(n => ids.has(n.id));
+    // El aviso de la noche que junta varias rutinas («rl» del día) se quita cuando ya marcaste todas
+    const routines = evs.filter(e => M.isRoutine(e));
+    if (routines.length && routines.every(e => M.isDoneBy(e, t, me))) ids.add(hash(`rl:${t}`));
+    const delivered = (await LN.getDeliveredNotifications()).notifications || [];
+    delivered.forEach(n => { const x = n.extra || n.data || {}; if (Array.isArray(x.eids) && x.day === t && x.eids.every(id => doneFor({ eid: id, day: t }))) ids.add(n.id); });
+    const shown = delivered.filter(n => ids.has(n.id));
     if (shown.length) await LN.removeDeliveredNotifications({ notifications: shown.map(n => (n.tag ? { id: n.id, tag: n.tag } : { id: n.id })) });
   } catch { /* no disponible en este teléfono */ }
 }

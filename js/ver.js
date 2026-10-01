@@ -27,7 +27,7 @@ async function fetchDoc() {
   const j = await r.json();
   const f = j.fields || {};
   const str = k => f[k]?.stringValue || '';
-  return { salt: str('salt'), iv: str('iv'), ct: str('ct'), iter: Number(f.iter?.integerValue || 600000), updatedAt: str('updatedAt') };
+  return { v: Number(f.v?.integerValue || 1), salt: str('salt'), iv: str('iv'), ct: str('ct'), iter: Number(f.iter?.integerValue || 600000), updatedAt: str('updatedAt') };
 }
 async function decrypt(code) {
   const base = await crypto.subtle.importKey('raw', enc.encode(`${secret}:${code}`), 'PBKDF2', false, ['deriveKey']);
@@ -40,18 +40,23 @@ async function decrypt(code) {
 function message(title, text) { $app.innerHTML = `<div class="card lock"><h1>${esc(title)}</h1><p class="sub">${esc(text)}</p></div>`; }
 let tries = 0, lockUntil = 0;
 function askCode(err = '') {
+  const long = doc?.v === 2;   // clave larga: 10 letras y números
   $app.innerHTML = `<div class="card lock">
     <h1>Para el cuerpo de ancianos</h1>
-    <p class="sub">Escribe la clave de 6 números que te mandaron aparte.</p>
-    <form id="f" autocomplete="off"><input id="code" inputmode="numeric" pattern="[0-9]*" maxlength="7" autocomplete="one-time-code" aria-label="Clave de 6 números" autofocus>
-      <br><label class="remember"><input type="checkbox" id="rem" checked> Recordar la clave en este teléfono</label>
+    <p class="sub">${long ? 'Escribe la clave de 10 letras y números que te mandaron aparte.' : 'Escribe la clave de 6 números que te mandaron aparte.'}</p>
+    <form id="f" autocomplete="off">${long
+      ? '<input id="code" inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="13" autocomplete="off" aria-label="Clave de 10 letras y números" autofocus>'
+      : '<input id="code" inputmode="numeric" pattern="[0-9]*" maxlength="7" autocomplete="one-time-code" aria-label="Clave de 6 números" autofocus>'}
+      <br><label class="remember"><input type="checkbox" id="rem"> Recordar la clave en este teléfono</label>
+      <br><small class="sub">Márcalo solo si este teléfono es tuyo y nadie más lo usa.</small>
       <br><button class="btn" type="submit">Abrir</button></form>
     ${err ? `<p class="err">${esc(err)}</p>` : ''}</div>`;
   const f = document.getElementById('f');
   f.addEventListener('submit', async ev => {
     ev.preventDefault();
-    const code = document.getElementById('code').value.replace(/\D/g, '');
-    if (code.length !== 6) return askCode('La clave tiene 6 números.');
+    const raw = document.getElementById('code').value;
+    const code = long ? raw.toUpperCase().replace(/[^A-Z0-9]/g, '') : raw.replace(/\D/g, '');
+    if (long ? code.length !== 10 : code.length !== 6) return askCode(long ? 'La clave tiene 10 letras y números.' : 'La clave tiene 6 números.');
     if (Date.now() < lockUntil) return askCode(`Demasiados intentos. Espera ${Math.ceil((lockUntil - Date.now()) / 1000)} segundos.`);
     f.querySelector('button').disabled = true; f.querySelector('button').textContent = 'Abriendo…';
     try {
@@ -117,7 +122,7 @@ function render(d) {
   const at = d.at ? new Date(d.at) : null;
   const sec = (key, title, html, open = true) => (d[key] !== null && d[key] !== undefined ? `<details class="card" ${open ? 'open' : ''}><summary><h2>${title}</h2></summary>${html}</details>` : '');
   $app.innerHTML = `<h1>Para el cuerpo de ancianos</h1>
-    <p class="sub">${d.congre ? `${esc(d.congre)} · ` : ''}${at ? `Actualizado el ${esc(fShort(at.toISOString().slice(0, 10)))} a las ${esc(at.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' }))}` : ''}${d.by ? ` · lo comparte ${esc(d.by)}` : ''}</p>
+    <p class="sub">${d.congre ? `${esc(d.congre)} · ` : ''}${at ? `Actualizado el ${esc(fShort(`${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`))} a las ${esc(at.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' }))}` : ''}${d.by ? ` · lo comparte ${esc(d.by)}` : ''}</p>
     ${sec('agenda', '🗓 Próxima reunión', agendaHtml(d.agenda))}
     ${sec('acuerdos', '📋 Acuerdos y tareas', acuerdosHtml(d.acuerdos))}
     ${sec('visita', '🧳 Visita del superintendente de circuito', visitaHtml(d.visita))}

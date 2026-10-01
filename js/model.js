@@ -1,9 +1,10 @@
 // Reglas del dominio: categorías, tipos, recurrencia semanal y consultas de agenda.
 
-import { data, session } from './store.js';
+import { data, session, isCloud } from './store.js';
+import * as P from './perms.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '9.8.2';
+export const APP_VERSION = '10.0.0';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -12,9 +13,38 @@ export const PROFILE_TYPES = {
   precursor:  { n: 'Precursor',                    hideEventCats: ['ancianos', 'pastoreo'], hideServCats: ['pastoreo'], hideModules: ['congregacion'], goal: true },
   anciano:    { n: 'Anciano / Siervo ministerial', hideEventCats: [],                      hideServCats: [], hideModules: [] },
 };
+// ───── Administración de funciones (v10.0): plantillas editables (config/plantillas) y ajustes por cuenta (access/{uid}) ─────
+// Si el documento de plantillas no existe, se usan las de siempre (calculadas de PROFILE_TYPES).
+export const FEATURES = P.FEATURES;
+export const FEATURE_LIST = P.FEATURE_LIST;
+export const SECTION_LIST = P.SECTION_LIST;
+export const DEFAULT_TEMPLATES = P.defaultTemplates(PROFILE_TYPES);
+let tplCache = { src: undefined, out: DEFAULT_TEMPLATES };
+export const templates = () => {
+  if (tplCache.src !== session.templates) tplCache = { src: session.templates, out: P.mergeTemplates(DEFAULT_TEMPLATES, session.templates) };
+  return tplCache.out;
+};
+export const typeName = id => templates()[id]?.n || (id ? id : 'Pendiente');
 // Sin tipo asignado (modo local, administrador sin tipo o reglas antiguas) se ve todo.
-export const profileType = () => (PROFILE_TYPES[session.type] ? session.type : 'anciano');
-export const profileTypeInfo = () => PROFILE_TYPES[profileType()];
+export const profileType = () => (templates()[session.type] ? session.type : 'anciano');
+let permCache = null;
+export function perms() {
+  const key = [isCloud, session.legacy, session.type, session.templates, session.allow, session.deny];
+  if (permCache && permCache.key.every((x, i) => x === key[i])) return permCache.out;
+  const tpl = templates()[session.type];
+  const out = P.effectivePerms(tpl, { allow: session.allow, deny: session.deny }, { all: !isCloud || session.legacy || !tpl });
+  permCache = { key, out };
+  return out;
+}
+export const featureOn = id => perms().features.has(id);
+export const actionFeature = P.actionFeature;
+export const permCss = () => P.hiddenCss(perms().features);
+export const FEATURE_OFF_MSG = 'Esta función no está activada para tu cuenta';
+// Lo de siempre: { n, hideEventCats, hideServCats, hideModules, goal } (ahora sale de la plantilla)
+export const profileTypeInfo = () => {
+  const p = perms();
+  return { n: p.all ? (templates()[profileType()]?.n || PROFILE_TYPES.anciano.n) : p.n, hideEventCats: p.hideEventCats, hideServCats: p.hideServCats, hideModules: p.hideModules, goal: p.goal };
+};
 
 // Tipos de evento (el color identifica la categoría en el calendario)
 // Qué campos del evento tienen sentido según su tipo (los tipos propios muestran todo)
@@ -73,36 +103,51 @@ export const TASK_REPEATS = { '': 'No se repite', semanal: 'Cada semana', quince
 const WD = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const ORD = ['1.er', '2.º', '3.er', '4.º', 'último'];
 const isoOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// El día que se repite cada mes. La tarea lo guarda (repeatDay / repeatNth) para que el 31 vuelva a ser 31
+// después de febrero, y el «último jueves» siga siendo el último. Si cambiaste la fecha a mano, manda la fecha.
+const lastDayOf = d => new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+export function repeatAnchor(due, t) {
+  t = t || {};
+  const d = parseISO(due), day = d.getDate(), last = lastDayOf(d);
+  const nth0 = Math.ceil(day / 7);
+  const sd = Number(t.repeatDay);
+  const repeatDay = sd > day && sd <= 31 && day === last ? sd : day;          // solo si la fecha quedó recortada al fin de mes
+  const repeatNth = nth0 >= 5 || (t.repeatNth === 'last' && day + 7 > last) ? 'last' : nth0;
+  return { repeatDay, repeatNth };
+}
 // Texto claro de cómo se repite, según la fecha límite («Cada mes, el 2.º jueves»)
-export function repeatLabel(repeat, due) {
+export function repeatLabel(repeat, due, t) {
   if (!repeat) return '';
   if (!due) return TASK_REPEATS[repeat] || '';
   const d = parseISO(due);
+  const a = repeatAnchor(due, t);
+  if (repeat === 'mensual-semana') return `Cada mes, el ${a.repeatNth === 'last' ? 'último' : ORD[a.repeatNth - 1]} ${WD[d.getDay()]}`;
+  if (repeat === 'mensual') return `Cada mes, el día ${a.repeatDay}`;
   if (repeat === 'semanal') return `Cada ${WD[d.getDay()]}`;
   if (repeat === 'quincenal') return `Cada 2 semanas, el ${WD[d.getDay()]}`;
-  if (repeat === 'mensual-semana') return `Cada mes, el ${ORD[Math.min(4, Math.ceil(d.getDate() / 7) - 1)]} ${WD[d.getDay()]}`;
-  if (repeat === 'mensual') return `Cada mes, el día ${d.getDate()}`;
   if (repeat === 'anual') return `Cada año, el ${fmtShort(due)}`;
   return '';
 }
-// Próxima fecha límite de una tarea que se repite
-export function nextDue(repeat, due) {
+// Próxima fecha límite de una tarea que se repite (t: la tarea, para saber su día guardado)
+export function nextDue(repeat, due, t) {
   const base = due || today();
   if (repeat === 'semanal') return addDays(base, 7);
   if (repeat === 'quincenal') return addDays(base, 14);
   const d = parseISO(base);
+  const anchor = repeatAnchor(base, t);
   if (repeat === 'mensual' || repeat === 'anual') {
-    const add = repeat === 'anual' ? 12 : 1; const day = d.getDate();
+    const add = repeat === 'anual' ? 12 : 1; const day = repeat === 'mensual' ? anchor.repeatDay : d.getDate();
     const n = new Date(d.getFullYear(), d.getMonth() + add, 1);
     const last = new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate();
     n.setDate(Math.min(day, last)); return isoOf(n);
   }
   if (repeat === 'mensual-semana') {
-    const nth = Math.ceil(d.getDate() / 7), wd = d.getDay();
+    const nth = anchor.repeatNth === 'last' ? 5 : anchor.repeatNth, wd = d.getDay();
     const first = new Date(d.getFullYear(), d.getMonth() + 1, 1);
     const off = (wd - first.getDay() + 7) % 7;
     let day = 1 + off + (nth - 1) * 7;
     const last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    if (anchor.repeatNth === 'last') day = 1 + off + 28;   // el último de ese mes
     while (day > last) day -= 7;   // si ese mes no tiene 5.º, el último
     first.setDate(day); return isoOf(first);
   }
@@ -111,9 +156,10 @@ export function nextDue(repeat, due) {
 // Al completar una tarea que se repite, la siguiente (nueva, pendiente y con la próxima fecha)
 export function repeatNext(t, newId) {
   if (!t.repeat || t.repeatDone) return null;
-  const due = nextDue(t.repeat, t.due);
+  const due = nextDue(t.repeat, t.due, t);
   if (!due) return null;
   const n = { ...t, id: newId, due, status: 'pendiente', doneAt: '', log: [], repeatDone: false, repeatFrom: t.id, fromAgreement: '' };
+  if (t.due && (t.repeat === 'mensual' || t.repeat === 'mensual-semana')) Object.assign(n, repeatAnchor(t.due, t));
   delete n.createdAt; delete n.updatedAt;
   return n;
 }
@@ -155,7 +201,10 @@ export function customColor(text) {
 export const catOf = key => CATEGORIAS[key] || (key ? { n: key, c: customColor(key) } : CATEGORIAS.personal);
 // Color de un evento: el que elegiste para ese evento o, si no, el de su tipo
 export const EVENT_COLORS = [['', 'Del tipo'], ['#8FD3E8', 'Celeste'], ['#F5D76E', 'Amarillo'], ['#F4B183', 'Naranja'], ['#C9B6E4', 'Lila'], ['#8E7CC3', 'Morado'], ['#F2A7C3', 'Rosado'], ['#A8D5A2', 'Verde'], ['#E57373', 'Rojo'], ['#9E9E9E', 'Gris']];
-export const eventColor = e => (e && e.color) || catOf(e?.category).c;
+// Solo se acepta un color #rgb…#rrggbbaa o una variable var(--…); cualquier otra cosa (p. ej. de un evento
+// compartido por otra cuenta) se cambia por el color del tipo, para que no se pueda meter código en el estilo
+export const safeColor = (c, fallback = CATEGORIAS.personal.c) => (typeof c === 'string' && (/^#[0-9a-f]{3,8}$/i.test(c) || /^var\(--[\w-]+\)$/.test(c)) ? c : fallback);
+export const eventColor = e => { const cat = catOf(e?.category).c; return e && e.color ? safeColor(e.color, safeColor(cat)) : safeColor(cat); };
 export const kindLabel = k => KINDS[k] || k || '';
 
 // Fecha que se muestra y usa para ordenar una nota: la que el usuario puso a mano
@@ -317,11 +366,12 @@ export const DEFAULT_QUICK = ['time', 'task', 'meeting', 'note'];
 // Los que se muestran: los que eligió el usuario (o los de siempre), sin los de secciones ocultas
 export const quickActions = () => {
   const chosen = Array.isArray(profile().quickActions) ? profile().quickActions : DEFAULT_QUICK;
-  return QUICK_ACTIONS.filter(q => chosen.includes(q.id) && (!q.mod || isModuleVisible(q.mod)));
+  return QUICK_ACTIONS.filter(q => chosen.includes(q.id) && (!q.mod || isModuleVisible(q.mod)) && quickAllowed(q.id));
 };
 
 // Secciones que el tipo de perfil no usa (p. ej. el organigrama solo es para ancianos y siervos)
-export const moduleAllowed = id => !(profileTypeInfo().hideModules || []).includes(id);
+export const moduleAllowed = id => perms().modules.has(id) || !P.MODULE_IDS.includes(id);
+export const quickAllowed = id => { const f = P.quickFeature(id); return !f || featureOn(f); };
 export const isModuleVisible = id => moduleAllowed(id) && !(profile().hiddenModules || []).includes(id);
 export const visibleModules = () => MODULES.filter(m => isModuleVisible(m.id));
 
@@ -552,7 +602,7 @@ export const addDaysISO = addDays;
 // person.visits = [{ id, date, kind: 'estudio'|'revisita'|'pastoreo', lesson, note }]
 // person.study  = { active, pub, lesson, every }   (every = cada cuántos días estudian)
 export const VISIT_KINDS = { estudio: '📖 Curso bíblico', revisita: '🚪 Revisita', pastoreo: '🐑 Pastoreo' };
-export const canShepherd = () => !profileTypeInfo().hideServCats.includes('pastoreo');
+export const canShepherd = () => featureOn('personas.pastoreo');
 export const visitKinds = () => Object.fromEntries(Object.entries(VISIT_KINDS).filter(([k]) => k !== 'pastoreo' || canShepherd()));
 export const isStudent = p => !!p && (p.study ? !!p.study.active : /estudiante/i.test(p.role || ''));
 export const isInterested = p => !!p && !isStudent(p) && (/interesad/i.test(p.role || '') || (p.visits || []).some(v => v.kind === 'revisita'));
@@ -874,12 +924,15 @@ export function globalSearch(q) {
   const nq = norm(q);
   if (!nq) return { events: [], tasks: [], people: [], notes: [], meetings: [] };
   const has = (...parts) => norm(parts.filter(Boolean).join(' ')).includes(nq);
+  // 🛡 Solo en las secciones que la cuenta puede ver (las apagadas por el administrador o en Ajustes no salen)
+  const on = id => isModuleVisible(id);
+  const list = (ok, arr) => (ok ? arr : []);
   return {
-    events: data.events.filter(e => has(e.title, e.place, e.notes)).slice(0, 20),
-    tasks: data.tasks.filter(t => has(t.title, t.notes)).slice(0, 20),
-    people: data.people.filter(p => has(p.name, p.role, p.phone, p.notes)).slice(0, 20),
-    notes: data.notes.filter(n => has(n.title, n.body, n.tag)).slice(0, 20),
-    meetings: data.meetings.filter(m => has(m.title, m.place, m.topics, m.notes, m.attendees, (m.agenda || []).map(x => [x.t, ...(x.subs || [])].join(' ')).join(' '))).slice(0, 20),
+    events: list(on('agenda'), data.events).filter(e => has(e.title, e.place, e.notes)).slice(0, 20),
+    tasks: list(on('tareas'), data.tasks).filter(t => has(t.title, t.notes)).slice(0, 20),
+    people: list(on('personas'), data.people).filter(p => has(p.name, p.role, p.phone, p.notes)).slice(0, 20),
+    notes: list(on('notas'), data.notes).filter(n => has(n.title, n.body, n.tag)).slice(0, 20),
+    meetings: list(on('notas') && featureOn('notas.reuniones'), data.meetings).filter(m => has(m.title, m.place, m.topics, m.notes, m.attendees, (m.agenda || []).map(x => [x.t, ...(x.subs || [])].join(' ')).join(' '))).slice(0, 20),
   };
 }
 

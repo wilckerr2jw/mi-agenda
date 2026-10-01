@@ -78,7 +78,7 @@ export function visitaSection() {
   const when = d > 1 ? `en ${d} días` : d === 1 ? 'mañana' : d === 0 ? 'hoy' : 'esta semana';
   const dl = deadlines(v);
   return `<section><div class="sec-h"><h2>🧳 Visita del superintendente de circuito</h2><span class="hint">${esc(when)}</span></div>
-    <button class="card visit-card" data-a="visita-open" data-id="${v.id}">
+    <button class="card visit-card" data-a="visita-open" data-id="${esc(v.id)}">
       <span class="grow"><strong>Semana del ${esc(fmtLong(v.start))}</strong>
         <span class="meta">${p.done} de ${p.total} listos${p.no.length ? ` · ⚠️ ${p.no.length} con «No»` : ''}</span>
         <span class="visit-bar"><i style="width:${Math.round(p.done / p.total * 100)}%"></i></span>
@@ -94,7 +94,7 @@ export async function newVisit() {
   // Las visitas empiezan el martes: se propone el próximo martes dentro de un mes
   const d = new Date(`${addDays(today(), 30)}T12:00:00`); while (d.getDay() !== 2) d.setDate(d.getDate() + 1);
   const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  open({ title: 'Próxima visita', body: `<div class="f"><label for="visit-start">¿Qué martes empieza la visita?</label><input id="visit-start" type="date" value="${iso}"></div>
+  open({ title: 'Próxima visita', body: `<div class="f"><label for="visit-start">¿Qué martes empieza la visita?</label><input id="visit-start" type="date" value="${esc(iso)}"></div>
       <label class="check"><input type="checkbox" id="visit-cal" checked> Ponerla en mi agenda</label>
       <p class="hint">Luego vas marcando lo que está listo. El S-62 debe enviarse al menos un mes antes; lo demás se entrega a más tardar el martes.</p>`,
     actions: '<button type="button" class="btn primary" data-a="visita-create">Crear la lista</button>' });
@@ -116,22 +116,22 @@ export async function openVisit(id) {
     const x = v.items?.[it.k] || {};
     const due = it.due != null ? addDays(v.start, it.due) : '';
     const ctl = it.q
-      ? `<span class="seg tiny" role="group" aria-label="Respuesta">${['si', 'no', ...(it.q === 3 ? ['na'] : [])].map(a => `<button type="button" data-a="visita-ans" data-id="${v.id}" data-k="${it.k}" data-v="${a}" aria-pressed="${x.ans === a}">${a === 'si' ? 'Sí' : a === 'no' ? 'No' : 'N/A'}</button>`).join('')}</span>`
-      : `<input type="checkbox" data-a="visita-check" data-id="${v.id}" data-k="${it.k}" ${x.done ? 'checked' : ''} aria-label="Listo">`;
+      ? `<span class="seg tiny" role="group" aria-label="Respuesta">${['si', 'no', ...(it.q === 3 ? ['na'] : [])].map(a => `<button type="button" data-a="visita-ans" data-id="${esc(v.id)}" data-k="${esc(it.k)}" data-v="${a}" aria-pressed="${x.ans === a}">${a === 'si' ? 'Sí' : a === 'no' ? 'No' : 'N/A'}</button>`).join('')}</span>`
+      : `<input type="checkbox" data-a="visita-check" data-id="${esc(v.id)}" data-k="${esc(it.k)}" ${x.done ? 'checked' : ''} aria-label="Listo">`;
     return `<li class="visit-it ${isDone(v, it) ? 'done' : ''} ${x.ans === 'no' ? 'no' : ''}">
       <div class="visit-row">${it.q ? '' : ctl}<span class="grow">${esc(it.t)}${due ? ` <span class="hint ${!isDone(v, it) && due < t ? 'warn-t' : ''}">· antes del ${esc(fmtShort(due))}</span>` : ''}${it.opt ? ' <button type="button" class="link sm" data-a="visita-na" data-id="' + v.id + '" data-k="' + it.k + '">' + (x.na ? 'Sí aplica' : 'No aplica') + '</button>' : ''}</span>${it.q ? ctl : ''}</div>
-      ${it.k === 'temas' ? `<textarea class="visit-note" data-visit-note="${v.id}" data-k="${it.k}" rows="3" maxlength="800" placeholder="Un tema por línea">${esc(x.note || '')}</textarea>
-        <button type="button" class="btn small ghost" data-a="visita-meeting" data-id="${v.id}">${v.meetingId && store.get('meetings', v.meetingId) ? '🗓 Abrir la reunión con el superintendente' : '🗓 Crear la reunión con estos temas'}</button>`
+      ${it.k === 'temas' ? `<textarea class="visit-note" data-visit-note="${esc(v.id)}" data-k="${esc(it.k)}" rows="3" maxlength="800" placeholder="Un tema por línea">${esc(x.note || '')}</textarea>
+        <button type="button" class="btn small ghost" data-a="visita-meeting" data-id="${esc(v.id)}">${v.meetingId && store.get('meetings', v.meetingId) ? '🗓 Abrir la reunión con el superintendente' : '🗓 Crear la reunión con estos temas'}</button>`
       : it.k === 'pastoreo' ? `${pick ? pick('visitPast', pastPool(), x.ids || [], null, 'checkbox', { lazy: true }) : ''}
-        <input class="visit-note" data-visit-note="${v.id}" data-k="${it.k}" maxlength="200" value="${esc(x.note || '')}" placeholder="Quién lo acompaña (opcional)">
-        ${(x.ids || []).length ? `<button type="button" class="btn small ghost" data-a="visita-past-log" data-id="${v.id}">${x.logged ? `✓ Anotadas el ${esc(fmtShort(x.logged))} · volver a anotar` : `✓ Anotar estas ${x.ids.length} visitas en su seguimiento`}</button>` : ''}`
-      : `<input class="visit-note" data-visit-note="${v.id}" data-k="${it.k}" maxlength="200" value="${esc(x.note || '')}" placeholder="Nota (opcional)">`}
+        <input class="visit-note" data-visit-note="${esc(v.id)}" data-k="${esc(it.k)}" maxlength="200" value="${esc(x.note || '')}" placeholder="Quién lo acompaña (opcional)">
+        ${(x.ids || []).length ? `<button type="button" class="btn small ghost" data-a="visita-past-log" data-id="${esc(v.id)}">${x.logged ? `✓ Anotadas el ${esc(fmtShort(x.logged))} · volver a anotar` : `✓ Anotar estas ${x.ids.length} visitas en su seguimiento`}</button>` : ''}`
+      : `<input class="visit-note" data-visit-note="${esc(v.id)}" data-k="${esc(it.k)}" maxlength="200" value="${esc(x.note || '')}" placeholder="Nota (opcional)">`}
     </li>`;
   };
   const prev = previousVisit(v);
   const prevLeft = prev ? VISIT_ITEMS.filter(it => !isDone(prev, it) || prev.items?.[it.k]?.ans === 'no') : [];
   open({ title: `Visita del ${fmtShort(v.start)}`, back: null, body: `
-    <div class="f"><label for="visit-start-e">Semana de la visita (martes)</label><input id="visit-start-e" type="date" data-visit-start="${v.id}" value="${esc(v.start)}"></div>
+    <div class="f"><label for="visit-start-e">Semana de la visita (martes)</label><input id="visit-start-e" type="date" data-visit-start="${esc(v.id)}" value="${esc(v.start)}"></div>
     <p class="hint">${p.done} de ${p.total} listos. Se guarda solo al marcar.</p>
     ${prev && prevLeft.length ? `<details class="load-row visit-prev"><summary><span class="load-n hi">${prevLeft.length}</span><span class="grow"><b>De la visita anterior (${esc(fmtShort(prev.start))})</b><small>Lo que quedó pendiente o con «No»</small></span></summary>
       <ul class="load-list">${prevLeft.map(it => `<li>${prev.items?.[it.k]?.ans === 'no' ? '⚠️ No:' : '⚪'} ${esc(it.t)}${prev.items?.[it.k]?.note ? ` <span class="hint">· ${esc(prev.items[it.k].note)}</span>` : ''}</li>`).join('')}</ul></details>` : ''}
@@ -141,10 +141,10 @@ export async function openVisit(id) {
       return `<h3 class="sub-h">${x.ic} ${esc(x.n)}${people.length ? ` <span class="hint">· ${esc(people.map(pp => pp.name).join(', '))}</span>` : ''}</h3>
         ${x.hint ? `<p class="hint">${esc(x.hint)}</p>` : ''}
         <ul class="visit-list">${VISIT_ITEMS.filter(it => it.g === g).map(row).join('')}</ul>
-        ${(g === 'secre' || g === 'serv') && pend ? `<button type="button" class="btn small ghost" data-a="visita-ask" data-id="${v.id}" data-v="${g}">📤 Pedirle lo que falta por WhatsApp</button>` : ''}`;
+        ${(g === 'secre' || g === 'serv') && pend ? `<button type="button" class="btn small ghost" data-a="visita-ask" data-id="${esc(v.id)}" data-v="${g}">📤 Pedirle lo que falta por WhatsApp</button>` : ''}`;
     }).join('')}
-    <div class="f pad-top"><label for="visit-notes">Notas de la visita</label><textarea id="visit-notes" rows="3" data-visit-notes="${v.id}">${esc(v.notes || '')}</textarea></div>`,
-    actions: `<button type="button" class="btn ghost danger" data-a="delete" data-col="visitas" data-id="${v.id}">Eliminar</button><button type="button" class="btn primary" data-a="sheet-close">Listo</button>` });
+    <div class="f pad-top"><label for="visit-notes">Notas de la visita</label><textarea id="visit-notes" rows="3" data-visit-notes="${esc(v.id)}">${esc(v.notes || '')}</textarea></div>`,
+    actions: `<button type="button" class="btn ghost danger" data-a="delete" data-col="visitas" data-id="${esc(v.id)}">Eliminar</button><button type="button" class="btn primary" data-a="sheet-close">Listo</button>` });
 }
 function setItem(id, k, patch) {
   const v = store.get('visitas', id);

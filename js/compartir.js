@@ -7,7 +7,7 @@
 import { data } from './store.js';
 import * as store from './store.js';
 import * as M from './model.js';
-import { esc, today, toast, fmtShort, addDays } from './util.js';
+import { esc, today, toast, fmtShort, addDays, dateOf } from './util.js';
 import * as V from './visita.js';
 import { mecaStats, rowPerson, programOf } from './mecas.js';
 import * as A from './agenda.js';
@@ -37,6 +37,10 @@ export async function deriveKey(secret, code, salt, iter = ITER) {
   return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
 const newCode = () => { const x = new Uint32Array(1); let n; do { crypto.getRandomValues(x); n = x[0]; } while (n >= 4294000000); return String(n % 1000000).padStart(6, '0'); };
+// Clave larga (opcional): 10 letras y números, sin los que se confunden (0/O, 1/I/L)
+const LONG_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const newLongCode = () => { const out = []; const x = new Uint8Array(1); while (out.length < 10) { crypto.getRandomValues(x); if (x[0] < 248) out.push(LONG_ABC[x[0] % LONG_ABC.length]); } return out.join(''); };
+export const fmtCode = code => (/^\d{6}$/.test(code) ? code.replace(/(\d{3})(\d{3})/, '$1 $2') : String(code).replace(/(.{5})(?=.)/, '$1-'));
 async function sha(text) { return b64u(await crypto.subtle.digest('SHA-256', enc.encode(text))).slice(0, 24); }
 
 // ───── Lo que se comparte ─────
@@ -150,7 +154,7 @@ async function keyFor(c) {
 export async function sealed(c, snap = snapshot(c)) {
   const iv = rand(12);
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await keyFor(c), enc.encode(JSON.stringify({ ...snap, at: new Date().toISOString() })));
-  return { v: 1, salt: c.salt, iv: b64u(iv), iter: c.iter || ITER, ct: b64u(ct), updatedAt: new Date().toISOString() };
+  return { v: c.codeLong ? 2 : 1, salt: c.salt, iv: b64u(iv), iter: c.iter || ITER, ct: b64u(ct), updatedAt: new Date().toISOString() };
 }
 // Cifra lo de ahora y lo sube; devuelve la huella (hash) para no volver a subir lo mismo
 async function publish(c, force = false) {
@@ -160,9 +164,9 @@ async function publish(c, force = false) {
   await store.shareSave(c.id || await shareIdOf(c.secret), await sealed(c, snap));
   return hash;
 }
-export const newConfig = (sections = SECTIONS.map(x => x[0]), meetings = ['auto']) => {
+export const newConfig = (sections = SECTIONS.map(x => x[0]), meetings = ['auto'], long = false) => {
   const secret = b64u(rand(16));
-  return shareIdOf(secret).then(id => ({ secret, id, code: newCode(), salt: b64u(rand(16)), iter: ITER, sections, meetings, createdAt: new Date().toISOString() }));
+  return shareIdOf(secret).then(id => ({ secret, id, code: long ? newLongCode() : newCode(), ...(long ? { codeLong: true } : {}), salt: b64u(rand(16)), iter: ITER, sections, meetings, createdAt: new Date().toISOString() }));
 };
 export const linkOf = c => `${location.origin}${location.pathname.replace(/[^/]*$/, '')}${VIEWER}#${c.secret}`;
 
@@ -193,16 +197,18 @@ export async function sheet() {
   const mts = meetingsWithAgreements().slice(0, 8);
   const list = Array.isArray(c?.meetings) ? c.meetings : ['auto'];
   const chosen = new Set(list);
-  const secHtml = SECTIONS.map(([k, n, d]) => `<label class="check"><input type="checkbox" name="shsec" value="${k}" ${sec.includes(k) ? 'checked' : ''}> <span><b>${n}</b><br><small class="hint">${esc(d)}${k === 'agenda' ? (nm ? ` · ahora: ${esc(nm.title || 'Reunión')}, ${esc(fmtShort(nm.date))}` : ' · saldrá cuando prepares la agenda de una reunión') : ''}</small></span></label>`).join('');
+  const secHtml = SECTIONS.map(([k, n, d]) => `<label class="check"><input type="checkbox" name="shsec" value="${esc(k)}" ${sec.includes(k) ? 'checked' : ''}> <span><b>${n}</b><br><small class="hint">${esc(d)}${k === 'agenda' ? (nm ? ` · ahora: ${esc(nm.title || 'Reunión')}, ${esc(fmtShort(nm.date))}` : ' · saldrá cuando prepares la agenda de una reunión') : ''}</small></span></label>`).join('');
   const mtHtml = `<div class="f" id="sh-mts" ${sec.includes('acuerdos') ? '' : 'hidden'}><span class="lbl">Acuerdos de qué reuniones</span>
     <label class="check"><input type="checkbox" name="shmt" value="auto" ${chosen.has('auto') ? 'checked' : ''}> <span><b>La última reunión con acuerdos</b><br><small class="hint">Cambia sola cuando haces otra reunión${mts[0] ? ` (ahora: ${esc(mts[0].title || 'Reunión')}, ${esc(fmtShort(mts[0].date))})` : ''}</small></span></label>
-    ${mts.slice(1).map(m => `<label class="check"><input type="checkbox" name="shmt" value="${m.id}" ${chosen.has(m.id) ? 'checked' : ''}> ${esc(m.title || 'Reunión')} <span class="hint">· ${esc(fmtShort(m.date))}</span></label>`).join('')}
+    ${mts.slice(1).map(m => `<label class="check"><input type="checkbox" name="shmt" value="${esc(m.id)}" ${chosen.has(m.id) ? 'checked' : ''}> ${esc(m.title || 'Reunión')} <span class="hint">· ${esc(fmtShort(m.date))}</span></label>`).join('')}
     ${mts.length ? '' : '<p class="hint">Todavía no tienes reuniones con acuerdos: saldrán aquí cuando las tengas.</p>'}</div>`;
   if (!c?.secret) {
     open({
       title: '🔗 Enlace para los ancianos',
       body: `<p class="hint">Los ancianos ven lo que elijas en un enlace, con una clave de 6 números. No necesitan la app ni una cuenta. Todo va cifrado con la clave; se actualiza solo cuando cambias algo y lo puedes apagar cuando quieras.</p>
-        <div class="stack pad" id="sh-form">${secHtml}</div>${mtHtml}`,
+        <p class="hint">🔐 El enlace es la llave principal y la clave es un segundo candado: mándalos por separado (por ejemplo, el enlace por WhatsApp y la clave en otro mensaje o de palabra).</p>
+        <div class="stack pad" id="sh-form">${secHtml}</div>${mtHtml}
+        <label class="check pad"><input type="checkbox" id="sh-long"> <span>Usar una clave más larga<br><small class="hint">10 letras y números en vez de 6 números: más difícil de adivinar, un poco más larga de escribir</small></span></label>`,
       actions: '<button type="button" class="btn primary" data-a="sh-create">Crear el enlace</button>',
     });
     return;
@@ -210,11 +216,11 @@ export async function sheet() {
   const link = linkOf(c);
   open({
     title: '🔗 Enlace para los ancianos',
-    body: `<p class="hint ok">✓ Activo${c.updatedAt ? ` · actualizado el ${esc(fmtShort(c.updatedAt.slice(0, 10)))} a las ${esc(new Date(c.updatedAt).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' }))}` : ''}. Se actualiza solo cuando cambias algo.</p>
+    body: `<p class="hint ok">✓ Activo${c.updatedAt ? ` · actualizado el ${esc(fmtShort(dateOf(c.updatedAt)))} a las ${esc(new Date(c.updatedAt).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' }))}` : ''}. Se actualiza solo cuando cambias algo.</p>
       <div class="f"><span class="lbl">Enlace</span><div class="log-add"><input id="sh-link" readonly value="${esc(link)}" aria-label="Enlace"><button type="button" class="btn" data-a="sh-copy" data-v="link">Copiar</button></div></div>
-      <div class="f"><span class="lbl">Clave</span><div class="sh-code" aria-label="Clave">${esc(c.code.replace(/(\d{3})(\d{3})/, '$1 $2'))}</div></div>
+      <div class="f"><span class="lbl">Clave</span><div class="sh-code" aria-label="Clave">${esc(fmtCode(c.code))}</div></div>
       <div class="two"><button type="button" class="btn" data-a="sh-send" data-v="link">📤 Enviar el enlace</button><button type="button" class="btn" data-a="sh-send" data-v="code">📤 Enviar la clave</button></div>
-      <p class="hint">Manda la clave en un mensaje aparte. Quien tenga el enlace y la clave puede verlo, así que compártelo solo con los ancianos.</p>
+      <p class="hint">🔐 El enlace es la llave principal y la clave es un segundo candado: manda la clave en un mensaje aparte. Quien tenga el enlace y la clave puede verlo, así que compártelo solo con los ancianos.</p>
       <h3 class="sub-h">Qué ven</h3><div class="stack" id="sh-form">${secHtml}</div>${mtHtml}
       <button type="button" class="btn pad-top" data-a="sh-save">Guardar lo que ven y actualizar</button>
       <div class="stack pad"><button type="button" class="btn ghost" data-a="sh-rekey">🔑 Cambiar la clave (el enlace anterior deja de servir)</button>
@@ -224,7 +230,7 @@ export async function sheet() {
 function formChoice() {
   const sections = [...document.querySelectorAll('input[name="shsec"]:checked')].map(i => i.value);
   const meetings = [...document.querySelectorAll('input[name="shmt"]:checked')].map(i => i.value);
-  return { sections, meetings, agendaOff: !sections.includes('agenda') };
+  return { sections, meetings, agendaOff: !sections.includes('agenda'), long: !!document.getElementById('sh-long')?.checked };
 }
 async function saveCfg(c) {
   const v = M.profile();
@@ -232,11 +238,11 @@ async function saveCfg(c) {
 }
 export async function create(rekey = false) {
   const prev = cfg();
-  const { sections, meetings, agendaOff } = rekey && prev ? { sections: sectionsOf(prev), meetings: prev.meetings, agendaOff: !!prev.agendaOff } : formChoice();
+  const { sections, meetings, agendaOff, long } = rekey && prev ? { sections: sectionsOf(prev), meetings: prev.meetings, agendaOff: !!prev.agendaOff, long: !!prev.codeLong } : formChoice();
   if (!sections.length) return toast('Marca al menos una parte para compartir');
   toast('Creando el enlace cifrado…');
   try {
-    const c = { ...await newConfig(sections, meetings), agendaOff };
+    const c = { ...await newConfig(sections, meetings, long), agendaOff };
     const hash = await publish(c, true);
     if (prev?.id && prev.id !== c.id) await store.shareRemove(prev.id).catch(() => {});
     await saveCfg({ ...c, hash, updatedAt: new Date().toISOString() });

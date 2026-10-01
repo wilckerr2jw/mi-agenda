@@ -92,13 +92,53 @@ export const waLink = phone => {
 };
 
 // ---------- Aviso emergente (con acción opcional, p. ej. "Deshacer") ----------
-let toastTimer;
-export function toast(msg, actionLabel, action, ms = 6000) {
+// Los avisos hacen fila (no se reemplazan): se ven hasta 2 a la vez, uno encima del otro.
+// Los que traen una acción duran al menos 10 s; tocar el aviso lo cierra.
+// Con una hoja abierta, el aviso sale encima de sus botones de abajo (no los tapa).
+const toastQueue = [];
+let toastShown = [];
+const TOAST_MAX = 2;
+function placeToasts(el) {
+  const sheet = document.querySelector('#sheet-root .sheet');
+  if (!sheet) { el.style.bottom = ''; el.style.left = ''; return; }
+  const r = sheet.getBoundingClientRect(), foot = sheet.querySelector('.sheet-f');
+  const edge = foot ? foot.getBoundingClientRect().top : r.bottom;
+  el.style.bottom = `${Math.max(12, window.innerHeight - edge + 12)}px`;
+  el.style.left = `${r.left + r.width / 2}px`;
+}
+function nextToast() {
   const el = document.getElementById('toast');
   if (!el) return;
-  el.innerHTML = `<span>${esc(msg)}</span>${actionLabel ? `<button type="button" class="toast-a">${esc(actionLabel)}</button>` : ''}`;
-  el.classList.add('show');
-  el.querySelector('.toast-a')?.addEventListener('click', () => { action?.(); el.classList.remove('show'); });
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
+  while (toastShown.length < TOAST_MAX && toastQueue.length) {
+    const t = toastQueue.shift();
+    const item = document.createElement('div');
+    item.className = 'toast-i';
+    item.innerHTML = `<span>${esc(t.msg)}</span>${t.actionLabel ? `<button type="button" class="toast-a">${esc(t.actionLabel)}</button>` : ''}`;
+    const entry = { ...t, item };
+    const hide = () => {
+      if (!toastShown.includes(entry)) return;
+      clearTimeout(entry.timer);
+      toastShown = toastShown.filter(x => x !== entry);
+      item.classList.remove('show');
+      setTimeout(() => { item.remove(); if (!toastShown.length) el.classList.remove('show'); nextToast(); }, 200);
+    };
+    item.querySelector('.toast-a')?.addEventListener('click', ev => { ev.stopPropagation(); hide(); t.action?.(); });
+    item.addEventListener('click', hide);
+    el.append(item);
+    toastShown.push(entry);
+    placeToasts(el);
+    el.classList.add('show');
+    requestAnimationFrame(() => item.classList.add('show'));
+    entry.timer = setTimeout(hide, t.actionLabel ? Math.max(10000, t.ms) : t.ms);
+  }
 }
+export function toast(msg, actionLabel, action, ms = 6000) {
+  if (!document.getElementById('toast')) return;
+  // El mismo aviso dos veces seguidas (p. ej. «Conexión de vuelta») se muestra una sola vez
+  if (toastShown.some(x => x.msg === msg && !x.actionLabel) || toastQueue.some(x => x.msg === msg)) return;
+  toastQueue.push({ msg, actionLabel, action, ms });
+  if (toastQueue.length > 6) toastQueue.splice(0, toastQueue.length - 6);
+  nextToast();
+}
+// Al abrir o cerrar una hoja, los avisos visibles se acomodan (encima de sus botones o encima de la barra)
+export function toastPlace() { const el = document.getElementById('toast'); if (el && toastShown.length) placeToasts(el); }

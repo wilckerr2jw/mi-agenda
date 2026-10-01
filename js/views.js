@@ -8,6 +8,7 @@ import { visitaSection, visitNotice } from './visita.js';
 import * as store from './store.js';
 import * as WC from './weekcal.js';
 import * as Nat from './native.js';
+import { updateBanner } from './pwa.js';
 import { esc, ic, today, parseISO, fmtLong, fmtShort, fmtMonth, fmtTime, timeParts, relDays, norm, initials, pad, MESES, DIAS, cap, avatarHtml, diffDays } from './util.js';
 import * as M from './model.js';
 import { resolved } from './theme.js';
@@ -50,12 +51,12 @@ function tlItem({ kind, item }, iso) {
   const othersDone = routine && item.sharedId ? (item.doneLog?.[iso] || []).filter(u => u !== me).map(u => item.memberNames?.[u] || '').filter(Boolean) : [];
   const btn = tlButton({ kind, item }, iso, { color, label, occ, companions, racha, othersDone });
   return routine
-    ? `<div class="tl-row">${btn}<button type="button" class="tl-check ${done ? 'on' : ''}" data-a="ev-done" data-id="${item.id}" data-date="${iso}" aria-pressed="${done}" aria-label="${done ? 'Desmarcar' : 'Marcar como hecho'}: ${esc(item.title)}">${ic('check')}</button></div>`
+    ? `<div class="tl-row">${btn}<button type="button" class="tl-check ${done ? 'on' : ''}" data-a="ev-done" data-id="${esc(item.id)}" data-date="${esc(iso)}" aria-pressed="${done}" aria-label="${done ? 'Desmarcar' : 'Marcar como hecho'}: ${esc(item.title)}">${ic('check')}</button></div>`
     : btn;
 }
 function tlButton({ kind, item }, iso, { color, label, occ, companions, racha, othersDone }) {
   const isMeeting = kind === 'meeting';
-  return `<button class="tl-item" style="--c:${color}" data-a="${isMeeting ? 'meeting' : 'event'}" data-id="${item.id}" ${occ ? `data-occ="${occ}"` : ''}>
+  return `<button class="tl-item" style="--c:${esc(color)}" data-a="${esc(isMeeting ? 'meeting' : 'event')}" data-id="${esc(item.id)}" ${occ ? `data-occ="${esc(occ)}"` : ''}>
     ${timeCell(item.time)}<span class="bar"></span>
     <span class="tl-body"><strong>${esc(item.title)}</strong><span class="meta">${esc(label)}</span>
     ${item.place ? `<span class="meta">${ic('pin', 'sm')}${esc(item.place)}</span>` : ''}
@@ -75,10 +76,10 @@ export function taskRow(t) {
   const mtg = t.meetingId ? data.meetings.find(m => m.id === t.meetingId) : null;
   const prio = M.taskPrio(t);
   return `<div class="row task ${done ? 'is-done' : ''} prio-${prio}">
-    <button class="chk" data-a="toggle-task" data-id="${t.id}" aria-pressed="${done}" aria-label="${done ? 'Marcar como pendiente' : 'Marcar como hecha'}">${ic('check')}</button>
-    <button class="row-main" data-a="task" data-id="${t.id}">
+    <button class="chk" data-a="toggle-task" data-id="${esc(t.id)}" aria-pressed="${done}" aria-label="${done ? 'Marcar como pendiente' : 'Marcar como hecha'}">${ic('check')}</button>
+    <button class="row-main" data-a="task" data-id="${esc(t.id)}">
       <span class="title">${prio === 'alta' && !done ? '<span class="prio-tag" title="Prioridad alta">Alta</span> ' : ''}${esc(t.title)}</span>
-      <span class="meta-line">${p ? `<span class="who">${esc(p.name)}</span>` : ''}${kind ? `<span>${esc(kind)}</span>` : ''}${comp ? `<span>Con ${esc(comp.name)}</span>` : ''}${t.repeat && !done ? `<span title="${esc(M.repeatLabel(t.repeat, t.due))}">🔁 ${esc(M.repeatLabel(t.repeat, t.due))}</span>` : ''}${t.status === 'seguimiento' ? '<span class="follow">En seguimiento</span>' : ''}${mtg ? `<span class="from-mtg" title="Sale de la reunión «${esc(mtg.title)}»">${ic('clip', 'sm')}${esc(mtg.title)}</span>` : ''}${acctTag(t)}${!M.isMineTask(t) ? `<span class="sup">👁 Supervisas${(t.responsibles || []).length ? ` · ${esc(t.responsibles.join(', '))}` : ''}</span>` : (mtg && (t.responsibles || []).length ? '<span class="mine">👉 Te toca</span>' : '')}</span>
+      <span class="meta-line">${p ? `<span class="who">${esc(p.name)}</span>` : ''}${kind ? `<span>${esc(kind)}</span>` : ''}${comp ? `<span>Con ${esc(comp.name)}</span>` : ''}${t.repeat && !done ? `<span title="${esc(M.repeatLabel(t.repeat, t.due, t))}">🔁 ${esc(M.repeatLabel(t.repeat, t.due, t))}</span>` : ''}${t.status === 'seguimiento' ? '<span class="follow">En seguimiento</span>' : ''}${mtg ? `<span class="from-mtg" title="Sale de la reunión «${esc(mtg.title)}»">${ic('clip', 'sm')}${esc(mtg.title)}</span>` : ''}${acctTag(t)}${!M.isMineTask(t) ? `<span class="sup">👁 Supervisas${(t.responsibles || []).length ? ` · ${esc(t.responsibles.join(', '))}` : ''}</span>` : (mtg && (t.responsibles || []).length ? '<span class="mine">👉 Te toca</span>' : '')}</span>
     </button>
     ${due.label ? `<span class="due ${due.cls}">${due.label}${due.time ? `<small>${due.time}</small>` : ''}</span>` : ''}
   </div>`;
@@ -112,16 +113,16 @@ function taskCard(t) {
       ${due.label ? `<span class="due-pill ${due.cls}">${esc(due.label)}${due.time ? ` · ${esc(due.time)}` : ''}</span>` : '<span class="due-pill none">Sin fecha</span>'}
       ${prio !== 'normal' && !done ? `<span class="prio-tag ${prio}">${prio === 'alta' ? 'Alta' : 'Baja'}</span>` : ''}
     </div>
-    <button class="tcard-main" data-a="task" data-id="${t.id}">
+    <button class="tcard-main" data-a="task" data-id="${esc(t.id)}">
       <strong>${esc(t.title)}</strong>
       ${p ? `<span class="meta">${ic('users', 'sm')}${esc(p.name)}</span>` : ''}
       ${resp ? `<span class="meta sup">👁 ${esc(resp)}</span>` : ''}
       ${mtg ? `<span class="meta">${ic('clip', 'sm')}${esc(mtg.title)}</span>` : ''}
       ${acctTag(t) ? `<span class="meta">${acctTag(t)}</span>` : ''}
       ${t.status === 'seguimiento' ? '<span class="meta follow">En seguimiento</span>' : ''}
-      ${t.repeat && !done ? `<span class="meta">🔁 ${esc(M.repeatLabel(t.repeat, t.due))}</span>` : ''}
+      ${t.repeat && !done ? `<span class="meta">🔁 ${esc(M.repeatLabel(t.repeat, t.due, t))}</span>` : ''}
     </button>
-    <button class="tcard-done" data-a="toggle-task" data-id="${t.id}" aria-pressed="${done}">${ic('check', 'sm')} ${done ? 'Hecha' : 'Marcar hecha'}</button>
+    <button class="tcard-done" data-a="toggle-task" data-id="${esc(t.id)}" aria-pressed="${done}">${ic('check', 'sm')} ${done ? 'Hecha' : 'Marcar hecha'}</button>
   </div>`;
 }
 
@@ -129,7 +130,7 @@ function meetCard(m) {
   const d = parseISO(m.date);
   const when = [fmtTime(m.time), m.place].filter(Boolean).join(', ');
   const who = M.attendeesText(m);
-  return `<button class="card meet" data-a="meeting" data-id="${m.id}">
+  return `<button class="card meet" data-a="meeting" data-id="${esc(m.id)}">
     <span class="m-date"><b>${d.getDate()}</b><small>${MESES[d.getMonth()].slice(0, 3)}</small></span>
     <span class="m-body"><strong>${esc(m.title)}</strong>
       ${when ? `<span class="meta">${esc(when)}</span>` : ''}
@@ -143,23 +144,23 @@ function meetCard(m) {
 // Fila de accesos rápidos (se eligen en Ajustes)
 function quickRow() {
   const list = M.quickActions();
-  return list.length ? `<nav class="quick-row" id="quick-row" aria-label="Accesos rápidos">${list.map(q => `<button type="button" data-a="qa" data-v="${q.id}"><span class="qi">${ic(q.ic)}</span><span>${esc(q.n)}</span></button>`).join('')}</nav>` : '';
+  return list.length ? `<nav class="quick-row" id="quick-row" aria-label="Accesos rápidos">${list.map(q => `<button type="button" data-a="qa" data-v="${esc(q.id)}"><span class="qi">${ic(q.ic)}</span><span>${esc(q.n)}</span></button>`).join('')}</nav>` : '';
 }
 
 // Hoy: mis próximas asignaciones (las que ya están en tiempo de preparación, resaltadas)
 function assignmentsHoy() {
-  if (!M.isModuleVisible('agenda')) return '';
+  if (!M.isModuleVisible('agenda') || !M.featureOn('agenda.asignaciones')) return '';
   const list = M.upcomingAssignments(today(), 45).slice(0, 3);
   if (!list.length) return '';
   return `<section><div class="sec-h"><h2>🎤 Mis asignaciones</h2><button class="btn small ghost" data-a="new-assign" aria-label="Nueva asignación">${ic('plus', 'sm')}</button></div>
-    <div class="stack">${list.map(({ e, date, inDays }) => { const prep = inDays <= (Number(e.prep) || 0); return `<button class="card mini asg-card ${prep ? 'prep' : ''}" data-a="event" data-id="${e.id}" data-occ="${date}">
+    <div class="stack">${list.map(({ e, date, inDays }) => { const prep = inDays <= (Number(e.prep) || 0); return `<button class="card mini asg-card ${prep ? 'prep' : ''}" data-a="event" data-id="${esc(e.id)}" data-occ="${esc(date)}">
       <strong>${esc(e.asg || 'Asignación')}${e.title && e.title !== e.asg ? ` · ${esc(e.title)}` : ''}</strong>
       <span class="meta">${inDays === 0 ? '<b>Hoy</b>' : inDays === 1 ? '<b>Mañana</b>' : `${esc(fmtShort(date))} · en ${inDays} días`}${e.time ? `, ${fmtTime(e.time)}` : ''}${e.theme ? ` · ${esc(e.theme)}` : ''}</span>
       ${prep && inDays > 0 ? '<span class="meta prep-tag">✍️ Es tiempo de prepararla</span>' : ''}</button>`; }).join('')}</div></section>`;
 }
 // Hoy: tus asignaciones mecánicas de las próximas 2 semanas (del programa importado)
 function mecasHoy() {
-  if (!M.isModuleVisible('congregacion')) return '';
+  if (!M.isModuleVisible('congregacion') || !M.featureOn('congregacion.mecanicas')) return '';
   const list = myMecas(14);
   if (!list.length) return '';
   const t = today();
@@ -170,17 +171,17 @@ function mecasHoy() {
 }
 // Hoy: capacitaciones del organigrama que toca revisar (desde 3 días antes)
 function reviewsHoy() {
-  if (!M.isModuleVisible('congregacion')) return '';
+  if (!M.isModuleVisible('congregacion') || !M.featureOn('congregacion.organigrama')) return '';
   const list = M.reviewsDue();
   if (!list.length) return '';
-  return `<section><div class="sec-h"><h2>🎓 Capacitación por revisar</h2></div><div class="stack">${list.map(d => `<button class="card mini asg-card prep" data-a="dept" data-id="${d.id}">
+  return `<section><div class="sec-h"><h2>🎓 Capacitación por revisar</h2></div><div class="stack">${list.map(d => `<button class="card mini asg-card prep" data-a="dept" data-id="${esc(d.id)}">
     <strong>${esc(d.name)}</strong><span class="meta">${d.reviewAt < today() ? `<b class="late">era el ${esc(fmtShort(d.reviewAt))}</b>` : d.reviewAt === today() ? '<b>Hoy</b>' : esc(relDays(d.reviewAt))}${M.deptHelpers(d).length ? ` · ${esc(M.deptHelpers(d).join(', '))}` : ''}</span>
     ${d.reviewNote ? `<span class="meta">${esc(d.reviewNote)}</span>` : ''}</button>`).join('')}</div></section>`;
 }
 // Hoy: aviso corto si hay cursos bíblicos pendientes (o pastoreo, los lunes)
 function followNotice() {
   if (!M.isModuleVisible('personas')) return '';
-  const s = M.studentsLate().length;
+  const s = M.featureOn('personas.seguimiento') ? M.studentsLate().length : 0;
   const p = new Date().getDay() === 1 ? M.pastoreoLate().length : 0;
   if (!s && !p) return '';
   const parts = [s ? `${s} ${s === 1 ? 'curso bíblico espera' : 'cursos bíblicos esperan'} tu visita` : '', p ? `${p} ${p === 1 ? 'hermano' : 'hermanos'} sin visita de pastoreo reciente` : ''].filter(Boolean);
@@ -207,7 +208,7 @@ function nowCard(entries, t) {
   const left = mm(item.time) - now;
   const when = cur ? 'Ahora' : left < 60 ? `En ${left} min` : `A las ${fmtTime(item.time)}`;
   const occ = !isMeeting && M.isRepeating(item) && t !== item.date ? t : '';
-  return `<button class="now-card" style="--c:${color}" data-a="${isMeeting ? 'meeting' : 'event'}" data-id="${item.id}" ${occ ? `data-occ="${occ}"` : ''}>
+  return `<button class="now-card" style="--c:${esc(color)}" data-a="${esc(isMeeting ? 'meeting' : 'event')}" data-id="${esc(item.id)}" ${occ ? `data-occ="${esc(occ)}"` : ''}>
     <span class="now-when">${cur ? '<i class="now-dot"></i>' : '⏭'} ${esc(when)}</span>
     <strong>${esc(item.title)}</strong>
     <span class="meta">${fmtTime(item.time)}${item.endTime ? ` – ${fmtTime(item.endTime)}` : ''}${item.place ? ` · ${esc(item.place)}` : ''}</span>
@@ -218,11 +219,11 @@ export function hoy() {
   const t = today(), d = parseISO(t);
   const entries = M.entriesFor(M.agendaFor(t));
   const due = M.sortActive(data.tasks.filter(x => x.status !== 'hecha' && x.due && x.due <= t && M.isMineTask(x)));
-  const sup = M.isModuleVisible('tareas') ? M.toSupervise() : [];
+  const sup = M.isModuleVisible('tareas') && M.featureOn('tareas.supervision') ? M.toSupervise() : [];
   const hour = new Date().getHours();
   const logToday = M.isModuleVisible('informe') && hour >= 18 && !data.entries.some(e => e.date === t) && !(M.profile().noActivityDays || []).includes(t);
-  const juntaHoy = data.meetings.find(m => m.date === t && (m.agenda || []).length && !m.juntaRun?.finishedAt);
-  const next = data.meetings.filter(m => m.date > t)
+  const juntaHoy = M.featureOn('notas.junta') && data.meetings.find(m => m.date === t && (m.agenda || []).length && !m.juntaRun?.finishedAt);
+  const next = (M.featureOn('notas.reuniones') ? data.meetings : []).filter(m => m.date > t)
     .sort((x, y) => (x.date + (x.time || '')).localeCompare(y.date + (y.time || ''))).slice(0, 3);
 
   const parts = [];
@@ -238,15 +239,15 @@ export function hoy() {
   const hello = `${h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'}${first ? `, ${esc(first)}` : ''}`;
   const photo = v.photo || me?.photo || '';
   const cur = t.slice(0, 7);
-  const goal = v.goalEnabled && Number(v.goalMonthly) > 0 && M.isModuleVisible('informe');
+  const goal = v.goalEnabled && Number(v.goalMonthly) > 0 && M.isModuleVisible('informe') && M.featureOn('informe.meta');
   const mins = goal ? M.monthTotals(cur).minutes : 0;
   const pace = goal ? M.paceStatus(cur, mins, v.goalMonthly) : null;
   const nextMtg = next[0];
   const tiles = [
     M.isModuleVisible('agenda') ? `<button class="tile" data-a="nav" data-v="agenda" style="--c:var(--c-reunion)"><span class="tile-n">${entries.length}</span><span>${entries.length === 1 ? 'compromiso hoy' : 'compromisos hoy'}</span></button>` : '',
-    M.isModuleVisible('tareas') ? `<button class="tile" data-a="nav" data-v="tareas" style="--c:${due.length ? 'var(--warn)' : 'var(--primary)'}"><span class="tile-n">${due.length}</span><span>${due.length === 1 ? 'tarea por atender' : 'tareas por atender'}</span></button>` : '',
+    M.isModuleVisible('tareas') ? `<button class="tile" data-a="nav" data-v="tareas" style="--c:${esc(due.length ? 'var(--warn)' : 'var(--primary)')}"><span class="tile-n">${due.length}</span><span>${due.length === 1 ? 'tarea por atender' : 'tareas por atender'}</span></button>` : '',
     goal ? `<button class="tile" data-a="nav" data-v="informe" style="--c:var(--c-s2)"><span class="tile-n">${pace ? pace.emoji : ''} ${M.fmtHM(mins)}</span><span>de ${v.goalMonthly} h este mes</span></button>` : '',
-    nextMtg && M.isModuleVisible('notas') ? `<button class="tile" data-a="meeting" data-id="${nextMtg.id}" style="--c:var(--c-mtg)"><span class="tile-n sm">${esc(fmtShort(nextMtg.date))}</span><span>${esc(nextMtg.title)}${(nextMtg.agenda || []).length ? ` · ${nextMtg.agenda.length} puntos` : ''}</span></button>` : '',
+    nextMtg && M.isModuleVisible('notas') ? `<button class="tile" data-a="meeting" data-id="${esc(nextMtg.id)}" style="--c:var(--c-mtg)"><span class="tile-n sm">${esc(fmtShort(nextMtg.date))}</span><span>${esc(nextMtg.title)}${(nextMtg.agenda || []).length ? ` · ${nextMtg.agenda.length} puntos` : ''}</span></button>` : '',
   ].filter(Boolean);
 
   return `
@@ -257,16 +258,17 @@ export function hoy() {
     </div>
     ${actions()}
   </header>
+  ${updateBanner()}
   ${assignedNotice()}
   ${noticeGroup([
     Nat.state.update ? `<button class="log-now apk-up" data-a="apk-update">📲 <span><b>Hay una actualización de la app</b><small>Versión ${esc(Nat.state.update.name)}. Toca para descargarla e instalarla.</small></span></button>` : '',
     Nat.isNative && Nat.state.exact && Nat.state.exact !== 'granted' ? `<button class="log-now" data-a="nat-exact-hoy">🔔 <span><b>Permite los avisos exactos</b><small>Sin este permiso, Android puede atrasar los avisos de tus eventos y tareas. Toca para activarlo.</small></span></button>` : '',
     Nat.isNative && Nat.state.health?.channelsOff?.length ? `<button class="log-now" data-a="phone-set" data-v="channel" data-ch="${esc(Nat.state.health.channelsOffIds[0])}">🔕 <span><b>Tienes apagados unos avisos en el teléfono</b><small>${esc(Nat.state.health.channelsOff.join(', '))}: por eso no te llegan. Toca para encenderlos.</small></span></button>` : '',
-    (() => { const vn = M.isModuleVisible('congregacion') ? visitNotice() : null; return vn ? `<button class="log-now visit-now" data-a="visita-open" data-id="${vn.v.id}">🧳 <span><b>Visita del superintendente de circuito ${vn.days > 1 ? `en ${vn.days} días` : vn.days === 1 ? 'mañana' : vn.days === 0 ? 'hoy' : 'esta semana'}</b><small>${vn.pend ? `Faltan ${vn.pend} cosas por tener listas` : '✓ Todo listo'}${vn.next ? ` · ${esc(vn.next.it.t.split(' (')[0])} ${vn.next.date < today() ? 'venció el' : 'antes del'} ${esc(fmtShort(vn.next.date))}` : ''}</small></span></button>` : ''; })(),
+    (() => { const vn = M.isModuleVisible('congregacion') && M.featureOn('congregacion.visita') ? visitNotice() : null; return vn ? `<button class="log-now visit-now" data-a="visita-open" data-id="${esc(vn.v.id)}">🧳 <span><b>Visita del superintendente de circuito ${vn.days > 1 ? `en ${vn.days} días` : vn.days === 1 ? 'mañana' : vn.days === 0 ? 'hoy' : 'esta semana'}</b><small>${vn.pend ? `Faltan ${vn.pend} cosas por tener listas` : '✓ Todo listo'}${vn.next ? ` · ${esc(vn.next.it.t.split(' (')[0])} ${vn.next.date < today() ? 'venció el' : 'antes del'} ${esc(fmtShort(vn.next.date))}` : ''}</small></span></button>` : ''; })(),
     (() => { let last = ''; try { last = localStorage.getItem('miagenda.ultimoRespaldo') || ''; } catch { return ''; } const old = !last || (Date.parse(t) - Date.parse(last)) / 864e5 >= 14; return old && d.getDay() === 0 ? `<button class="log-now" data-a="backup-drive">☁️ <span><b>Guarda tu respaldo en Google Drive</b><small>${last ? `El último fue el ${esc(fmtShort(last))}.` : 'Todavía no has guardado uno desde este teléfono.'} Toca para guardarlo.</small></span></button>` : ''; })()
   ])}
   ${logToday ? `<button class="log-now" data-a="qa" data-v="time">📝 <span><b>Registra tu actividad de hoy</b><small>Aún no guardaste horas ni cursos. Toca aquí para anotarlos.</small></span></button>` : ''}
-  ${juntaHoy ? `<button class="btn primary junta-now" data-a="junta-start" data-id="${juntaHoy.id}">▶ Iniciar la junta de hoy<small>${esc(juntaHoy.title)}${juntaHoy.time ? ` · ${fmtTime(juntaHoy.time)}` : ''}</small></button>` : ''}
+  ${juntaHoy ? `<button class="btn primary junta-now" data-a="junta-start" data-id="${esc(juntaHoy.id)}">▶ Iniciar la junta de hoy<small>${esc(juntaHoy.title)}${juntaHoy.time ? ` · ${fmtTime(juntaHoy.time)}` : ''}</small></button>` : ''}
   ${nowCard(entries, t)}
   ${tiles.length ? `<div class="tiles">${tiles.join('')}</div>` : `<p class="sub pad">${summary}</p>`}
   ${quickRow()}
@@ -278,7 +280,7 @@ export function hoy() {
   <section>
     <div class="sec-h"><h2>Agenda de hoy</h2></div>
     ${entries.length ? `<div class="tl">${entries.map(x => tlItem(x, t)).join('')}</div>`
-      : empty('Nada programado para hoy.', `<button class="btn" data-a="new-event" data-date="${t}">Agregar evento</button>`, 'calendar')}
+      : empty('Nada programado para hoy.', `<button class="btn" data-a="new-event" data-date="${esc(t)}">Agregar evento</button>`, 'calendar')}
   </section>
   <section>
     <div class="sec-h"><h2>Tareas por atender</h2></div>
@@ -287,7 +289,7 @@ export function hoy() {
   </section>
   ${sup.length ? `<section><div class="sec-h"><h2>Por supervisar</h2>${remindList(3).length ? '<button class="btn small ghost" data-a="remind-tasks" data-v="3">💬 Recordar</button>' : `<span class="hint">${sup.length}</span>`}</div>
     <p class="hint pad">Tareas de otros hermanos sin novedades hace ${M.SUPERVISE_DAYS} días o más. Pregunta cómo van y anota el avance en su seguimiento.</p>
-    <div class="stack">${sup.map(({ task: x, quiet, late }) => `<button class="card mini" data-a="task" data-id="${x.id}">
+    <div class="stack">${sup.map(({ task: x, quiet, late }) => `<button class="card mini" data-a="task" data-id="${esc(x.id)}">
       <strong>${esc(x.title)}</strong>
       <span class="meta">${(x.responsibles || []).length ? `${esc(x.responsibles.join(', '))} · ` : ''}${late ? `<b class="late">venció ${relDays(x.due)}</b>` : `sin novedades hace ${quiet} días`}</span>
     </button>`).join('')}</div></section>` : ''}
@@ -298,7 +300,7 @@ export function hoy() {
 
 // Selector de vista de la Agenda: calendario, lista de los próximos días o todos los eventos
 const agendaSeg = mode => `<div class="seg ag-views" role="tablist" aria-label="Vista">
-  ${[['mes', 'Mes'], ['semana', 'Semana'], ['proximos', 'Próximos'], ['todos', 'Todos']].map(([k, n]) => `<button data-a="agenda-mode" data-v="${k}" aria-pressed="${mode === k}">${n}</button>`).join('')}</div>`;
+  ${[['mes', 'Mes'], ['semana', 'Semana'], ['proximos', 'Próximos'], ['todos', 'Todos']].map(([k, n]) => `<button data-a="agenda-mode" data-v="${esc(k)}" aria-pressed="${mode === k}">${n}</button>`).join('')}</div>`;
 
 const LIST_DAYS = 30;
 function agendaUpcoming() {
@@ -310,7 +312,7 @@ function agendaUpcoming() {
     const a = M.agendaFor(iso);
     const entries = M.entriesFor(a);
     if (!entries.length && !a.tasks.length) continue;
-    html += `<section class="day-block"><div class="sec-h"><h2>${i === 0 ? 'Hoy · ' : i === 1 ? 'Mañana · ' : ''}${cap(fmtLong(iso))}</h2><button class="btn small ghost" data-a="new-event" data-date="${iso}" aria-label="Agregar evento el ${fmtLong(iso)}">${ic('plus', 'sm')}</button></div>
+    html += `<section class="day-block"><div class="sec-h"><h2>${i === 0 ? 'Hoy · ' : i === 1 ? 'Mañana · ' : ''}${cap(fmtLong(iso))}</h2><button class="btn small ghost" data-a="new-event" data-date="${esc(iso)}" aria-label="Agregar evento el ${fmtLong(iso)}">${ic('plus', 'sm')}</button></div>
       ${entries.length ? `<div class="tl">${entries.map(x => tlItem(x, iso)).join('')}</div>` : ''}
       ${a.tasks.length ? `<div class="stack">${a.tasks.map(taskRow).join('')}</div>` : ''}</section>`;
   }
@@ -332,10 +334,10 @@ function agendaAll(st) {
       ${e.theme ? `<span class="meta">💬 ${esc(e.theme)}</span>` : ''}
       ${e.sharedId ? `<span class="meta shared-tag">👥 ${store.isSharedOwner(e) ? 'Compartido' : `De ${esc(e.ownerName || 'otra cuenta')}`}</span>` : ''}</span>`;
     return picking
-      ? `<label class="tl-item pick-row ${picked.has(e.id) ? 'on' : ''}" style="--c:${cat.c}"><input type="checkbox" data-a="ev-pick" value="${e.id}" ${picked.has(e.id) ? 'checked' : ''} aria-label="Seleccionar ${esc(e.title)}">${body}</label>`
-      : `<button class="tl-item" style="--c:${cat.c}" data-a="event" data-id="${e.id}">${body}</button>`;
+      ? `<label class="tl-item pick-row ${picked.has(e.id) ? 'on' : ''}" style="--c:${esc(cat.c)}"><input type="checkbox" data-a="ev-pick" value="${esc(e.id)}" ${picked.has(e.id) ? 'checked' : ''} aria-label="Seleccionar ${esc(e.title)}">${body}</label>`
+      : `<button class="tl-item" style="--c:${esc(cat.c)}" data-a="event" data-id="${esc(e.id)}">${body}</button>`;
   };
-  const secHead = (title, list) => `<div class="sec-h"><h2>${title} (${list.length})</h2>${picking ? `<button class="btn small ghost" data-a="ev-pick-all" data-v="${list.map(e => e.id).join(',')}">${list.every(e => picked.has(e.id)) ? 'Quitar todos' : 'Marcar todos'}</button>` : ''}</div>`;
+  const secHead = (title, list) => `<div class="sec-h"><h2>${title} (${list.length})</h2>${picking ? `<button class="btn small ghost" data-a="ev-pick-all" data-v="${esc(list.map(e => e.id).join(','))}">${list.every(e => picked.has(e.id)) ? 'Quitar todos' : 'Marcar todos'}</button>` : ''}</div>`;
   if (!evs.length) return empty('Aún no tienes eventos.', '<button class="btn" data-a="new-event">Agregar evento</button>', 'calendar');
   const past = evs.filter(e => !M.isRepeating(e) && e.date < t).sort((a, b) => b.date.localeCompare(a.date));
   return `<div class="bulk-top">${picking
@@ -369,8 +371,8 @@ function agendaWeek(st) {
       const s0 = Math.max(x.s, START_H * 60), e0 = Math.min(Math.max(x.e, s0 + 15), END_H * 60);
       const top = (s0 - START_H * 60) / 60 * PX_H, h = Math.max(18, (e0 - s0) / 60 * PX_H - 2);
       const w = 100 / x.lanes;
-      return `<div class="wc-ev ${h < 34 ? 'tiny' : ''}" role="button" tabindex="0" style="--c:${color};top:${top}px;height:${h}px;left:calc(${x.lane * w}% + 2px);width:calc(${w}% - 4px)"
-        data-a="${x.kind}" data-id="${x.item.id}" ${occ ? `data-occ="${occ}"` : ''} data-kind="${x.kind}" data-date="${iso}" data-s="${x.s}" data-e="${x.e}" data-drag>
+      return `<div class="wc-ev ${h < 34 ? 'tiny' : ''}" role="button" tabindex="0" style="--c:${esc(color)};top:${top}px;height:${h}px;left:calc(${x.lane * w}% + 2px);width:calc(${w}% - 4px)"
+        data-a="${esc(x.kind)}" data-id="${esc(x.item.id)}" ${occ ? `data-occ="${esc(occ)}"` : ''} data-kind="${esc(x.kind)}" data-date="${esc(iso)}" data-s="${esc(x.s)}" data-e="${esc(x.e)}" data-drag>
         <b>${esc(x.item.title)}</b><span class="wc-t">${fmtTime(x.item.time)}${x.item.endTime ? ` – ${fmtTime(x.item.endTime)}` : ''}</span><i class="wc-resize" aria-hidden="true"></i></div>`;
     }).join('');
   });
@@ -380,7 +382,7 @@ function agendaWeek(st) {
   const hasAllDay = allDay.some(l => l.length);
   return `<div class="wk-nav"><button class="icon-btn" data-a="wk-move" data-v="-${n}" aria-label="Anteriores">${ic('left')}</button>
       <strong>${fmtShort(monday)} – ${fmtShort(days[n - 1])}</strong>
-      <button class="icon-btn" data-a="wk-move" data-v="${n}" aria-label="Siguientes">${ic('right')}</button></div>
+      <button class="icon-btn" data-a="wk-move" data-v="${esc(n)}" aria-label="Siguientes">${ic('right')}</button></div>
     <div class="wk-actions">
       <div class="seg small" role="group" aria-label="Días a la vista"><button data-a="wk-span" data-v="3" aria-pressed="${n === 3}">3 días</button><button data-a="wk-span" data-v="7" aria-pressed="${n === 7}">Semana</button></div>
       <button class="btn small" data-a="wk-move" data-v="0">Hoy</button>
@@ -391,10 +393,10 @@ function agendaWeek(st) {
     <div class="wc-scroll" id="wc-scroll">
       <div class="wc-grid ${n === 3 ? 'three' : ''}" style="--ph:${PX_H}px;--n:${n}">
         <div class="wc-head"><div class="wc-gut"></div>${head}</div>
-        ${hasAllDay ? `<div class="wc-allday"><div class="wc-gut">Sin hora</div>${allDay.map(l => `<div class="wc-ad">${l.map(x => `<button class="wc-chip" style="--c:${x.kind === 'meeting' ? 'var(--c-mtg)' : M.eventColor(x.item)}" data-a="${x.kind}" data-id="${x.item.id}">${esc(x.item.title)}</button>`).join('')}</div>`).join('')}</div>` : ''}
+        ${hasAllDay ? `<div class="wc-allday"><div class="wc-gut">Sin hora</div>${allDay.map(l => `<div class="wc-ad">${l.map(x => `<button class="wc-chip" style="--c:${esc(x.kind === 'meeting' ? 'var(--c-mtg)' : M.eventColor(x.item))}" data-a="${esc(x.kind)}" data-id="${esc(x.item.id)}">${esc(x.item.title)}</button>`).join('')}</div>`).join('')}</div>` : ''}
         <div class="wc-body" style="height:${(END_H - START_H) * PX_H}px">
           <div class="wc-times">${hours.map(h => `<span style="top:${(h - START_H) * PX_H}px">${h % 12 || 12} ${h < 12 ? 'a. m.' : 'p. m.'}</span>`).join('')}</div>
-          ${days.map((iso, i) => `<div class="wc-col ${iso === t ? 'today' : ''}" data-date="${iso}"><div class="wc-evs">${cols[i]}</div>${iso === t && nowMin >= START_H * 60 ? `<i class="wc-now" style="top:${(nowMin - START_H * 60) / 60 * PX_H}px"></i>` : ''}</div>`).join('')}
+          ${days.map((iso, i) => `<div class="wc-col ${iso === t ? 'today' : ''}" data-date="${esc(iso)}"><div class="wc-evs">${cols[i]}</div>${iso === t && nowMin >= START_H * 60 ? `<i class="wc-now" style="top:${(nowMin - START_H * 60) / 60 * PX_H}px"></i>` : ''}</div>`).join('')}
         </div>
       </div>
     </div>`;
@@ -422,8 +424,8 @@ export function agenda(ui) {
     const iso = `${y}-${pad(m)}-${pad(d)}`;
     const a = M.agendaFor(iso);
     const colors = [...new Set([...a.events.map(e => M.eventColor(e)), ...(a.meetings.length ? ['var(--c-mtg)'] : [])])].slice(0, 3);
-    const dots = colors.map(c => `<i class="dot" style="--c:${c}"></i>`).join('') + (a.tasks.length ? '<i class="dot task"></i>' : '');
-    cells += `<button class="day ${iso === t ? 'today' : ''}" data-a="cal-sel" data-date="${iso}" aria-pressed="${iso === st.sel}" aria-label="${fmtLong(iso)}"><span class="n">${d}</span><span class="dots">${dots}</span></button>`;
+    const dots = colors.map(c => `<i class="dot" style="--c:${esc(c)}"></i>`).join('') + (a.tasks.length ? '<i class="dot task"></i>' : '');
+    cells += `<button class="day ${iso === t ? 'today' : ''}" data-a="cal-sel" data-date="${esc(iso)}" aria-pressed="${iso === st.sel}" aria-label="${fmtLong(iso)}"><span class="n">${d}</span><span class="dots">${dots}</span></button>`;
   }
 
   const a = M.agendaFor(st.sel);
@@ -431,7 +433,7 @@ export function agenda(ui) {
   const list = entries.length || a.tasks.length
     ? `${entries.length ? `<div class="tl">${entries.map(x => tlItem(x, st.sel)).join('')}</div>` : ''}
        ${a.tasks.length ? `<h3 class="sub-h">Tareas con esta fecha</h3><div class="stack">${a.tasks.map(taskRow).join('')}</div>` : ''}`
-    : empty('No hay nada programado este día.', `<button class="btn" data-a="new-event" data-date="${st.sel}">Agregar evento</button>`, 'calendar');
+    : empty('No hay nada programado este día.', `<button class="btn" data-a="new-event" data-date="${esc(st.sel)}">Agregar evento</button>`, 'calendar');
 
   return `
   <header class="top cal-top">
@@ -449,7 +451,7 @@ export function agenda(ui) {
   <div class="cal">${cells}</div>
   </div>
   <section class="cal-day">
-    <div class="sec-h"><h2>${fmtLong(st.sel)}</h2><button class="btn small" data-a="new-event" data-date="${st.sel}">Agregar</button></div>
+    <div class="sec-h"><h2>${fmtLong(st.sel)}</h2><button class="btn small" data-a="new-event" data-date="${esc(st.sel)}">Agregar</button></div>
     ${list}
   </section>
   </div>`;
@@ -468,7 +470,7 @@ export function tareas(ui) {
   const done = base.filter(t => t.status === 'hecha');
   const list = f === 'hechas' ? M.sortDone(done) : M.sortActive(f === 'seguimiento' ? seg : act);
   const chips = [['activas', 'Activas', act.length], ['seguimiento', 'En seguimiento', seg.length], ['hechas', 'Hechas', done.length]]
-    .map(([k, n, c]) => `<button class="chip" data-a="filter-tasks" data-v="${k}" aria-pressed="${f === k}">${n} <b>${c}</b></button>`).join('');
+    .map(([k, n, c]) => `<button class="chip" data-a="filter-tasks" data-v="${esc(k)}" aria-pressed="${f === k}">${n} <b>${c}</b></button>`).join('');
   const withTasks = [...new Set(data.tasks.map(t => t.personId).filter(Boolean))]
     .map(id => M.person(id)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name, 'es'));
   const withMeetings = [...new Set(data.tasks.map(t => t.meetingId).filter(Boolean))]
@@ -476,9 +478,9 @@ export function tareas(ui) {
   if (mid && !mid.startsWith('__') && !withMeetings.some(m => m.id === mid)) ui.tareas.m = '';
   const supervised = data.tasks.some(t => !M.isMineTask(t));
   const personSel = withTasks.length
-    ? `<select id="tareas-person" aria-label="Filtrar por persona"><option value="">Todas las personas</option>${withTasks.map(p => `<option value="${p.id}" ${p.id === pid ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : '';
+    ? `<select id="tareas-person" aria-label="Filtrar por persona"><option value="">Todas las personas</option>${withTasks.map(p => `<option value="${esc(p.id)}" ${p.id === pid ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : '';
   const meetingSel = withMeetings.length || supervised
-    ? `<select id="tareas-meeting" aria-label="Filtrar por origen"><option value="">Todas las tareas</option>${supervised ? `<option value="__mine" ${mid === '__mine' ? 'selected' : ''}>Me tocan a mí</option><option value="__sup" ${mid === '__sup' ? 'selected' : ''}>Las que superviso</option>` : ''}${withMeetings.length ? `<option value="__any" ${mid === '__any' ? 'selected' : ''}>Solo de reuniones</option>` : ''}${withMeetings.map(m => `<option value="${m.id}" ${m.id === mid ? 'selected' : ''}>${esc(m.title)} — ${fmtShort(m.date)}</option>`).join('')}</select>` : '';
+    ? `<select id="tareas-meeting" aria-label="Filtrar por origen"><option value="">Todas las tareas</option>${supervised ? `<option value="__mine" ${mid === '__mine' ? 'selected' : ''}>Me tocan a mí</option><option value="__sup" ${mid === '__sup' ? 'selected' : ''}>Las que superviso</option>` : ''}${withMeetings.length ? `<option value="__any" ${mid === '__any' ? 'selected' : ''}>Solo de reuniones</option>` : ''}${withMeetings.map(m => `<option value="${esc(m.id)}" ${m.id === mid ? 'selected' : ''}>${esc(m.title)} — ${fmtShort(m.date)}</option>`).join('')}</select>` : '';
   const personFilter = personSel || meetingSel ? `<div class="pad filters ${personSel && meetingSel ? 'two' : ''}">${personSel}${meetingSel}</div>` : '';
   const msg = {
     activas: 'No tienes tareas activas. Agrega una para darle seguimiento.',
@@ -506,7 +508,7 @@ export function tareas(ui) {
     body = `<div class="tbar"><div class="tsums">${sum}</div>${viewSeg}</div>
       ${buckets.map(b => b.k === 'low'
         ? `<details class="tgroup low" ${ui.tareas.lowOpen ? 'open' : ''}><summary><h2>⬇ ${b.n}</h2><span class="hint">${b.tasks.length} · tócalo para verlas</span></summary>${wrap(b.tasks)}</details>`
-        : `<section class="tgroup ${b.k}"><div class="sec-h"><h2>${b.n}</h2><span class="hint">${b.tasks.length}</span></div>${wrap(b.tasks)}</section>`).join('')}`;
+        : `<section class="tgroup ${esc(b.k)}"><div class="sec-h"><h2>${b.n}</h2><span class="hint">${b.tasks.length}</span></div>${wrap(b.tasks)}</section>`).join('')}`;
   }
   const rem = f !== 'hechas' ? remindList(3) : [];
   const remLate = rem.reduce((n, b) => n + b.late, 0);
@@ -525,7 +527,7 @@ function personRow(p) {
   const open = data.tasks.filter(t => t.personId === p.id && t.status !== 'hecha').length;
   const groups = M.groupsOf(p).map(g => g.name).join(', ');
   const last = p.lastContact ? `Último contacto ${relDays(p.lastContact)}` : '';
-  return `<button class="card person" data-a="person" data-id="${p.id}">
+  return `<button class="card person" data-a="person" data-id="${esc(p.id)}">
     ${avatarHtml(p.photo, esc(initials(p.name)))}
     <span class="p-body"><strong>${esc(p.name)}</strong>
       ${p.isMe ? `<span class="meta">Tú</span>` : ''}
@@ -560,7 +562,7 @@ function gruposList() {
   return `<div class="stack">${groups.map(g => {
     const members = data.people.filter(p => (p.groupIds || []).includes(g.id)).sort((a, b) => a.name.localeCompare(b.name, 'es'));
     const names = members.slice(0, 3).map(p => p.name).join(', ') + (members.length > 3 ? ` y ${members.length - 3} más` : '');
-    return `<button class="card person" data-a="group" data-id="${g.id}">
+    return `<button class="card person" data-a="group" data-id="${esc(g.id)}">
       <span class="avatar">${ic('users')}</span>
       <span class="p-body"><strong>${esc(g.name)}</strong>
         <span class="meta">${members.length} ${members.length === 1 ? 'persona' : 'personas'}</span>
@@ -571,6 +573,7 @@ function gruposList() {
 
 export function personas(ui) {
   const st = ui.personas;
+  if (st.seg === 'seguimiento' && !M.featureOn('personas.seguimiento')) st.seg = 'personas';
   const seg = `<div class="seg">
     <button data-a="pseg" data-v="personas" aria-pressed="${st.seg !== 'grupos'}">Personas</button>
     <button data-a="pseg" data-v="grupos" aria-pressed="${st.seg === 'grupos'}">Grupos</button>
@@ -581,7 +584,7 @@ export function personas(ui) {
   const groups = [...data.groups].sort((a, b) => a.name.localeCompare(b.name, 'es'));
   if (st.g && !groups.some(g => g.id === st.g)) st.g = '';
   const chips = groups.length
-    ? `<div class="chips"><button class="chip" data-a="pfilter" data-v="" aria-pressed="${!st.g}">Todos</button>${groups.map(g => `<button class="chip" data-a="pfilter" data-v="${g.id}" aria-pressed="${st.g === g.id}">${esc(g.name)}</button>`).join('')}</div>` : '';
+    ? `<div class="chips"><button class="chip" data-a="pfilter" data-v="" aria-pressed="${!st.g}">Todos</button>${groups.map(g => `<button class="chip" data-a="pfilter" data-v="${esc(g.id)}" aria-pressed="${st.g === g.id}">${esc(g.name)}</button>`).join('')}</div>` : '';
   const used = [...new Set(data.people.flatMap(p => p.privileges || []))].sort((a, b) => a.localeCompare(b, 'es'));
   if (st.pv && !used.includes(st.pv)) st.pv = '';
   const privSel = used.length ? `<div class="pad"><select id="personas-priv" aria-label="Filtrar por privilegio"><option value="">Todos los privilegios</option>${used.map(x => `<option value="${esc(x)}" ${x === st.pv ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>` : '';
@@ -596,7 +599,7 @@ export function personas(ui) {
 const agoText = days => (days == null ? 'nunca' : days === 0 ? 'hoy' : days === 1 ? 'ayer' : days < 60 ? `hace ${days} días` : `hace ${Math.round(days / 30)} meses`);
 const byNeed = st => (a, b) => { const x = st(a).days, y = st(b).days; return (y == null ? 1e9 : y) - (x == null ? 1e9 : x) || a.name.localeCompare(b.name, 'es'); };
 function followRow(p, st, sub) {
-  return `<button class="card person ${st.late ? 'late' : ''}" data-a="person" data-id="${p.id}">
+  return `<button class="card person ${st.late ? 'late' : ''}" data-a="person" data-id="${esc(p.id)}">
     ${avatarHtml(p.photo, esc(initials(p.name)))}
     <span class="p-body"><strong>${esc(p.name)}</strong><span class="meta">${sub}</span></span>
     ${st.late ? '<span class="badge warn" title="Hace falta">!</span>' : ''}</button>`;
@@ -619,9 +622,9 @@ function seguimiento(st) {
     html += `<section><div class="sec-h"><h2>🐑 Pastoreo</h2><span class="hint">${lateP ? `${lateP} sin visita reciente` : 'al día'}</span></div>
       <div class="pad follow-opts"><label class="mini-f"><span>A quiénes veo</span><select id="pastoreo-scope"><option value="mine" ${scope === 'mine' ? 'selected' : ''}>Mi grupo y los siervos ministeriales</option><option value="all" ${scope === 'all' ? 'selected' : ''}>Toda la congregación</option></select></label>
         ${scope === 'mine' && !M.myGroupIds().length ? '<p class="hint">Para ver solo tu grupo, agrega tu ficha («Tú») al grupo que atiendes en Personas → Grupos.</p>' : ''}
-        <label class="mini-f"><span>Avisar si pasan más de</span><select id="pastoreo-months">${[3, 4, 6, 9, 12].map(n => `<option value="${n}" ${n === M.pastoreoMonths() ? 'selected' : ''}>${n} meses</option>`).join('')}</select></label>
+        <label class="mini-f"><span>Avisar si pasan más de</span><select id="pastoreo-months">${[3, 4, 6, 9, 12].map(n => `<option value="${esc(n)}" ${n === M.pastoreoMonths() ? 'selected' : ''}>${n} meses</option>`).join('')}</select></label>
         <button type="button" class="btn small ghost" data-a="past-import">📥 Cargar visitas anteriores</button></div>
-      ${groups.length ? `<div class="chips"><button class="chip" data-a="pfilter" data-v="" aria-pressed="${!g}">Todos</button>${groups.map(x => `<button class="chip" data-a="pfilter" data-v="${x.id}" aria-pressed="${g === x.id}">${esc(x.name)}</button>`).join('')}</div>` : ''}
+      ${groups.length ? `<div class="chips"><button class="chip" data-a="pfilter" data-v="" aria-pressed="${!g}">Todos</button>${groups.map(x => `<button class="chip" data-a="pfilter" data-v="${esc(x.id)}" aria-pressed="${g === x.id}">${esc(x.name)}</button>`).join('')}</div>` : ''}
       ${sheep.length ? `<div class="stack">${sheep.map(p => { const s = M.pastoreoStatus(p); return followRow(p, s, `${p.role ? `${esc(p.role)} · ` : ''}visita de pastoreo ${agoText(s.days)}${M.helpedByName(p) ? ` · 🤝 ${esc(M.helpedByName(p))}` : ''}`); }).join('')}</div>`
         : '<p class="hint pad">No hay hermanos en esta lista. Agrega personas en la pestaña Personas.</p>'}</section>`;
   }
@@ -635,10 +638,10 @@ function orgNode(n, depth, o) {
   const { d, children } = n;
   const head = M.deptHeadsLabeled(d).join(', '), helpers = M.deptHelpers(d);
   const folded = o.fold.has(d.id) && children.length;
-  const main = o.pick ? `<label class="org-node picking ${o.pick.has(d.id) ? 'on' : ''}"><input type="checkbox" data-a="org-pick-item" value="${d.id}" ${o.pick.has(d.id) ? 'checked' : ''} aria-label="Elegir ${esc(d.name)}">`
-    : `<button class="org-node" data-a="dept" data-id="${d.id}">`;
-  const tog = children.length ? `<button class="org-tog" data-a="org-fold" data-id="${d.id}" aria-expanded="${!folded}" aria-label="${folded ? 'Mostrar' : 'Ocultar'} lo que depende de ${esc(d.name)}">${folded ? '▸' : '▾'}</button>` : '<span class="org-tog sp"></span>';
-  const sortBtns = o.sort ? `<span class="org-sort"><button data-a="dept-move" data-id="${d.id}" data-v="up" aria-label="Subir">↑</button><button data-a="dept-move" data-id="${d.id}" data-v="down" aria-label="Bajar">↓</button><button data-a="dept-move" data-id="${d.id}" data-v="in" aria-label="Meter dentro del de arriba">→</button><button data-a="dept-move" data-id="${d.id}" data-v="out" aria-label="Sacar un nivel">←</button></span>` : '';
+  const main = o.pick ? `<label class="org-node picking ${o.pick.has(d.id) ? 'on' : ''}"><input type="checkbox" data-a="org-pick-item" value="${esc(d.id)}" ${o.pick.has(d.id) ? 'checked' : ''} aria-label="Elegir ${esc(d.name)}">`
+    : `<button class="org-node" data-a="dept" data-id="${esc(d.id)}">`;
+  const tog = children.length ? `<button class="org-tog" data-a="org-fold" data-id="${esc(d.id)}" aria-expanded="${!folded}" aria-label="${folded ? 'Mostrar' : 'Ocultar'} lo que depende de ${esc(d.name)}">${folded ? '▸' : '▾'}</button>` : '<span class="org-tog sp"></span>';
+  const sortBtns = o.sort ? `<span class="org-sort"><button data-a="dept-move" data-id="${esc(d.id)}" data-v="up" aria-label="Subir">↑</button><button data-a="dept-move" data-id="${esc(d.id)}" data-v="down" aria-label="Bajar">↓</button><button data-a="dept-move" data-id="${esc(d.id)}" data-v="in" aria-label="Meter dentro del de arriba">→</button><button data-a="dept-move" data-id="${esc(d.id)}" data-v="out" aria-label="Sacar un nivel">←</button></span>` : '';
   return `<li class="org-li d${Math.min(depth, 3)}"><div class="org-row">${tog}${main}
       <span class="org-ic">${ic(d.ic || 'flag', 'sm')}</span>
       <span class="grow"><strong>${esc(d.name)}</strong>
@@ -650,10 +653,10 @@ function orgNode(n, depth, o) {
 // Vista en árbol: arriba cada departamento principal y, debajo, sus áreas en columnas (se desliza de lado)
 function orgChart(tree) {
   const who = d => { const h = M.isGroupBox(d) ? 'De la congregación' : M.deptHeadsLabeled(d).join(', '); return h ? `<small>${M.isGroupBox(d) ? '' : '★ '}${esc(h)}</small>` : '<small class="warn-t">Sin responsable</small>'; };
-  const sub = (n, depth) => n.children.length ? `<ul class="orgc-sub">${n.children.map(c => `<li class="d${Math.min(depth, 3)}"><button class="orgc-leaf" data-a="dept" data-id="${c.d.id}">${esc(c.d.name)}${who(c.d)}</button>${sub(c, depth + 1)}</li>`).join('')}</ul>` : '';
+  const sub = (n, depth) => n.children.length ? `<ul class="orgc-sub">${n.children.map(c => `<li class="d${Math.min(depth, 3)}"><button class="orgc-leaf" data-a="dept" data-id="${esc(c.d.id)}">${esc(c.d.name)}${who(c.d)}</button>${sub(c, depth + 1)}</li>`).join('')}</ul>` : '';
   return tree.map(r => `<div class="orgc-root">
-    <button class="orgc-top" data-a="dept" data-id="${r.d.id}"><span class="org-ic">${ic(r.d.ic || 'flag', 'sm')}</span><span><b>${esc(r.d.name)}</b>${who(r.d)}</span></button>
-    ${r.children.length ? `<div class="orgc-cols">${r.children.map(c => `<div class="orgc-col"><button class="orgc-head" data-a="dept" data-id="${c.d.id}"><b>${esc(c.d.name)}</b>${who(c.d)}</button>${sub(c, 2)}</div>`).join('')}</div>` : ''}
+    <button class="orgc-top" data-a="dept" data-id="${esc(r.d.id)}"><span class="org-ic">${ic(r.d.ic || 'flag', 'sm')}</span><span><b>${esc(r.d.name)}</b>${who(r.d)}</span></button>
+    ${r.children.length ? `<div class="orgc-cols">${r.children.map(c => `<div class="orgc-col"><button class="orgc-head" data-a="dept" data-id="${esc(c.d.id)}"><b>${esc(c.d.name)}</b>${who(c.d)}</button>${sub(c, 2)}</div>`).join('')}</div>` : ''}
   </div>`).join('');
 }
 // Secciones de Congregación que se despliegan y ocultan (se recuerda cómo las dejaste)
@@ -662,7 +665,7 @@ function foldable(key, html) {
   const m = String(html || '').match(/^\s*<section><div class="sec-h">([\s\S]*?)<\/div>([\s\S]*)<\/section>\s*$/);
   if (!m) return html;
   const open = secState()[key] !== false;
-  return `<section class="csec-wrap"><details class="csec" data-sec="${key}" ${open ? 'open' : ''}><summary class="sec-h">${m[1]}<span class="csec-chev" aria-hidden="true">▾</span></summary><div class="csec-b">${m[2]}</div></details></section>`;
+  return `<section class="csec-wrap"><details class="csec" data-sec="${esc(key)}" ${open ? 'open' : ''}><summary class="sec-h">${m[1]}<span class="csec-chev" aria-hidden="true">▾</span></summary><div class="csec-b">${m[2]}</div></details></section>`;
 }
 export function congregacion(ui) {
   const st = ui?.congre || {};
@@ -682,7 +685,7 @@ export function congregacion(ui) {
   const rosters = M.ROSTERS.map(r => ({ ...r, list: M.roster(r.k) })).filter(r => r.list.length || ['anc', 'sm', 'pr'].includes(r.k));
   const rosterHtml = `<section><div class="sec-h"><h2>👥 Nombramientos</h2></div>
     <div class="roster">${rosters.map(r => `<details class="roster-box"><summary><b>${r.list.length}</b> ${esc(r.n)}</summary>
-      ${r.list.length ? `<div class="chips">${r.list.map(p => `<button class="chip" data-a="person" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>` : '<p class="hint">Nadie todavía.</p>'}</details>`).join('')}</div>
+      ${r.list.length ? `<div class="chips">${r.list.map(p => `<button class="chip" data-a="person" data-id="${esc(p.id)}">${esc(p.name)}</button>`).join('')}</div>` : '<p class="hint">Nadie todavía.</p>'}</details>`).join('')}</div>
     <p class="hint pad">Salen de tus Personas: pon «Anciano», «Siervo ministerial» o «Precursor regular» en su relación o en sus privilegios.</p></section>`;
   // Asignaciones por hermano (con filtro por grupo de Personas)
   const groups = [...data.groups].sort((a, b) => a.name.localeCompare(b.name, 'es'));
@@ -691,20 +694,20 @@ export function congregacion(ui) {
   const loads = pool.map(p => ({ p, ...M.deptLoad(p.id) })).filter(x => gsel || x.total).sort((a, b) => b.total - a.total || a.p.name.localeCompare(b.p.name, 'es'));
   const withDept = loads.filter(x => x.total), without = loads.filter(x => !x.total);
   const loadHtml = all.length ? `<section><div class="sec-h"><h2>🧮 Asignaciones por hermano</h2></div>
-    ${groups.length || data.people.some(isBaptizedMale) ? `<div class="chips"><button class="chip" data-a="load-g" data-v="" aria-pressed="${!gsel}">Todos</button><button class="chip" data-a="load-g" data-v="__varones" aria-pressed="${gsel === '__varones'}">Varones bautizados</button>${groups.map(g => `<button class="chip" data-a="load-g" data-v="${g.id}" aria-pressed="${gsel === g.id}">${esc(g.name)}</button>`).join('')}</div>` : ''}
+    ${groups.length || data.people.some(isBaptizedMale) ? `<div class="chips"><button class="chip" data-a="load-g" data-v="" aria-pressed="${!gsel}">Todos</button><button class="chip" data-a="load-g" data-v="__varones" aria-pressed="${gsel === '__varones'}">Varones bautizados</button>${groups.map(g => `<button class="chip" data-a="load-g" data-v="${esc(g.id)}" aria-pressed="${gsel === g.id}">${esc(g.name)}</button>`).join('')}</div>` : ''}
     ${withDept.length ? `<div class="stack">${withDept.map(x => `<details class="load-row"><summary><span class="load-n ${x.total >= 4 ? 'hi' : ''}">${x.total}</span><span class="grow"><b>${esc(x.p.name)}</b><small>${x.heads.length ? `★ responsable en ${x.heads.length}` : ''}${x.heads.length && x.helps.length ? ' · ' : ''}${x.helps.length ? `ayudante en ${x.helps.length}` : ''}</small></span></summary>
-      <ul class="load-list">${x.heads.map(d => `<li>★ <button class="link" data-a="dept" data-id="${d.id}">${esc(d.name)}</button>${d.since?.[x.p.id] ? ` <span class="hint">desde ${esc(fmtShort(d.since[x.p.id]))}</span>` : ''}</li>`).join('')}${x.helps.map(d => `<li><button class="link" data-a="dept" data-id="${d.id}">${esc(d.name)}</button>${d.helperRoles?.[x.p.id] ? ` <span class="hint">(${esc(d.helperRoles[x.p.id])})</span>` : ''}${d.since?.[x.p.id] ? ` <span class="hint">desde ${esc(fmtShort(d.since[x.p.id]))}</span>` : ''}</li>`).join('')}</ul></details>`).join('')}</div>` : '<p class="hint pad">Nadie tiene departamentos todavía.</p>'}
-    ${gsel ? (without.length ? `<h3 class="sub-h">⚠️ Sin departamento (${without.length})</h3><div class="chips wrap">${without.map(x => `<button class="chip warn-chip" data-a="person" data-id="${x.p.id}">${esc(x.p.name)}</button>`).join('')}</div>` : '<p class="hint pad">✓ Todos los de este grupo tienen al menos un departamento.</p>')
+      <ul class="load-list">${x.heads.map(d => `<li>★ <button class="link" data-a="dept" data-id="${esc(d.id)}">${esc(d.name)}</button>${d.since?.[x.p.id] ? ` <span class="hint">desde ${esc(fmtShort(d.since[x.p.id]))}</span>` : ''}</li>`).join('')}${x.helps.map(d => `<li><button class="link" data-a="dept" data-id="${esc(d.id)}">${esc(d.name)}</button>${d.helperRoles?.[x.p.id] ? ` <span class="hint">(${esc(d.helperRoles[x.p.id])})</span>` : ''}${d.since?.[x.p.id] ? ` <span class="hint">desde ${esc(fmtShort(d.since[x.p.id]))}</span>` : ''}</li>`).join('')}</ul></details>`).join('')}</div>` : '<p class="hint pad">Nadie tiene departamentos todavía.</p>'}
+    ${gsel ? (without.length ? `<h3 class="sub-h">⚠️ Sin departamento (${without.length})</h3><div class="chips wrap">${without.map(x => `<button class="chip warn-chip" data-a="person" data-id="${esc(x.p.id)}">${esc(x.p.name)}</button>`).join('')}</div>` : '<p class="hint pad">✓ Todos los de este grupo tienen al menos un departamento.</p>')
       : `<p class="hint pad">${groups.length ? 'Elige un grupo (por ejemplo, tus ancianos y siervos) para ver quién no tiene ningún departamento.' : 'Crea un grupo en Personas (por ejemplo, «Varones» o «Ancianos y siervos») para ver quién no tiene departamento.'}</p>`}
   </section>` : '';
   return `${head('Congregación', actions())}
   ${congreCard}
-  ${foldable('comite', comiteSection())}
-  ${foldable('visita', visitaSection())}
-  ${foldable('nombramientos', rosterHtml)}
-  ${foldable('cargas', loadHtml)}
-  ${foldable('mecas', mecaSection(st))}
-  ${foldable('organigrama', `<section><div class="sec-h"><h2>🏛 Organigrama</h2>${empty_ ? '' : `<span class="hint">${all.length} departamentos${noHead ? ` · ${noHead} sin responsable` : ''}</span>`}</div>
+  ${M.featureOn('congregacion.comite') ? foldable('comite', comiteSection()) : ''}
+  ${M.featureOn('congregacion.visita') ? foldable('visita', visitaSection()) : ''}
+  ${M.featureOn('congregacion.nombramientos') ? foldable('nombramientos', rosterHtml) : ''}
+  ${M.featureOn('congregacion.nombramientos') ? foldable('cargas', loadHtml) : ''}
+  ${M.featureOn('congregacion.mecanicas') ? foldable('mecas', mecaSection(st)) : ''}
+  ${!M.featureOn('congregacion.organigrama') ? '' : foldable('organigrama', `<section><div class="sec-h"><h2>🏛 Organigrama</h2>${empty_ ? '' : `<span class="hint">${all.length} departamentos${noHead ? ` · ${noHead} sin responsable` : ''}</span>`}</div>
   ${empty_ ? empty('Arma el organigrama de tu congregación: quién atiende cada departamento y quiénes le ayudan.', `<div class="stack"><button class="btn primary" data-a="dept-suggest">Cargar departamentos sugeridos</button><button class="btn" data-a="dept-new">Empezar desde cero</button></div>`, 'users')
     : pick ? `<div class="org-tools pick-bar"><span class="grow"><b>${pick.size}</b> elegidos</span><button class="btn small ghost" data-a="org-pick-all">Todos</button><button class="btn small ghost" data-a="org-pick">Cancelar</button><button class="btn small danger" data-a="org-del" ${pick.size ? '' : 'disabled'}>Eliminar</button></div>
       <p class="hint pad">Marca los departamentos que no aplican en tu congregación. Los que dependían de ellos suben un nivel.</p>
@@ -733,7 +736,7 @@ export function notasList(ui) {
       : empty('Escribe tu primera nota: ideas, apuntes o recordatorios.', `<button class="btn" data-a="new-note">Nueva nota</button><button class="link" data-a="keep">Importar de Google Keep</button>`, 'notebook');
   }
   return `<div class="stack">${list.map(n => `
-    <button class="card note" data-a="note" data-id="${n.id}">
+    <button class="card note" data-a="note" data-id="${esc(n.id)}">
       <span class="n-top"><strong>${esc(n.title || 'Sin título')}</strong>${n.pinned ? ic('bookmark', 'pin') : ''}</span>
       ${n.body ? `<span class="n-body">${esc(n.body)}</span>` : ''}
       <span class="n-foot">${n.tag ? `<span class="chip static">${esc(n.tag)}</span>` : ''}<span class="when">${M.noteDate(n) ? fmtShort(M.noteDate(n)) : ''}</span></span>
@@ -754,6 +757,7 @@ function reunionesList() {
 
 export function notas(ui) {
   const st = ui.notas;
+  if (st.seg === 'reuniones' && !M.featureOn('notas.reuniones')) st.seg = 'notas';
   const seg = `<div class="seg">
     <button data-a="seg" data-v="notas" aria-pressed="${st.seg === 'notas'}">Notas</button>
     <button data-a="seg" data-v="reuniones" aria-pressed="${st.seg === 'reuniones'}">Reuniones</button></div>`;
@@ -777,7 +781,7 @@ export function notas(ui) {
 // La marca roja sobre la barra señala dónde «deberías» ir hoy según los días transcurridos del mes.
 export function goalBlock(mid, v, title = 'Meta de este mes') {
   const goal = Number(v.goalMonthly);
-  if (!v.goalEnabled || !(goal > 0)) return '';
+  if (!v.goalEnabled || !(goal > 0) || !M.featureOn('informe.meta')) return '';
   const minutes = M.monthTotals(mid).minutes;              // sin crédito: lo que cuenta para tu meta
   const withCredit = M.monthTotals(mid, true).minutes;     // con crédito: solo como referencia
   const credit = withCredit - minutes;
@@ -812,7 +816,7 @@ function remainingLine(mid, minutes, goal) {
 
 // Emoji del ritmo sobre la foto (como en las apps de informe)
 export function paceBadge(v) {
-  if (!v.goalEnabled || !(Number(v.goalMonthly) > 0)) return '';
+  if (!v.goalEnabled || !(Number(v.goalMonthly) > 0) || !M.featureOn('informe.meta')) return '';
   const cur = today().slice(0, 7);
   const p = M.paceStatus(cur, M.monthTotals(cur).minutes, v.goalMonthly);
   return `<span class="pace-badge" title="${esc(p.label)}" aria-label="${esc(p.label)}">${p.emoji}</span>`;
@@ -848,9 +852,9 @@ export function weekCard(v) {
     const ok = goals.filter(g => g.done).length;
     objectives = `<div class="wk-obj"><div class="sec-h tight"><h3>Mis objetivos como precursor esta semana</h3>${goals.length ? `<span class="hint">${ok} de ${goals.length}</span>` : ''}</div>
       ${goals.length ? `<div class="mini-list">${goals.map((g, i) => `<div class="mini-row obj ${g.done ? 'is-done' : ''}">
-          <button type="button" class="chk" data-a="wgoal-toggle" data-i="${i}" aria-pressed="${!!g.done}" aria-label="${g.done ? 'Marcar como pendiente' : 'Marcar como cumplido'}">${ic('check')}</button>
+          <button type="button" class="chk" data-a="wgoal-toggle" data-i="${esc(i)}" aria-pressed="${!!g.done}" aria-label="${g.done ? 'Marcar como pendiente' : 'Marcar como cumplido'}">${ic('check')}</button>
           <span class="grow">${esc(g.t)}</span>
-          <button type="button" class="icon-btn" data-a="wgoal-remove" data-i="${i}" aria-label="Quitar objetivo">${ic('x', 'sm')}</button></div>`).join('')}</div>`
+          <button type="button" class="icon-btn" data-a="wgoal-remove" data-i="${esc(i)}" aria-label="Quitar objetivo">${ic('x', 'sm')}</button></div>`).join('')}</div>`
         : '<p class="hint">Ej. «Salir 3 mañanas al servicio», «Hacer 2 revisitas», «Predicación telefónica el jueves».</p>'}
       <div class="log-add"><input id="wgoal-text" maxlength="120" placeholder="Nuevo objetivo para esta semana" aria-label="Nuevo objetivo"><button type="button" class="btn" data-a="wgoal-add">Agregar</button></div></div>`;
   }
@@ -937,7 +941,7 @@ function statsCard(mid, v) {
   // 4) Por tipo de actividad (incluye tiempo de crédito)
   const cats = Object.entries(st.perCat).filter(([, x]) => x).sort((a, b) => b[1] - a[1]);
   let off = 0;
-  const seg = cats.map(([k, x]) => { const c = M.catServicioOf(k); const w = x / allCat * 100; const r = `<i style="left:${off}%;width:${w}%;--c:${c.c}" title="${esc(c.n)}: ${M.fmtHM(x)} h"></i>`; off += w; return r; }).join('');
+  const seg = cats.map(([k, x]) => { const c = M.catServicioOf(k); const w = x / allCat * 100; const r = `<i style="left:${off}%;width:${w}%;--c:${esc(c.c)}" title="${esc(c.n)}: ${M.fmtHM(x)} h"></i>`; off += w; return r; }).join('');
   return `<div class="card stats-card"><div class="sec-h"><h2>📊 Estadísticas</h2>${monthPick(mid)}</div>
     <h3 class="sub-h">Horas por día <span class="hint">· ${M.fmtHM(total)} h</span></h3>
     <svg class="stats-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Horas por día del mes">${dayBars}</svg>
@@ -947,12 +951,12 @@ function statsCard(mid, v) {
     ${goalSvg ? `<h3 class="sub-h">Avance hacia la meta</h3>${goalSvg}` : ''}
     <h3 class="sub-h">Por tipo de actividad</h3>
     <div class="stats-stack" role="img" aria-label="Horas por tipo">${seg}</div>
-    <ul class="stats-cats">${cats.map(([k, x]) => { const c = M.catServicioOf(k); return `<li><i style="--c:${c.c}"></i><span class="grow">${esc(c.n)}${c.credito ? ' <span class="hint">(crédito)</span>' : ''}</span><b>${M.fmtHM(x)} h</b></li>`; }).join('')}</ul>
+    <ul class="stats-cats">${cats.map(([k, x]) => { const c = M.catServicioOf(k); return `<li><i style="--c:${esc(c.c)}"></i><span class="grow">${esc(c.n)}${c.credito ? ' <span class="hint">(crédito)</span>' : ''}</span><b>${M.fmtHM(x)} h</b></li>`; }).join('')}</ul>
   </div>`;
 }
 function monthPick(mid) {
   const sy = M.serviceYearStart(`${mid}-15`);
-  return `<select id="stats-month" aria-label="Mes de las estadísticas">${M.serviceYearMonths(sy).map(mo => `<option value="${mo.id}" ${mo.id === mid ? 'selected' : ''}>${esc(cap(mo.name))} ${mo.year}</option>`).join('')}</select>`;
+  return `<select id="stats-month" aria-label="Mes de las estadísticas">${M.serviceYearMonths(sy).map(mo => `<option value="${esc(mo.id)}" ${mo.id === mid ? 'selected' : ''}>${esc(cap(mo.name))} ${mo.year}</option>`).join('')}</select>`;
 }
 
 export function informe(ui = {}) {
@@ -968,19 +972,23 @@ export function informe(ui = {}) {
   const goal = goalBlock(cur, v);
   const year = M.yearTotals(false, start);
   const annual = Number(v.goalAnnual);
-  const annualGoal = v.goalEnabled && annual > 0
+  const annualGoal = v.goalEnabled && annual > 0 && M.featureOn('informe.meta')
     ? `<div class="goal-wrap"><div class="goal-top"><span>Meta del año de servicio</span><span><b>${M.fmtHM(year.minutes)}</b> / ${annual} h</span></div>
         <div class="goal-bar"><i style="width:${Math.min(100, year.minutes / 60 / annual * 100)}%"></i><span class="flag">${ic('flag')}</span></div>
         <p class="hint">${year.minutes / 60 >= annual ? '¡Meta del año alcanzada!' : `Te faltan ${M.fmtHM(annual * 60 - year.minutes)} h`}</p></div>` : '';
-  const pioneerHint = (M.profileTypeInfo().goal || M.profileRoles(v).some(r => /precursor/i.test(r))) && !(v.goalEnabled && Number(v.goalMonthly) > 0)
+  const pioneerHint = M.featureOn('informe.meta') && (M.profileTypeInfo().goal || M.profileRoles(v).some(r => /precursor/i.test(r))) && !(v.goalEnabled && Number(v.goalMonthly) > 0)
     ? `<div class="notice">${ic('flag', 'sm')}<p>Activa tu meta mensual para ver cómo vas: 🐢 lento, 🦉 al ras o 🐇 adelantado. <button class="link" data-a="profile">Activar mi meta</button></p></div>` : '';
   const iy = years.indexOf(start);
-  const syNav = years.length > 1 ? `<div class="sy-nav"><button class="icon-btn" data-a="sy-move" data-v="${years[iy - 1] ?? ''}" ${iy > 0 ? '' : 'disabled'} aria-label="Año de servicio anterior">${ic('left')}</button>
-    <b>Año de servicio ${start}–${start + 1}</b><button class="icon-btn" data-a="sy-move" data-v="${years[iy + 1] ?? ''}" ${iy < years.length - 1 ? '' : 'disabled'} aria-label="Año de servicio siguiente">${ic('right')}</button></div>` : '';
+  const syNav = years.length > 1 ? `<div class="sy-nav"><button class="icon-btn" data-a="sy-move" data-v="${esc(years[iy - 1] ?? '')}" ${iy > 0 ? '' : 'disabled'} aria-label="Año de servicio anterior">${ic('left')}</button>
+    <b>Año de servicio ${start}–${start + 1}</b><button class="icon-btn" data-a="sy-move" data-v="${esc(years[iy + 1] ?? '')}" ${iy < years.length - 1 ? '' : 'disabled'} aria-label="Año de servicio siguiente">${ic('right')}</button></div>` : '';
   const sm = st.sm && months.some(mo => mo.id === st.sm) ? st.sm : isCur ? cur : months[months.length - 1].id;
-  return `${head(`Informe ${start}–${start + 1}`, actions())}
+  // Solo los meses con algo registrado (y el mes actual); «Ver los demás meses» muestra el resto
+  const hasData = mo => { const t = M.monthTotals(mo.id); return !!(t.minutes || t.studies || M.extrasText(M.monthExtras(mo.id))); };
+  const shownMonths = st.all ? months : months.filter(mo => mo.id === cur || hasData(mo));
+  const hiddenN = months.length - months.filter(mo => mo.id === cur || hasData(mo)).length;
+  return `${head(`Informe <span class="h-year">${start}–${String(start + 1).slice(2)}</span>`, actions())}
   ${syNav}
-  ${!isCur ? `<p class="notice">${ic('clock', 'sm')} Estás viendo un año anterior. <button class="link" data-a="sy-move" data-v="${curStart}">Volver al año actual</button></p>` : ''}
+  ${!isCur ? `<p class="notice">${ic('clock', 'sm')} Estás viendo un año anterior. <button class="link" data-a="sy-move" data-v="${esc(curStart)}">Volver al año actual</button></p>` : ''}
   <div class="report-head">
     <span class="av-wrap">${avatarHtml(v.photo, ic('clock'), 'big')}${paceBadge(v)}</span>
     <div><strong>${M.roleText(v) ? esc(M.roleText(v)) : 'Sin rol indicado'}</strong><p class="role">Toca para editar tu perfil y tus metas</p></div>
@@ -989,19 +997,20 @@ export function informe(ui = {}) {
   <button type="button" class="card mini fix-cta" data-a="fix-open"><strong>✏️ Corregir un mes anterior</strong><span class="meta">Vuelve a cualquier mes para arreglar horas, crédito, cursos u otros datos</span></button>
   ${isCur ? pioneerHint : ''}
   ${isCur ? goal : ''}
-  ${isCur ? weekCard(v) : ''}
+  ${isCur && M.featureOn('informe.semana') ? weekCard(v) : ''}
   ${annualGoal}
-  ${yearChart(v, start)}
-  ${statsCard(sm, v)}
+  ${M.featureOn('informe.estadisticas') ? yearChart(v, start) : ''}
+  ${M.featureOn('informe.estadisticas') ? statsCard(sm, v) : ''}
   <p class="hint pad">Año de servicio: septiembre a agosto. Toca un mes para ver el detalle o registrar tiempo.</p>
-  <div class="stack">${months.map(mo => {
+  <div class="stack">${shownMonths.map(mo => {
     const t = M.monthTotals(mo.id);
     const xt = M.extrasText(M.monthExtras(mo.id));
-    return `<button class="card mini" data-a="month" data-id="${mo.id}" data-credit="0">
+    return `<button class="card mini" data-a="month" data-id="${esc(mo.id)}" data-credit="0">
       <strong>${cap(mo.name)} ${mo.year}</strong>
       <span class="meta">${t.minutes || t.studies ? `${M.fmtHM(t.minutes)} h · ${t.studies} ${t.studies === 1 ? 'curso bíblico' : 'cursos bíblicos'}` : xt ? '' : 'Sin registrar'}${xt ? `${t.minutes || t.studies ? ' · ' : ''}${esc(xt)}` : ''}</span>
     </button>`;
   }).join('')}</div>
+  ${hiddenN ? `<button type="button" class="btn ghost months-more" data-a="inf-months" aria-expanded="${st.all ? 'true' : 'false'}">${st.all ? 'Ver solo los meses con datos' : `Ver los demás meses (${hiddenN})`}</button>` : ''}
   <div class="card mini report-total">
     <strong>Total del año</strong>
     <span class="meta">${M.fmtHM(year.minutes)} h · ${year.studies} ${year.studies === 1 ? 'curso bíblico' : 'cursos bíblicos'}${M.extrasText(M.yearExtras(start)) ? ` · ${esc(M.extrasText(M.yearExtras(start)))}` : ''}</span>

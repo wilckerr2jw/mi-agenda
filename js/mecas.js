@@ -306,14 +306,14 @@ export function mecaSection(st = {}) {
     <div class="org-tools"><button class="btn small primary" data-a="meca-import">📥 Importar programa</button><button class="btn small ghost" data-a="meca-bapt">✔ Varones bautizados (${s.eligible.length + s.off.length})</button>${s.notUsed.length ? `<button class="btn small ghost" data-a="meca-suggest">💬 Sugerir al encargado</button>` : ''}</div>
     ${!imports.length ? `<div class="mc-empty"><span class="mc-empty-ic">🎛</span><p>Importa el programa que hizo el hermano encargado: una <b>foto</b>, un <b>PDF</b>, un archivo de <b>texto</b> o pegándolo. Entiende tablas y también el formato «Audio: Nombre» con la fecha arriba.</p><p class="hint">Se lee en tu teléfono: no se envía a nadie.</p></div>` : `
     ${programHtml(cur, st)}
-    ${missing.length ? `<div class="mc-missing"><span>👤 ${missing.length} ${missing.length === 1 ? 'hermano del programa no está' : 'hermanos del programa no están'} en tus Personas. Agrégalos para que cuenten en el seguimiento.</span><button class="btn small" data-a="meca-add-all" data-id="${cur.id}">+ Agregar ${missing.length === 1 ? 'a Personas' : 'a todos'}</button></div>` : ''}
+    ${missing.length ? `<div class="mc-missing"><span>👤 ${missing.length} ${missing.length === 1 ? 'hermano del programa no está' : 'hermanos del programa no están'} en tus Personas. Agrégalos para que cuenten en el seguimiento.</span><button class="btn small" data-a="meca-add-all" data-id="${esc(cur.id)}">+ Agregar ${missing.length === 1 ? 'a Personas' : 'a todos'}</button></div>` : ''}
     <h3 class="sub-h mc-sub">📊 Quiénes se están usando</h3>
     <div class="chips">${chip(1, 'Último mes')}${chip(3, '3 meses')}${chip(6, '6 meses')}${chip(12, '1 año')}<button class="chip" data-a="meca-elders" aria-pressed="${!!st.me}">${st.me ? '✓ ' : ''}Incluir ancianos</button></div>
     <div class="meca-kpis"><div><b>${s.used.length}</b><span>se usan</span></div><div class="${s.notUsed.length ? 'warn' : ''}"><b>${s.notUsed.length}</b><span>sin asignación</span></div><div><b>${s.eligible.length}</b><span>${st.me ? 'varones bautizados' : 'varones (sin ancianos)'}</span></div></div>
-    ${s.notUsed.length ? `<h3 class="sub-h">⚠️ No se están usando (${s.notUsed.length})</h3><div class="chips wrap">${s.notUsed.map(p => `<button class="chip warn-chip" data-a="person" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>` : (s.eligible.length ? '<p class="hint pad">✓ Todos los varones bautizados tienen alguna asignación en este tiempo.</p>' : '')}
-    ${s.heavy.length ? `<h3 class="sub-h">🔁 Los que más se repiten</h3><div class="chips wrap">${s.heavy.map(b => `<button class="chip" data-a="person" data-id="${b.pid}">${esc(b.p.name)} · ${b.n}</button>`).join('')}</div>` : ''}
+    ${s.notUsed.length ? `<h3 class="sub-h">⚠️ No se están usando (${s.notUsed.length})</h3><div class="chips wrap">${s.notUsed.map(p => `<button class="chip warn-chip" data-a="person" data-id="${esc(p.id)}">${esc(p.name)}</button>`).join('')}</div>` : (s.eligible.length ? '<p class="hint pad">✓ Todos los varones bautizados tienen alguna asignación en este tiempo.</p>' : '')}
+    ${s.heavy.length ? `<h3 class="sub-h">🔁 Los que más se repiten</h3><div class="chips wrap">${s.heavy.map(b => `<button class="chip" data-a="person" data-id="${esc(b.pid)}">${esc(b.p.name)} · ${b.n}</button>`).join('')}</div>` : ''}
     ${s.used.length ? `<details class="load-row"><summary><span class="grow"><b>Cuántas veces tuvo cada uno</b><small>desde el ${esc(fmtShort(s.from))}</small></span></summary><ul class="load-list">${s.used.map(b => `<li><b>${b.n}</b> · ${esc(b.p.name)} <span class="hint">${esc(Object.entries(b.roles).map(([r, c]) => `${r}${c > 1 ? ` ×${c}` : ''}`).join(', '))} · última: ${esc(fmtShort(b.last))}</span></li>`).join('')}</ul></details>` : ''}
-    <h3 class="sub-h">🗂 Programas importados</h3><div class="stack">${imports.map(x => `<div class="card mini row-card${x === cur ? ' mc-cur' : ''}"><span class="grow"><strong>${esc(x.title || 'Arreglo')}</strong><span class="meta">${x.from ? `${esc(fmtShort(x.from))} – ${esc(fmtShort(x.to))} · ` : ''}${(x.rows || []).length} asignaciones${x === cur ? ' · el actual' : ''}</span></span><button class="btn small ghost" data-a="meca-view" data-id="${x.id}">Ver</button></div>`).join('')}</div>`}
+    <h3 class="sub-h">🗂 Programas importados</h3><div class="stack">${imports.map(x => `<div class="card mini row-card${x === cur ? ' mc-cur' : ''}"><span class="grow"><strong>${esc(x.title || 'Arreglo')}</strong><span class="meta">${x.from ? `${esc(fmtShort(x.from))} – ${esc(fmtShort(x.to))} · ` : ''}${(x.rows || []).length} asignaciones${x === cur ? ' · el actual' : ''}</span></span><button class="btn small ghost" data-a="meca-view" data-id="${esc(x.id)}">Ver</button></div>`).join('')}</div>`}
     ${!s.eligible.length && !s.off.length ? '<p class="hint pad">Marca en «✔ Varones bautizados» a quiénes se les puede asignar. Los ancianos y siervos ministeriales ya cuentan.</p>' : ''}
   </section>`;
 }
@@ -350,7 +350,37 @@ export async function importSheet() {
       <p class="hint">Sirve cualquiera de estas dos formas:</p>
       <div class="mc-fmts"><pre>01-10-2026\nAcomodador: Juan Pérez\nAudio: Luis Gil\nPuerta: Mario Paz</pre><pre>Fecha | Acomodador | Audio\nJue 1 | Juan Pérez | Luis Gil</pre></div>
       <textarea id="meca-paste" rows="7" placeholder="Pega aquí el programa"></textarea><button type="button" class="btn small" data-a="meca-paste">Leer texto</button></details>
-    <div id="meca-review"></div>` });
+    <div id="meca-review"></div>
+    <p class="hint pad-top" id="meca-off-h">El lector de fotos y PDF se descarga la primera vez que lo usas (unos 11 MB).</p>
+    <button type="button" class="btn ghost" data-a="meca-offline">⬇ Guardar para usar sin internet</button>` });
+  offlineReady().then(ok => { const h = document.getElementById('meca-off-h'); if (ok && h) { h.textContent = '✓ El lector de fotos y PDF ya está guardado: funciona sin internet.'; h.nextElementSibling?.remove(); } });
+}
+
+// El lector (vendor/, unos 11 MB) no se descarga al instalar la app: se guarda la primera vez que se usa
+// (sw.js lo pone en la caché «vendor-v1») o desde aquí, con «Guardar para usar sin internet».
+const VENDOR_FILES = ['ocr/tesseract.min.js', 'ocr/worker.min.js', 'ocr/core/tesseract-core-lstm.wasm.js', 'ocr/core/tesseract-core-simd-lstm.wasm.js', 'ocr/lang/spa.traineddata.gz', 'pdf/pdf.min.mjs', 'pdf/pdf.worker.min.mjs'].map(f => base + f);
+async function offlineReady() {
+  try { const c = await caches.open('vendor-v1'); return (await Promise.all(VENDOR_FILES.map(u => c.match(u)))).every(Boolean); } catch { return false; }
+}
+export async function saveOffline(btn) {
+  if (!('caches' in window)) return toast('Este navegador no permite guardar el lector sin internet');
+  if (btn) { btn.disabled = true; btn.textContent = 'Descargando… 0 de ' + VENDOR_FILES.length; }
+  let n = 0;
+  try {
+    const c = await caches.open('vendor-v1');
+    for (const u of VENDOR_FILES) {
+      if (!(await c.match(u))) { const r = await fetch(u, { cache: 'reload' }); if (!r.ok) throw new Error(u); await c.put(u, r); }
+      n++;
+      if (btn) btn.textContent = `Descargando… ${n} de ${VENDOR_FILES.length}`;
+    }
+    const h = document.getElementById('meca-off-h'); if (h) h.textContent = '✓ El lector de fotos y PDF ya está guardado: funciona sin internet.';
+    btn?.remove();
+    toast('✓ Listo: ya puedes leer fotos y PDF sin internet');
+  } catch (e) {
+    console.warn(e);
+    if (btn) { btn.disabled = false; btn.textContent = '⬇ Guardar para usar sin internet'; }
+    toast('No se pudo descargar todo. Revisa tu conexión e inténtalo de nuevo');
+  }
 }
 export async function fileChosen(input) {
   const f = input.files?.[0];
@@ -426,7 +456,7 @@ export async function viewSheet(id) {
   if (!x) return;
   const { open } = await S();
   open({ title: x.title || 'Programa', body: programHtml(x, { mv: 'fechas', all: true }),
-    actions: `<button type="button" class="btn ghost danger" data-a="delete" data-col="mecas" data-id="${x.id}">Eliminar</button>` });
+    actions: `<button type="button" class="btn ghost danger" data-a="delete" data-col="mecas" data-id="${esc(x.id)}">Eliminar</button>` });
 }
 export async function baptSheet() {
   const { open, personPick } = await S();
@@ -534,7 +564,7 @@ export function programHtml(x, st = {}) {
   return `<div class="mc-prog">
     <div class="mc-head"><div><strong>${esc(x.title || 'Programa')}</strong><span class="meta">${x.from ? `${esc(fmtShort(x.from))} – ${esc(fmtShort(x.to))} · ` : ''}${days.length} fechas · ${(x.rows || []).length} asignaciones</span></div>
       ${st.all ? '' : `<div class="seg small" role="group" aria-label="Ver el programa"><button data-a="meca-mv" data-v="fechas" aria-pressed="${view === 'fechas'}">📅 Fechas</button><button data-a="meca-mv" data-v="hermanos" aria-pressed="${view === 'hermanos'}">👤 Hermanos</button></div>`}</div>
-    <div class="org-tools mc-tools"><button class="btn small" data-a="meca-share" data-id="${x.id}">🖼 Compartir imagen</button><button class="btn small ghost" data-a="meca-print" data-id="${x.id}">🖨 Imprimir carta</button><button class="btn small ghost" data-a="meca-remind" data-id="${x.id}">💬 Avisar a los hermanos</button></div>
+    <div class="org-tools mc-tools"><button class="btn small" data-a="meca-share" data-id="${esc(x.id)}">🖼 Compartir imagen</button><button class="btn small ghost" data-a="meca-print" data-id="${esc(x.id)}">🖨 Imprimir carta</button><button class="btn small ghost" data-a="meca-remind" data-id="${esc(x.id)}">💬 Avisar a los hermanos</button></div>
     ${view === 'hermanos' ? byPerson() : `${past.length ? `<details class="mc-past"><summary class="hint">Ver ${past.length} ${past.length === 1 ? 'fecha pasada' : 'fechas pasadas'}</summary><div class="mc-grid">${past.map(dayCard).join('')}</div></details>` : ''}
       <div class="mc-grid">${rest.map(dayCard).join('')}</div>`}
   </div>`;
@@ -579,7 +609,7 @@ export function printProgram(id) {
     .sw{width:22px;height:22px;padding:0!important;margin:0 2px!important;border-radius:50%!important;border:2px solid #fff!important;vertical-align:middle} .bar input{width:34px;height:24px;border:0;padding:0;vertical-align:middle}
     @media print{body{background:#fff} .bar{display:none} .page{margin:0}}
     </style></head><body>
-    <div class="bar">Hoja carta ${land ? 'horizontal' : 'vertical'} · Colores: ${PAL.map(p => `<button type="button" class="sw" title="${p.n}" style="background:${p.p}" data-p="${p.p}"></button>`).join('')} <input type="color" id="cp" value="${col}"> <button onclick="print()">🖨 Imprimir / Guardar PDF</button></div>
+    <div class="bar">Hoja carta ${land ? 'horizontal' : 'vertical'} · Colores: ${PAL.map(p => `<button type="button" class="sw" title="${p.n}" style="background:${p.p}" data-p="${p.p}"></button>`).join('')} <input type="color" id="cp" value="${esc(col)}"> <button onclick="print()">🖨 Imprimir / Guardar PDF</button></div>
     <section class="page"><div class="fit">
       <div class="hdr"><div><h1>${escH(x.title || 'Programa de asignaciones')}</h1>${cgLine ? `<div class="s">${escH(cgLine)}</div>` : ''}</div><div class="r">${[...reun, head ? `Encargado: ${head}` : ''].filter(Boolean).map(escH).join('<br>')}</div></div>
       <table><thead><tr><th>Fecha</th>${roles.map(r => `<th><span class="ri">${roleIc(r)}</span>${escH(r)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table>
@@ -659,11 +689,11 @@ export async function remindSheet(id, span = 'semana') {
   const by = {};
   (x.rows || []).filter(r => r.d && r.d >= t && r.d <= end).sort((a, b) => a.d.localeCompare(b.d)).forEach(r => { const p = rowPerson(r); const k = p?.id || nn(r.n); (by[k] = by[k] || { p, n: p?.name || r.n, list: [] }).list.push(r); });
   const list = Object.values(by).sort((a, b) => a.n.localeCompare(b.n, 'es'));
-  const chip = (v, n) => `<button class="chip" data-a="meca-remind" data-id="${x.id}" data-v="${v}" aria-pressed="${span === v}">${n}</button>`;
+  const chip = (v, n) => `<button class="chip" data-a="meca-remind" data-id="${esc(x.id)}" data-v="${v}" aria-pressed="${span === v}">${n}</button>`;
   open({ title: 'Avisar a los hermanos', body: `<p class="hint">Cada hermano recibe sus asignaciones en un mensaje de WhatsApp. Toca «Enviar» en cada uno.</p>
     <div class="chips">${chip('semana', 'Próximos 7 días')}${chip('mes', 'Próximo mes')}${chip('todo', 'Todo el programa')}</div>
     ${list.length ? `<div class="stack">${list.map(b => `<div class="card mini row-card"><span class="grow"><strong>${esc(b.n)}</strong><span class="meta">${esc(b.list.map(r => `${fmtShort(r.d)} ${r.r}`).join(' · '))}</span>${b.p?.phone ? '' : '<span class="meta warn-t">Sin teléfono: se comparte el mensaje</span>'}</span>
-      <button class="btn small" data-a="meca-remind-send" data-id="${x.id}" data-v="${span}" data-k="${esc(b.p?.id || nn(b.n))}">💬 Enviar</button></div>`).join('')}</div>` : '<p class="hint pad">No hay asignaciones en ese tiempo.</p>'}` });
+      <button class="btn small" data-a="meca-remind-send" data-id="${esc(x.id)}" data-v="${span}" data-k="${esc(b.p?.id || nn(b.n))}">💬 Enviar</button></div>`).join('')}</div>` : '<p class="hint pad">No hay asignaciones en ese tiempo.</p>'}` });
 }
 export async function remindSend(id, span, key) {
   const x = store.get('mecas', id) || currentArreglo();

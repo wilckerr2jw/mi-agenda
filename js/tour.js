@@ -21,9 +21,17 @@ function steps() {
     { sel: '.tab[data-v="personas"]', t: 'Personas', b: `A quienes atiendes, con llamada y WhatsApp.${elder ? ' Puedes guardar sus privilegios y reunirlas en grupos.' : ''}` },
     { sel: '.tab[data-v="notas"]', t: 'Notas y reuniones', b: `Tus apuntes y tus reuniones importantes.${elder ? ' Prepara la agenda, envíala por WhatsApp y convierte los acuerdos en tareas.' : ''}` },
     { sel: '.tab[data-v="informe"]', t: 'Mi Informe', b: `Registra tu tiempo por categoría y planea tu semana.${pioneer ? ' Con tu meta activa verás si vas 🐢 lento, 🦉 al ras o 🐇 adelantado.' : ''}` },
+    { sel: '#tabs .tab-more', t: 'Más', b: moreText() },
     { sel: '#view [data-a="search"]', t: 'Buscar', b: 'Encuentra cualquier cosa en toda la app: eventos, tareas, personas, notas y reuniones.' },
-    { sel: '#view [data-a="settings"]', t: 'Ajustes', b: `Tema, secciones visibles, accesos rápidos, respaldo y la guía rápida.${isCloud && session.isAdmin ? ' Como administrador, aquí apruebas las cuentas.' : ''} Desde aquí puedes repetir este recorrido.` },
+    { sel: '#view [data-a="settings"]', t: 'Ajustes', b: `Tema, secciones visibles, accesos rápidos, respaldo y la guía rápida.${isCloud && session.isAdmin ? ' Como administrador, aquí apruebas las cuentas y en «Administración» eliges qué funciones usa cada una.' : ''} Desde aquí puedes repetir este recorrido.` },
   ];
+}
+
+// «Más» del teléfono: nombra solo las secciones que de verdad van ahí (las apagadas por el administrador no)
+function moreText() {
+  const names = [...document.querySelectorAll('#tabs .tab[data-a="nav"][data-bar="0"]:not([hidden])')]
+    .map(b => b.textContent.replace(/\u00ad/g, '').trim()).filter(Boolean);
+  return names.length ? `Las demás secciones (${names.join(', ')}), Buscar y Ajustes.` : 'Buscar y Ajustes.';
 }
 
 let state = null;
@@ -102,8 +110,10 @@ function place() {
   const tw = Math.min(340, vw - 32);
   tip.style.width = `${tw}px`;
   const th = tip.offsetHeight;
-  const below = r.bottom + pad + 12;
-  const top = below + th < vh - 8 ? below : Math.max(8, r.top - pad - 12 - th);
+  // Debajo si cabe; si no, encima; si no cabe en ninguno, en el lado con más espacio (pegado al borde)
+  const below = r.bottom + pad + 12, above = r.top - pad - 12 - th;
+  const roomBelow = vh - 8 - below, roomAbove = r.top - pad - 12 - 8;
+  const top = th <= roomBelow ? below : th <= roomAbove ? above : roomBelow >= roomAbove ? Math.max(8, vh - 8 - th) : 8;
   const left = Math.min(Math.max(16, r.left + r.width / 2 - tw / 2), vw - tw - 16);
   Object.assign(tip.style, { top: `${top}px`, left: `${left}px` });
 }

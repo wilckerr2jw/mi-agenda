@@ -82,7 +82,7 @@ export function setPref(key, value) {
 // Al abrir la app: si este teléfono tiene los avisos activos, renueva su dirección (una vez al día)
 export async function refresh() {
   if (!supported() || !isOn()) return;
-  const day = new Date().toISOString().slice(0, 10);
+  const d0 = new Date(), day = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, '0')}-${String(d0.getDate()).padStart(2, '0')}`;
   try { if (localStorage.getItem(KEY + '.dia') === day) return; } catch { /* sin almacenamiento */ }
   try {
     const t = await token();

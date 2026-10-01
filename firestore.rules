@@ -21,11 +21,25 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Tipo de perfil asignado: lo ve el propio usuario y el administrador; solo el administrador lo cambia
+    // Tipo de perfil asignado: lo ve el propio usuario y el administrador; solo el administrador lo cambia.
+    // type = id de una plantilla (las de siempre o una propia); allow/deny = funciones de más o de menos frente a su plantilla.
     match /access/{uid} {
+      function okList(d, k) { return !(k in d) || (d[k] is list && d[k].size() <= 200); }
       allow read: if isSelf(uid) || isAdmin();
       allow create, update: if isAdmin()
-        && request.resource.data.type in ['publicador', 'precursor', 'anciano'];
+        && request.resource.data.keys().hasOnly(['type', 'allow', 'deny', 'updatedAt', 'by'])
+        && request.resource.data.type is string && request.resource.data.type.matches('^[a-z0-9_-]{1,30}$')
+        && okList(request.resource.data, 'allow') && okList(request.resource.data, 'deny');
+      allow delete: if isAdmin();
+    }
+
+    // Plantillas de funciones por tipo de perfil: las leen las cuentas aprobadas; solo el administrador las cambia
+    match /config/plantillas {
+      allow read: if signedIn() && (approved(request.auth.uid) || isAdmin());
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['types', 'updatedAt', 'by'])
+        && request.resource.data.types is map && request.resource.data.types.size() <= 30
+        && request.resource.data.by == request.auth.uid;
       allow delete: if isAdmin();
     }
 
@@ -43,16 +57,33 @@ service cloud.firestore {
     // Los demás solo pueden marcar su propio ✓ (doneLog) en un día.
     match /shared/{id} {
       function member() { return signedIn() && request.auth.uid in resource.data.members; }
+      // Solo los campos que escribe la app (store.js: SHARED_FIELDS, datos de quién lo comparte y las marcas ✓)
       function ok(d) {
-        return d.members is list && d.members.size() >= 2 && d.members.size() <= 30
-          && d.owner in d.members && d.title is string && d.title.size() <= 120;
+        return d.keys().hasOnly(['title', 'category', 'date', 'time', 'endTime', 'place', 'repeat', 'days', 'notes', 'theme', 'color',
+            'skipDates', 'routine', 'owner', 'ownerName', 'members', 'memberNames', 'createdAt', 'updatedAt', 'updatedBy', 'updatedByName',
+            'doneLog', 'doneAt', 'doneBy', 'doneDay'])
+          && d.members is list && d.members.size() >= 2 && d.members.size() <= 30
+          && d.owner in d.members && d.title is string && d.title.size() <= 120
+          && (!('color' in d) || d.color == '' || (d.color is string && d.color.matches('^(#[0-9A-Fa-f]{3,8}|var[(]--[A-Za-z0-9_-]+[)])$')))
+          && (!('doneLog' in d) || d.doneLog is map);
+      }
+      // En el día marcado (doneDay), la lista nueva solo se diferencia de la anterior por tu propio uid
+      function onlyMeChanged(a, b) {
+        return b.toSet().difference(a.toSet()).union(a.toSet().difference(b.toSet())).hasOnly([request.auth.uid]);
+      }
+      function myDayOnly(o, n, day) {
+        return n.diff(o).affectedKeys().size() == 0
+          || (n.diff(o).affectedKeys().hasOnly([day]) && onlyMeChanged(o.get(day, []), n.get(day, [])));
       }
       function onlyMyMark() {
         return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['doneLog', 'doneAt', 'doneBy', 'doneDay'])
-          && request.resource.data.doneBy == request.auth.uid;
+          && request.resource.data.doneBy == request.auth.uid
+          && request.resource.data.doneDay is string
+          && myDayOnly(resource.data.get('doneLog', {}), request.resource.data.get('doneLog', {}), request.resource.data.doneDay);
       }
       allow read: if member();
       allow create: if signedIn() && (approved(request.auth.uid) || isAdmin())
+        && id.matches('^[A-Za-z0-9_-]{1,40}$')
         && request.resource.data.owner == request.auth.uid && ok(request.resource.data);
       allow update: if member() && ok(request.resource.data)
         && request.resource.data.owner == resource.data.owner
@@ -82,6 +113,7 @@ service cloud.firestore {
       }
       allow read: if signedIn() && (request.auth.uid == resource.data.owner || request.auth.uid == resource.data.to);
       allow create: if signedIn() && (approved(request.auth.uid) || isAdmin())
+        && id.matches('^[A-Za-z0-9_-]{1,40}$')
         && request.resource.data.owner == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
         && request.resource.data.state == 'nueva' && request.resource.data.done == false && request.resource.data.log.size() == 0
         && aOk(request.resource.data);
@@ -109,7 +141,8 @@ service cloud.firestore {
       function okShare(d) {
         return d.keys().hasOnly(['owner', 'v', 'salt', 'iv', 'iter', 'ct', 'updatedAt'])
           && d.owner == request.auth.uid && d.ct is string && d.ct.size() < 900000
-          && d.salt is string && d.salt.size() < 64 && d.iv is string && d.iv.size() < 64 && d.iter is int;
+          && d.salt is string && d.salt.size() < 64 && d.iv is string && d.iv.size() < 64
+          && d.iter is int && d.iter >= 100000 && d.iter <= 5000000;
       }
       allow get: if true;
       allow list: if false;
@@ -124,7 +157,7 @@ service cloud.firestore {
       allow create, update: if isSelf(uid)
         && request.resource.data.keys().hasOnly(['email', 'name', 'lastSeen'])
         && request.resource.data.email == request.auth.token.email
-        && (!('name' in request.resource.data) || request.resource.data.name.size() <= 80);
+        && (!('name' in request.resource.data) || (request.resource.data.name is string && request.resource.data.name.size() <= 80));
       allow delete: if isAdmin();
     }
   }

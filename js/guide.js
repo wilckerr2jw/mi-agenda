@@ -29,7 +29,7 @@ const k = s => `<b class="k">${s}</b>`;   // nombre de un botón tal como aparec
 const TOPICS = [
   // ───── Lo básico (para todos)
   { g: 'Lo básico', t: 'Moverte por la app', when: () => true,
-    b: c => `Usa la barra de abajo para cambiar de sección. El botón verde ${k('+')} agrega algo donde estás. Arriba: 🔍 buscar, 🌙 tema y ${k('⋯')} Ajustes. Si borras algo por error, toca ${k('Deshacer')}.` },
+    b: c => `Usa la barra de abajo para cambiar de sección: Hoy, Agenda, Tareas, Informe y ${k('Más')} (ahí están Personas, Notas, Congregación, Buscar y Ajustes). El botón verde ${k('+')} agrega algo donde estás. Arriba: 🔍 buscar, 🌙 tema y ${k('⋯')} Ajustes. Si borras algo por error, toca ${k('Deshacer')}.` },
   { g: 'Lo básico', t: '🖥 En la computadora', when: () => true,
     b: () => `Abre la app en el navegador de la computadora con tu mismo correo. Verás un menú a la izquierda, las listas en columnas y las ventanas en el centro. Atajos: ${k('1')}–${k('7')} secciones, ${k('N')} agregar, ${k('/')} buscar, ${k('Esc')} cerrar.` },
   { g: 'Lo básico', t: 'Accesos rápidos', when: () => true,
@@ -151,7 +151,9 @@ const TOPICS = [
 
   // ───── Administrador
   { g: 'Administración', t: 'Aprobar cuentas', when: c => c.admin,
-    b: () => `Ajustes → ${k('Administrar usuarios')}: las cuentas nuevas aparecen como «Pendiente». Elige su tipo y se les abre la app. No ves los datos de nadie.` },
+    b: () => `Ajustes → ${k('Administración')}: las cuentas nuevas aparecen como «Pendiente». Elige su tipo y se les abre la app. No ves los datos de nadie.` },
+  { g: 'Administración', t: 'Secciones y funciones de cada cuenta', when: c => c.admin,
+    b: () => `En ${k('Administración')} → ${k('Usuarios')} tocas una cuenta y marcas qué secciones y funciones puede usar; en ${k('Plantillas')} decides lo que trae cada tipo de perfil (y puedes crear tipos propios).` },
 ];
 
 // Temas que aplican a este usuario, agrupados
@@ -170,6 +172,6 @@ export function guideGroups() {
 export function guideAudience() {
   const c = ctx();
   if (!c.cloud) return '';
-  const n = M.PROFILE_TYPES[c.type].n;
+  const n = M.typeName(c.type);
   return c.pioneer && c.type !== 'precursor' ? `${n} y precursor` : n;
 }

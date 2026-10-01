@@ -5,7 +5,7 @@
 import { data } from './store.js';
 import * as store from './store.js';
 import * as M from './model.js';
-import { esc, today, toast, addDays, fmtShort } from './util.js';
+import { esc, today, toast, addDays, fmtShort, dateOf } from './util.js';
 import { GCAL_SCRIPT } from './gcal-script.js';
 
 const S = () => import('./sheets.js');
@@ -61,13 +61,17 @@ async function payload() {
 }
 
 // ───── Hablar con el programa de tu cuenta de Google ─────
+// Solo se habla con una aplicación web de Google Apps Script (así tus datos y tu clave no van a otro sitio)
+export const isGcalUrl = url => /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(String(url || ''));
 async function call(url, body) {
+  if (!isGcalUrl(url)) throw new Error('url');
   const r = await fetch(url, { method: body ? 'POST' : 'GET', redirect: 'follow', ...(body ? { headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) } : {}) });
   const text = await r.text();
   try { return JSON.parse(text); } catch { throw new Error(/<html/i.test(text) ? 'acceso' : 'respuesta'); }
 }
 const errText = e => {
   const m = String(e?.message || e || '');
+  if (m === 'url') return 'La dirección guardada no es de Google Apps Script (https://script.google.com/macros/s/…/exec). Desconecta y pega la URL correcta.';
   if (m === 'acceso') return 'Google pidió iniciar sesión: en la implementación, «Quién tiene acceso» debe ser «Cualquier usuario».';
   if (m === 'clave') return 'El programa ya está unido a otra clave. Crea una implementación nueva o pega de nuevo el código.';
   if (/Calendar is not defined|ReferenceError.*Calendar/i.test(m)) return 'Falta agregar el servicio «Google Calendar API» en el programa (Servicios, botón +) y volver a implementar.';
@@ -79,6 +83,7 @@ const save = patch => store.upsert('profile', { ...M.profile(), id: 'me', gcal: 
 export async function syncNow(force = false) {
   const c = cfg();
   if (!c.url || c.on === false) return null;
+  if (!isGcalUrl(c.url)) { toast(errText('url'), null, null, 9000); return null; }
   const { items, hash } = await payload();
   if (!force && hash === c.hash && c.at && Date.now() - Date.parse(c.at) < 24 * 3600e3) return null;
   const r = await call(c.url, { token: c.token, items, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Caracas' });
@@ -107,12 +112,12 @@ export async function sheet() {
   const c = cfg();
   if (!c.token) { save({ token: newToken(), on: true }); }
   const o = opts();
-  const optHtml = `<div class="stack">${[['events', 'Eventos (con su repetición y semanas canceladas)'], ['tasks', 'Mis tareas pendientes con fecha'], ['meetings', 'Reuniones']].map(([k, n]) => `<label class="check"><input type="checkbox" data-a="gcal-opt" data-v="${k}" ${o[k] ? 'checked' : ''}> ${n}</label>`).join('')}</div>`;
+  const optHtml = `<div class="stack">${[['events', 'Eventos (con su repetición y semanas canceladas)'], ['tasks', 'Mis tareas pendientes con fecha'], ['meetings', 'Reuniones']].map(([k, n]) => `<label class="check"><input type="checkbox" data-a="gcal-opt" data-v="${esc(k)}" ${o[k] ? 'checked' : ''}> ${n}</label>`).join('')}</div>`;
   if (c.url) {
     open({
       title: '📅 Google Calendar automático',
       body: `${c.on === false ? '<p class="hint warn">⏸ En pausa: no se envían cambios.</p>' : `<p class="hint ok">✓ Conectado. Lo que cambias aquí aparece solo en el calendario «Mi Agenda Teocrática» de tu Google Calendar.</p>`}
-        ${c.at ? `<p class="hint">Última vez: ${esc(fmtShort(c.at.slice(0, 10)))} a las ${esc(new Date(c.at).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' }))} · ${c.n || 0} en el calendario${c.res ? ` (${c.res.nuevos} nuevos, ${c.res.cambiados} cambiados, ${c.res.borrados} borrados)` : ''}.</p>` : ''}
+        ${c.at ? `<p class="hint">Última vez: ${esc(fmtShort(dateOf(c.at)))} a las ${esc(new Date(c.at).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' }))} · ${c.n || 0} en el calendario${c.res ? ` (${c.res.nuevos} nuevos, ${c.res.cambiados} cambiados, ${c.res.borrados} borrados)` : ''}.</p>` : ''}
         ${c.err ? `<p class="hint warn">⚠️ ${esc(c.err)}</p>` : ''}
         <h3 class="sub-h">Qué se pasa</h3>${optHtml}
         <p class="hint">Los avisos siguen llegando desde la app: en Google Calendar los eventos van sin recordatorios para que no te lleguen dos veces.</p>
@@ -146,7 +151,7 @@ export async function copyScript() {
 }
 export async function connect() {
   const url = (document.getElementById('gcal-url')?.value || '').trim();
-  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) return toast('Pega la URL completa de la aplicación web (empieza con https://script.google.com/macros/s/ y termina en /exec)', null, null, 9000);
+  if (!isGcalUrl(url)) return toast('Pega la URL completa de la aplicación web (empieza con https://script.google.com/macros/s/ y termina en /exec)', null, null, 9000);
   toast('Conectando con tu Google Calendar…', null, null, 20000);
   try {
     const hi = await call(url);

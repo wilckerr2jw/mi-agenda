@@ -6,7 +6,8 @@
 // Estructura en Firestore:  users/{uid}/{notes|events|tasks|people|groups|meetings|entries|profile|weeks}/{id}
 //  Control de acceso (varias personas usando la misma app):
 //   · admins/{uid}     → existe solo para el administrador (se crea a mano en la consola de Firebase)
-//   · access/{uid}     → { type: 'publicador' | 'precursor' | 'anciano' } lo escribe solo el administrador
+//   · access/{uid}     → { type: 'publicador' | 'precursor' | 'anciano' | <plantilla propia>, allow:[], deny:[] } lo escribe solo el administrador
+//   · config/plantillas → { types: { <id>: { n, modules, features, hideEventCats, hideServCats, goal } } } lo escribe solo el administrador
 //   · directory/{uid}  → { email, name, lastSeen } lo escribe cada usuario, para que el administrador lo vea
 
 import { firebaseConfig, FIREBASE_VERSION } from './config.js';
@@ -15,7 +16,7 @@ export const COLS = ['notes', 'events', 'tasks', 'people', 'groups', 'meetings',
 export const data = Object.fromEntries(COLS.map(c => [c, []]));
 
 // Estado de la sesión en modo nube: si es administrador y qué tipo de perfil tiene asignado
-export const session = { isAdmin: false, type: '', legacy: false };
+export const session = { isAdmin: false, type: '', legacy: false, allow: [], deny: [], templates: null };
 
 export const isCloud = !!(firebaseConfig && firebaseConfig.apiKey && !/^PEGA/i.test(firebaseConfig.apiKey));
 
@@ -66,11 +67,20 @@ function write(col, item, opts = {}) {
   if (col === 'profile' && !opts.explicit) item = protectProfile(item);
   if (col === 'people' && !opts.explicit) item = protectMe(item);
   const i = data[col].findIndex(x => x.id === item.id);
+  const before = i >= 0 ? data[col][i] : null;
   if (i >= 0) data[col][i] = item; else data[col].push(item);
   notify();
-  if (isCloud) cloud.upsert(col, item); else local.persist();
+  if (isCloud) {
+    // Solo se envían los campos que cambiaron (así un teléfono que estuvo sin internet no pisa lo más nuevo de otro):
+    // opts.fields = rutas pedidas (p. ej. [['doneLog', '2026-10-01']]); en el perfil se calcula solo.
+    const paths = opts.fields || (col === 'profile' && before ? changedPaths(before, item) : null);
+    if (paths) cloud.patch(col, item, paths); else cloud.upsert(col, item);
+  } else local.persist();
   if (col === 'tasks' && item.assignedId && !opts.fromRemote) assignedPush(item);
 }
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const changedPaths = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].filter(k => k !== 'id' && !same(a[k], b[k])).map(k => [k]);
+const atPath = (o, p) => p.reduce((v, k) => (v == null ? undefined : v[k]), o);
 
 // Cambia solo algunos campos del perfil. Si el perfil aún no llegó de la nube, espera a que llegue.
 // fields puede ser un objeto o una función (perfil actual) => campos
@@ -118,17 +128,74 @@ export function exportAll() {
 // Personas que ya tienes con el mismo nombre (así un archivo de personas no las duplica)
 const nameKey = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 export const isDuplicatePerson = it => !get('people', it.id) && data.people.some(p => nameKey(p.name) === nameKey(it.name));
-export function importAll(json) {
+// Limpieza de lo que llega de un archivo o del buzón: solo colecciones conocidas, ids sencillos, tipos esperados.
+// Nunca se importan los ajustes de este teléfono o de esta cuenta (enlace, Google Calendar, avisos) ni la marca «soy yo».
+const ID_RE = /^[\w-]{1,60}$/;
+const COLOR_RE = /^(#[0-9a-f]{3,8}|var\(--[\w-]+\))$/i;
+const IMPORT_SKIP_PROFILE = ['share', 'gcal', 'notif', 'nativeSched', 'nativeAppSeen'];
+const ARR_KEYS = ['days', 'skipDates', 'responsibles', 'log', 'privileges', 'studyNames', 'customCats', 'infoFields', 'hiddenModules', 'sharedHidden', 'noActivityDays', 'deptSkipped', 'history'];
+const OBJ_KEYS = ['doneLog', 'congre'];
+const STR_KEYS = ['title', 'name', 'date', 'time', 'endTime', 'due', 'dueTime', 'category'];
+const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+export function cleanImportItem(c, it, cur, allowMe = false) {
+  if (!COLS.includes(c) || !isObj(it) || typeof it.id !== 'string' || !ID_RE.test(it.id)) return null;
+  if (cur === undefined) cur = get(c, it.id);
+  const out = { ...it };
+  ARR_KEYS.forEach(k => { if (k in out && !Array.isArray(out[k])) delete out[k]; });
+  OBJ_KEYS.forEach(k => { if (k in out && !isObj(out[k])) delete out[k]; });
+  STR_KEYS.forEach(k => { if (k in out && typeof out[k] !== 'string') delete out[k]; });
+  if ('color' in out && !(out.color === '' || (typeof out.color === 'string' && COLOR_RE.test(out.color)))) out.color = '';
+  if (c === 'profile') {
+    IMPORT_SKIP_PROFILE.forEach(k => { delete out[k]; if (cur && k in cur) out[k] = cur[k]; });
+  }
+  if (c === 'people') { const me = it.isMe === true && allowMe; delete out.isMe; if (cur?.isMe || me) out.isMe = true; }
+  if (c === 'events') { ['sharedId', 'owner', 'ownerName', 'members', 'memberNames'].forEach(k => delete out[k]); if (it.id.startsWith(SH)) return null; }
+  if (c === 'tasks') {
+    delete out.assignedFrom;
+    if (it.id.startsWith(AS)) return null;
+    // El enlace con una tarea asignada solo se conserva si ya era tuyo (así un archivo no envía tareas en tu nombre)
+    if (!(cur?.assignedId && cur.assignedId === out.assignedId)) ['assignedId', 'assignTo', 'assignToName', 'assignState'].forEach(k => delete out[k]);
+  }
+  return out;
+}
+// Qué traería un respaldo, por colección: nuevos, reemplazos y descartados (para mostrarlo antes de importar)
+export function importPlan(json) {
+  const parsed = typeof json === 'string' ? JSON.parse(json) : json;
+  const src = isObj(parsed?.data) ? parsed.data : (parsed || {});
+  return COLS.map(c => {
+    const list = Array.isArray(src[c]) ? src[c] : [];
+    const r = { col: c, add: 0, replace: 0, dup: 0, bad: 0 };
+    list.forEach(it => {
+      if (c === 'people' && isObj(it) && isDuplicatePerson(it)) { r.dup++; return; }
+      if (!cleanImportItem(c, it)) { r.bad++; return; }
+      get(c, it.id) ? r.replace++ : r.add++;
+    });
+    return r;
+  });
+}
+// opts.inbox: viene del buzón (otra cuenta). Solo un respaldo tuyo, en un teléfono sin ficha «soy yo», la puede traer.
+export function importAll(json, opts = {}) {
   const parsed = JSON.parse(json);
-  const src = parsed.data || parsed;
+  const src = isObj(parsed?.data) ? parsed.data : (parsed || {});
   let n = 0;
-  COLS.forEach(c => (Array.isArray(src[c]) ? src[c] : []).forEach(it => {
-    if (c === 'people' && it && isDuplicatePerson(it)) return;
-    if (it && it.id) { write(c, it, { explicit: true }); n++; }
+  let allowMe = !opts.inbox && !data.people.some(p => p.isMe);
+  COLS.forEach(c => (Array.isArray(src[c]) ? src[c] : []).forEach(raw => {
+    if (c === 'people' && isObj(raw) && isDuplicatePerson(raw)) return;
+    const it = cleanImportItem(c, raw, undefined, allowMe);
+    if (it?.isMe && c === 'people') allowMe = false;
+    if (!it) return;
+    // Tu perfil y tu ficha «soy yo» no se vacían: lo que el archivo traiga vacío se queda como lo tienes
+    const keep = c === 'profile' || (c === 'people' && get(c, it.id)?.isMe);
+    write(c, it, { explicit: !keep });
+    n++;
   }));
   // Un archivo de cambios puede pedir quitar elementos: { remove: { events: [ids] } }
-  const rm = parsed.remove || {};
-  COLS.forEach(c => (Array.isArray(rm[c]) ? rm[c] : []).forEach(id => { if (get(c, id)) { remove(c, id); n++; } }));
+  const rm = isObj(parsed?.remove) ? parsed.remove : {};
+  COLS.forEach(c => (Array.isArray(rm[c]) ? rm[c] : []).forEach(id => {
+    if (typeof id !== 'string' || !get(c, id)) return;
+    if (c === 'profile' || (c === 'people' && get(c, id).isMe)) return;   // nunca se borra tu perfil ni tu ficha
+    remove(c, id); n++;
+  }));
   return n;
 }
 
@@ -316,7 +383,7 @@ export function toggleDone(ev, iso) {
     const ref = fb.fs.doc(fb.db, 'shared', ev.sharedId);
     fb.fs.updateDoc(ref, new fb.fs.FieldPath('doneLog', iso), on ? fb.fs.arrayUnion(who) : fb.fs.arrayRemove(who),
       'doneAt', new Date().toISOString(), 'doneBy', who, 'doneDay', iso).catch(onError);
-  } else upsert('events', { ...ev, doneLog });
+  } else upsert('events', { ...ev, doneLog }, { fields: [['doneLog', iso]] });
   return on;
 }
 
@@ -486,6 +553,15 @@ const cloud = {
     const ref = fb.fs.doc(fb.db, 'users', account.user.uid, col, item.id);
     fb.fs.setDoc(ref, JSON.parse(JSON.stringify(item))).catch(onError);
   },
+  // Cambia solo esos campos (con updatedAt). Si el documento aún no existe en la nube, se guarda completo.
+  patch(col, item, paths) {
+    if (!account.user) return;
+    const all = paths.some(p => p[0] === 'updatedAt') || item.updatedAt === undefined ? paths : [...paths, ['updatedAt']];
+    if (!paths.length) return;
+    const ref = fb.fs.doc(fb.db, 'users', account.user.uid, col, item.id);
+    const args = all.flatMap(p => { const v = atPath(item, p); return [new fb.fs.FieldPath(...p), v === undefined ? fb.fs.deleteField() : JSON.parse(JSON.stringify(v))]; });
+    fb.fs.updateDoc(ref, ...args).catch(e => { if (e?.code === 'not-found') cloud.upsert(col, item); else onError(e); });
+  },
   remove(col, id) {
     if (!account.user) return;
     fb.fs.deleteDoc(fb.fs.doc(fb.db, 'users', account.user.uid, col, id)).catch(onError);
@@ -530,17 +606,33 @@ export const hasAccess = () => session.legacy || session.isAdmin || !!session.ty
 export function watchAccess(user, onChange) {
   stopAccess();
   const { fs, db } = fb;
-  const seen = { admin: false, access: false };
-  const emit = key => { seen[key] = true; if (seen.admin && seen.access) onChange(session); };
+  const seen = { admin: false, access: false, tpl: false };
+  const emit = key => { seen[key] = true; if (seen.admin && seen.access && seen.tpl) onChange(session); };
   const fail = key => e => {
     if (e?.code === 'permission-denied') session.legacy = true; else onError(e);
     emit(key);
   };
-  session.isAdmin = false; session.type = ''; session.legacy = false;
+  session.isAdmin = false; session.type = ''; session.legacy = false; session.allow = []; session.deny = []; session.templates = null;
+  // Plantillas de funciones: si no existen o las reglas aún no las permiten, se usan las de siempre
+  let tplOk = false;
+  const watchTpl = () => {
+    if (tplOk) return;
+    tplOk = true;
+    accessUnsubs.push(fs.onSnapshot(fs.doc(db, 'config', 'plantillas'),
+      snap => { session.templates = snap.exists() ? (snap.data().types || null) : null; emit('tpl'); },
+      () => { tplOk = false; emit('tpl'); }));
+  };
   accessUnsubs.push(fs.onSnapshot(fs.doc(db, 'admins', user.uid),
-    snap => { session.isAdmin = snap.exists(); emit('admin'); }, fail('admin')));
+    snap => { session.isAdmin = snap.exists(); if (session.isAdmin) watchTpl(); emit('admin'); }, fail('admin')));
   accessUnsubs.push(fs.onSnapshot(fs.doc(db, 'access', user.uid),
-    snap => { session.type = snap.exists() ? (snap.data().type || '') : ''; emit('access'); }, fail('access')));
+    snap => {
+      const d = snap.exists() ? snap.data() : {};
+      session.type = d.type || '';
+      session.allow = Array.isArray(d.allow) ? d.allow : [];
+      session.deny = Array.isArray(d.deny) ? d.deny : [];
+      if (session.type) watchTpl(); else if (!tplOk) seen.tpl = true;   // pendiente: no puede leer las plantillas
+      emit('access');
+    }, e => { seen.tpl = true; fail('access')(e); }));
   // Se anota en el directorio para que el administrador vea la cuenta (si las reglas lo permiten)
   fs.setDoc(fs.doc(db, 'directory', user.uid), { email: user.email || '', lastSeen: new Date().toISOString() }, { merge: true }).catch(() => {});
 }
@@ -562,7 +654,8 @@ export const admin = {
     const { fs, db } = fb;
     const [dir, acc] = await Promise.all([fs.getDocs(fs.collection(db, 'directory')), fs.getDocs(fs.collection(db, 'access'))]);
     const types = Object.fromEntries(acc.docs.map(d => [d.id, d.data().type || '']));
-    return dir.docs.map(d => ({ uid: d.id, email: '', name: '', lastSeen: '', ...d.data(), type: types[d.id] || '' }))
+    const over = Object.fromEntries(acc.docs.map(d => [d.id, { allow: d.data().allow || [], deny: d.data().deny || [] }]));
+    return dir.docs.map(d => ({ uid: d.id, email: '', name: '', lastSeen: '', ...d.data(), type: types[d.id] || '', allow: over[d.id]?.allow || [], deny: over[d.id]?.deny || [] }))
       .sort((a, b) => (a.type ? 1 : 0) - (b.type ? 1 : 0) || (b.lastSeen || '').localeCompare(a.lastSeen || ''));
   },
   // Buzón: deja un respaldo (JSON) para que la otra cuenta lo importe con un toque desde su app
@@ -575,6 +668,17 @@ export const admin = {
     const { fs, db } = fb;
     const ref = fs.doc(db, 'access', uid);
     return type ? fs.setDoc(ref, { type, updatedAt: new Date().toISOString(), by: account.user.uid }) : fs.deleteDoc(ref);
+  },
+  // Tipo + funciones de más (allow) o de menos (deny) frente a su plantilla
+  setAccess(uid, { type, allow = [], deny = [] }) {
+    if (!type) return this.setType(uid, '');
+    const { fs, db } = fb;
+    return fs.setDoc(fs.doc(db, 'access', uid), { type, allow: allow.slice(0, 200), deny: deny.slice(0, 200), updatedAt: new Date().toISOString(), by: account.user.uid });
+  },
+  // Plantillas por tipo de perfil (las ven todas las cuentas aprobadas y se aplican al instante)
+  saveTemplates(types) {
+    const { fs, db } = fb;
+    return fs.setDoc(fs.doc(db, 'config', 'plantillas'), { types, updatedAt: new Date().toISOString(), by: account.user.uid });
   },
 };
 

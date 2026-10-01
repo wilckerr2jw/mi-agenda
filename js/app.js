@@ -18,6 +18,7 @@ import * as Vi from './visita.js';
 import * as Sh from './compartir.js';
 import * as Gc from './gcal.js';
 import * as Fx from './corregir.js';
+import * as Pwa from './pwa.js';
 import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays, uid, fmtShort } from './util.js';
 
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
@@ -31,6 +32,10 @@ const ui = {
   congre: { view: (() => { try { return localStorage.getItem('miagenda.orgVista') || 'lista'; } catch { return 'lista'; } })(), picking: false, picked: [], sorting: false, fold: (() => { try { return JSON.parse(localStorage.getItem('miagenda.orgPlegados') || '[]'); } catch { return []; } })() },
 };
 const ROUTES = ['hoy', 'agenda', 'tareas', 'personas', 'notas', 'informe', 'congregacion'];
+const ROUTE_NAMES = { hoy: 'Hoy', agenda: 'Agenda', tareas: 'Tareas', personas: 'Personas', notas: 'Notas', informe: 'Informe', congregacion: 'Congregación' };
+// En el teléfono la barra de abajo lleva Hoy + 3 secciones + «Más»; si una está oculta, sube la siguiente
+const BAR_ORDER = ['agenda', 'tareas', 'informe', 'personas', 'notas', 'congregacion'];
+const barSplit = () => { const vis = BAR_ORDER.filter(r => M.isModuleVisible(r)); return { bar: vis.slice(0, 3), more: vis.slice(3) }; };
 
 // ───────────── Pintado ─────────────
 
@@ -59,16 +64,61 @@ function render() {
   const view = $('#view');
   const focused = document.activeElement?.id === 'q' ? document.activeElement.selectionStart : null;
   const y = window.scrollY;
+  permStyle();
+  // 🛡 La sección abierta ya no está permitida (el administrador la apagó, o los permisos llegaron después
+  // de abrir con #/seccion en la dirección): se vuelve a Hoy en vez de seguir mostrándola
+  if (ui.route !== 'hoy' && !M.isModuleVisible(ui.route)) {
+    if (location.hash === `#/${ui.route}`) history.replaceState(history.state, '', '#/hoy');
+    ui.route = 'hoy';
+  }
   view.innerHTML = V[ui.route](ui);
-  $$('#tabs .tab').forEach(b => {
+  const { bar, more } = barSplit();
+  $$('#tabs .tab[data-a="nav"]').forEach(b => {
     b.hidden = b.dataset.v !== 'hoy' && !M.isModuleVisible(b.dataset.v);
     b.setAttribute('aria-current', b.dataset.v === ui.route ? 'page' : 'false');
+    const i = b.dataset.v === 'hoy' ? 0 : bar.indexOf(b.dataset.v) + 1;
+    const inBar = i > 0 || b.dataset.v === 'hoy';
+    b.dataset.bar = inBar ? '1' : '0';   // en el teléfono, las demás van en «Más»
+    b.style.setProperty('--o', inBar ? i : 9);
   });
+  const mb = $('#tabs .tab-more');
+  if (mb) { mb.classList.toggle('on', more.includes(ui.route)); mb.setAttribute('aria-current', more.includes(ui.route) ? 'page' : 'false'); }
+  updateBadge();
+  document.title = ui.route === 'hoy' ? 'Mi Agenda Teocrática' : `${ROUTE_NAMES[ui.route]} · Mi Agenda Teocrática`;
   $('#fab').setAttribute('aria-label', { hoy: 'Agregar', agenda: 'Agregar evento', tareas: 'Nueva tarea', personas: ui.personas.seg === 'grupos' ? 'Nuevo grupo' : 'Nueva persona', notas: ui.notas.seg === 'reuniones' ? 'Nueva reunión' : 'Nueva nota', informe: 'Editar mes actual', congregacion: 'Nuevo departamento' }[ui.route]);
   $('#fab').hidden = ui.route === 'agenda' && !!ui.agenda.picking;   // al seleccionar varios, el botón + no tapa «Eliminar»
   if (focused !== null) { const q = $('#q'); q?.focus(); q?.setSelectionRange(focused, focused); }
   window.scrollTo(0, y);
   if (ui.route === 'agenda' && ui.agenda.mode === 'semana') WC.mount(c => S.calMove(c, render), (date, time, endTime) => S.eventSheet(null, { date, time, endTime }));
+}
+
+// Número en el ícono de la app: tareas atrasadas + rutinas de hoy que faltan por marcar
+function updateBadge() {
+  try {
+    const t = today(), me = store.doneId();
+    const late = M.isModuleVisible('tareas') ? (store.all('tasks') || []).filter(x => x.status !== 'hecha' && x.due && x.due < t && M.isMineTask(x)).length : 0;
+    const routines = (store.all('events') || []).filter(e => M.isRoutine(e) && M.occursOn(e, t) && !M.isDoneBy(e, t, me)).length;
+    Pwa.setBadge(late + routines);
+  } catch { /* datos aún sin cargar */ }
+}
+
+// «Más» (teléfono): las secciones que no caben en la barra, Buscar y Ajustes
+function moreSheet() {
+  const { more } = barSplit();
+  const icon = v => $(`#tabs .tab[data-v="${v}"] .pill`)?.innerHTML || '';
+  S.open({ title: 'Más', body: `<div class="more-list">
+    ${more.map(v => `<button type="button" class="more-item" data-a="more-go" data-v="${v}" ${ui.route === v ? 'aria-current="page"' : ''}><span class="pill">${icon(v)}</span><span>${esc(ROUTE_NAMES[v])}</span></button>`).join('')}
+    <button type="button" class="more-item" data-a="search"><span class="pill">${ic('search')}</span><span>Buscar</span></button>
+    <button type="button" class="more-item" data-a="settings"><span class="pill">${ic('more')}</span><span>Ajustes</span></button>
+  </div>` });
+}
+
+// 🛡 Funciones apagadas por el administrador: sus botones no se muestran (en las pantallas y en las hojas)
+function permStyle() {
+  let st = document.getElementById('perm-css');
+  if (!st) { st = document.createElement('style'); st.id = 'perm-css'; document.head.append(st); }
+  const css = M.permCss();
+  if (st.textContent !== css) st.textContent = css;
 }
 
 function go(route) {
@@ -78,7 +128,11 @@ function go(route) {
   history.replaceState(history.state, '', `#/${route}`);
   render();
   window.scrollTo(0, 0);
-  if (changed) { const v = $('#view'); v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); }   // transición suave
+  if (changed) {
+    const v = $('#view'); v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter');   // transición suave
+    const h = $('#view h1');   // los lectores de pantalla anuncian la sección nueva
+    if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
+  }
 }
 
 function refreshList() {
@@ -153,17 +207,28 @@ document.addEventListener('toggle', e => {
 }, true);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-a]');
-  if (!el) { if (e.target.classList?.contains('scrim')) S.closeOrBack(); return; }
+  if (!el) { if (e.target.classList?.contains('scrim')) S.closeOrBack(true); return; }
   const { a, id, v } = el.dataset;
   if (el.closest('summary')) e.preventDefault();   // un botón en el título de una sección no la pliega
+  { const fx = M.actionFeature(a, v); if (fx && !M.featureOn(fx)) return toast(M.FEATURE_OFF_MSG); }   // 🛡 función apagada por el administrador
   switch (a) {
     // navegación
     case 'nav': return go(v);
+    case 'more-nav': return moreSheet();
+    case 'more-go': {   // se cambia de sección cuando el «atrás» de la hoja ya terminó (si no, la dirección vuelve a la anterior)
+      let done = false;
+      const run = () => { if (done) return; done = true; window.removeEventListener('popstate', run); go(v); };
+      window.addEventListener('popstate', run);
+      S.close(); setTimeout(run, 400); return;
+    }
+    case 'sw-update': return Pwa.applyUpdate();
+    case 'inf-months': ui.informe.all = !ui.informe.all; return render();
+    case 'meca-offline': return Mc.saveOffline(el);
     case 'fab': return fab();
     case 'settings': return S.settings('');
     case 'set-sec': return S.settings(v);
     case 'search': return S.searchSheet();
-    case 'sheet-close': return S.closeOrBack();
+    case 'sheet-close': return S.closeOrBack(true);
     // eventos y calendario
     case 'event': return S.eventSheet(id, { occDate: el.dataset.occ || '' });
     case 'new-event': return S.eventSheet(null, { date: el.dataset.date });
@@ -439,7 +504,7 @@ document.addEventListener('input', e => {
   else if (e.target.id === 'past-text') Pa.textChanged();
   else if (e.target.dataset?.visitNote || e.target.dataset?.visitNotes) Vi.noteInput(e.target);
   else if (e.target.id === 'set-q') S.settingsFilter(e.target.value);
-  else if (e.target.id === 'title' && e.target.form?.dataset.form === 'event') S.routineAuto(e.target.form);   // «texto diario», «lectura»… son rutinas
+  else if (e.target.id === 'title' && e.target.form?.dataset.form === 'event') { S.categoryAuto(e.target.form); S.routineAuto(e.target.form); }   // «pastoreo» → Pastoreo; «texto diario», «lectura»… son rutinas
   else if (e.target.dataset?.agreements) S.refreshAgreements();
   else if (e.target.classList?.contains('pp-q')) S.pickerFilter(e.target);
   else if (e.target.matches?.('[data-psel-q]')) {   // 🔍 buscar hermano en la lista del departamento
@@ -466,9 +531,9 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
   const t = e.target;
   if (t.closest?.('input, textarea, select, [contenteditable="true"]') || $('#sheet-root .scrim') || $('#app').hidden || document.body.classList.contains('locked')) return;
-  if (/^[1-7]$/.test(e.key)) { const tab = $$('#tabs .tab').filter(b => !b.hidden)[Number(e.key) - 1]; if (tab) { e.preventDefault(); tab.click(); } }
+  if (/^[1-7]$/.test(e.key)) { const tab = $$('#tabs .tab[data-a="nav"]').filter(b => !b.hidden)[Number(e.key) - 1]; if (tab) { e.preventDefault(); tab.click(); } }
   else if (e.key === 'n' || e.key === 'N') { const f = $('#fab'); if (f && !f.hidden) { e.preventDefault(); f.click(); } }
-  else if (e.key === '/') { e.preventDefault(); S.searchSheet(); }
+  else if (e.key === '/' && M.featureOn('general.buscar')) { e.preventDefault(); S.searchSheet(); }
 });
 
 document.addEventListener('keydown', e => {
@@ -538,6 +603,7 @@ document.addEventListener('change', e => {
     const box = document.getElementById(t.dataset.otro);
     if (box) { box.hidden = t.value !== '__otro'; if (!box.hidden) box.querySelector('input')?.focus(); }
     if (t.id === 'category' && t.form?.dataset.form === 'event') {   // reunión de ancianos: participantes en vez de un solo acompañante
+      if (!t.dataset.autoing) t.dataset.manual = '1';   // lo elegiste tú: el título ya no lo cambia
       const isAncianos = t.value === 'ancianos';
       const single = document.getElementById('companion-single');
       const group = document.getElementById('companion-group');
@@ -739,6 +805,7 @@ function runQuick(id) {
   };
   const q = M.QUICK_ACTIONS.find(x => x.id === id);
   if (!q || (q.mod && !M.isModuleVisible(q.mod))) return;
+  if (!M.quickAllowed(id)) return toast(M.FEATURE_OFF_MSG);
   actions[id]?.();
 }
 function runHashAction() {
@@ -780,23 +847,34 @@ function showApp() {
   lockOnce();
   runHashAction();
   offerGuide();
+  Pwa.persistOnce();
+  openShared();
 }
 
 // ───────────── Arranque ─────────────
 
+// Versión nueva en espera: aviso en Hoy y en Ajustes (se recarga al tocar «Actualizar»)
 function registerServiceWorker() {
-  if (!('serviceWorker' in navigator)) return;
-  const hadController = !!navigator.serviceWorker.controller;
-  navigator.serviceWorker.register('./sw.js').catch(err => console.warn('Service worker no registrado', err));
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (hadController) toast('Hay una versión nueva de la app', 'Actualizar', () => location.reload(), 15000);
-  });
+  Pwa.register(() => { if (!$('#app').hidden) render(); if (document.querySelector('#sheet-root .set-menu')) S.settings(''); });
+}
+
+// «Compartir» una foto o PDF desde otra app → se abre el importador de asignaciones mecánicas con ese archivo
+let sharedPending = false;
+async function openShared() {
+  if (!sharedPending || $('#app').hidden || !data_ready()) return;
+  sharedPending = false;
+  const files = await Pwa.takeShared();
+  if (!files.length) return;
+  if (!M.isModuleVisible('congregacion')) return toast('Para importar ese archivo, activa la sección Congregación en Ajustes');
+  await Mc.importSheet();
+  setTimeout(() => Mc.fileChosen({ files }), 80);
 }
 
 async function boot() {
   Theme.init(() => { if (!$('#app').hidden) render(); });
   const initial = location.hash.replace('#/', '');
   if (ROUTES.includes(initial) && (initial === 'hoy' || M.isModuleVisible(initial))) ui.route = initial;
+  else if (ROUTES.includes(initial)) history.replaceState(history.state, '', '#/hoy');   // sección no permitida
 
   store.setErrorHandler(err => {
     console.error(err);
@@ -809,6 +887,7 @@ async function boot() {
   store.onData(() => { if (!offered && !$('#app').hidden) { offered = true; setTimeout(() => Bor.offer(S), 1200); setTimeout(() => S.inboxCheck(), 2500); } });
   // «✓ Ya lo hice» desde un aviso: marca la rutina en cuanto se cargan los datos
   store.onData(applyPendingDone);
+  store.onData(() => openShared());
   store.onData(() => Nat.schedule());
   // Enlace para los ancianos y Google Calendar: se actualizan solos cuando cambian tus datos
   store.onData(() => { Sh.autoUpdate(); Gc.autoSync(); });
@@ -817,7 +896,8 @@ async function boot() {
     if (q.get('hecho')) queueDone(q.get('hecho'), q.get('dia'));
     if (q.get('accion') === 'registrar') pendingLog = true;
     if (q.get('accion') === 'nosali') setTimeout(() => markNoActivity(), 1500);
-    if (q.get('hecho') || q.get('accion')) history.replaceState(history.state, '', location.pathname + location.hash);
+    if (q.get('compartido')) sharedPending = true;
+    if (q.get('hecho') || q.get('accion') || q.get('compartido')) history.replaceState(history.state, '', location.pathname + location.hash);
   } catch { /* sin parámetros */ }
   navigator.serviceWorker?.addEventListener('message', ev => {
     if (ev.data?.type === 'hecho') queueDone(ev.data.eid, ev.data.day);
@@ -834,7 +914,6 @@ async function boot() {
   }
 
   window.addEventListener('offline', () => toast('Sin conexión: tus cambios se guardan y se enviarán al volver.'));
-  window.addEventListener('online', () => toast('Conexión restablecida'));
 
   try {
     await store.account.init(user => {

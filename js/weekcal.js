@@ -110,7 +110,8 @@ export function mount(onChange, onCreate) {
     suppressClick = true;
     setTimeout(() => { suppressClick = false; }, 400);
     if (d.s === d.s0 && d.e === d.e0 && d.date === d.date0) return;
-    onChange({ kind: d.el.dataset.kind, id: d.el.dataset.id, occ: d.el.dataset.occ || d.date0, fromDate: d.date0, toDate: d.date, start: d.s, end: d.e, resized: d.mode === 'resize' });
+    // Hasta las 24:00 se guarda como 23:59 (las 00:00 sería «antes» del inicio)
+    onChange({ kind: d.el.dataset.kind, id: d.el.dataset.id, occ: d.el.dataset.occ || d.date0, fromDate: d.date0, toDate: d.date, start: d.s, end: Math.min(d.e, 23 * 60 + 59), resized: d.mode === 'resize' });
   }
 
   api = { move, end, activate };

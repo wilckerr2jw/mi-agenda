@@ -19,6 +19,7 @@ async function digest(pin, salt) {
 export async function setPin(pin, minutes = 0) {
   const salt = crypto.getRandomValues(new Uint32Array(2)).join('-');
   localStorage.setItem(KEY, JSON.stringify({ hash: await digest(pin, salt), salt, delay: minutes, len: String(pin).length }));
+  writeFails(null);
   unlocked = true;
 }
 export function setDelay(minutes) {
@@ -61,7 +62,17 @@ async function bioUnlock() {
   } catch { return false; }
 }
 
-export function clearPin() { try { localStorage.removeItem(KEY); } catch { /* sin almacenamiento */ } unlocked = true; hide(); }
+export function clearPin() { try { localStorage.removeItem(KEY); } catch { /* sin almacenamiento */ } writeFails(null); unlocked = true; hide(); }
+
+// Intentos fallidos: después de 5 hay que esperar 30 s, y el doble con cada fallo más (hasta 15 min).
+// Se guarda en el teléfono para que cerrar y abrir la app no lo reinicie.
+const FAILS = 'miagenda.pin.fallos';
+const readFails = () => { try { return JSON.parse(localStorage.getItem(FAILS) || 'null') || { n: 0, until: 0 }; } catch { return { n: 0, until: 0 }; } };
+const writeFails = v => { try { v ? localStorage.setItem(FAILS, JSON.stringify(v)) : localStorage.removeItem(FAILS); } catch { /* sin almacenamiento */ } };
+export const waitAfter = n => (n < 5 ? 0 : Math.min(30000 * 2 ** (n - 5), 15 * 60000));
+const waitLeft = () => Math.max(0, readFails().until - Date.now());
+function failed() { const n = readFails().n + 1; writeFails({ n, until: Date.now() + waitAfter(n) }); return waitAfter(n); }
+const waitText = ms => { const s = Math.ceil(ms / 1000); return s >= 60 ? `${Math.ceil(s / 60)} min` : `${s} s`; };
 
 export const verify = pin => check(pin);
 async function check(pin) {
@@ -95,21 +106,23 @@ function show(onForgot) {
   const tryPin = async () => {
     const len = Number(read()?.len) || 4;
     if (pin.length < len) return;
-    if (await check(pin)) { unlocked = true; hide(); }
-    else { err.textContent = 'PIN incorrecto'; pin = ''; paint(); navigator.vibrate?.(120); }
+    const left = waitLeft();
+    if (left) { err.textContent = `Demasiados intentos. Espera ${waitText(left)} y vuelve a probar.`; pin = ''; paint(); return; }
+    if (await check(pin)) { writeFails(null); unlocked = true; hide(); }
+    else { const w = failed(); err.textContent = w ? `PIN incorrecto. Espera ${waitText(w)} antes de volver a probar.` : 'PIN incorrecto'; pin = ''; paint(); navigator.vibrate?.(120); }
   };
   el.addEventListener('click', e => {
     const k = e.target.closest('[data-k]')?.dataset.k;
     if (k !== undefined) {
-      err.textContent = '';
+      if (!waitLeft()) err.textContent = '';
       if (k === '⌫') pin = pin.slice(0, -1); else if (pin.length < 6) pin += k;
       paint(); tryPin();
     }
     if (e.target.closest('.lock-forgot')) onForgot?.();
-    if (e.target.closest('.lock-bio')) bioUnlock().then(ok => { if (ok) { unlocked = true; hide(); } else err.textContent = 'No se pudo con la huella: usa tu PIN'; });
+    if (e.target.closest('.lock-bio')) bioUnlock().then(ok => { if (ok) { writeFails(null); unlocked = true; hide(); } else err.textContent = 'No se pudo con la huella: usa tu PIN'; });
   });
   el.addEventListener('keydown', e => {
-    if (/^\d$/.test(e.key) && pin.length < 6) { err.textContent = ''; pin += e.key; paint(); tryPin(); }
+    if (/^\d$/.test(e.key) && pin.length < 6) { if (!waitLeft()) err.textContent = ''; pin += e.key; paint(); tryPin(); }
     if (e.key === 'Backspace') { pin = pin.slice(0, -1); paint(); }
   });
   el.tabIndex = -1; el.focus();

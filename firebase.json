@@ -23,7 +23,9 @@
       "asignaciones-*.json",
       "Claude outputs/**",
       "vendor/LEEME.txt",
-      "herramientas/**"
+      "herramientas/**",
+      "tests/**",
+      "package.json"
     ],
     "headers": [
       {

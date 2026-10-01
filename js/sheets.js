@@ -2,7 +2,7 @@
 
 import * as store from './store.js';
 import { data, isCloud, account, session } from './store.js';
-import { esc, ic, uid, today, toast, fmtTime, fmtShort, fmtMonth, relDays, initials, telLink, waLink, norm, dateOf, avatarHtml, addDays } from './util.js';
+import { esc, ic, uid, today, toast, toastPlace, fmtTime, fmtShort, fmtMonth, relDays, initials, telLink, waLink, norm, dateOf, avatarHtml, addDays } from './util.js';
 import * as M from './model.js';
 import * as Theme from './theme.js';
 import { readKeep } from './keep.js';
@@ -18,6 +18,7 @@ import { hhmm } from './weekcal.js';
 import * as N from './notify.js';
 import * as Nat from './native.js';
 import { saveFixMonth } from './corregir.js';
+import { updateBanner } from './pwa.js';
 
 // Permite que app.js reaccione a lo guardado (p. ej. saltar a esa fecha en el calendario)
 export const hooks = { eventSaved: null, deptsChanged: null };
@@ -28,47 +29,113 @@ let isOpen = false;
 
 // ───────────── Mecánica de la hoja ─────────────
 
+let opener = null;      // lo que tenías enfocado al abrir (al cerrar, el foco vuelve ahí)
+let formSnap = null;    // cómo estaba el formulario al abrirse, para saber si cambiaste algo
+
+// Valores del formulario (solo los campos que había al abrir; lo que se carga después no cuenta)
+const formEls = f => [...f.elements].filter(el => el.name && !['file', 'submit', 'button'].includes(el.type) && !el.closest('#share-box'));
+const formVals = (f, els = formEls(f)) => els.map(el => (el.type === 'checkbox' || el.type === 'radio') ? el.checked : el.value).join('\u0001');
+function snapForm() {
+  const f = root.querySelector('form#f[data-form]');
+  if (!f) { formSnap = null; return; }
+  const els = formEls(f);
+  formSnap = { f, els, v: formVals(f, els) };
+}
+const isDirty = () => !!formSnap && formSnap.f.isConnected && !formSnap.f.querySelector('fieldset[disabled]') && formVals(formSnap.f, formSnap.els) !== formSnap.v;
+const focusables = () => [...root.querySelectorAll('.sheet button, .sheet [href], .sheet input, .sheet select, .sheet textarea, .sheet summary, .sheet [tabindex]:not([tabindex="-1"])')]
+  .filter(el => !el.disabled && !el.closest('[hidden]') && el.type !== 'hidden' && el.getClientRects().length);
+
 export function open({ title, body, actions = '', back = null, focus = null }) {
   backFn = back;
-  root.innerHTML = `<div class="scrim"><section class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
-    <header class="sheet-h"><h2>${esc(title)}</h2><button class="icon-btn" data-a="sheet-close" aria-label="Cerrar">${ic('x')}</button></header>
+  if (!root.contains(document.activeElement) && document.activeElement !== document.body) opener = document.activeElement;
+  root.innerHTML = `<div class="scrim"><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <header class="sheet-h"><h2 id="sheet-title" tabindex="-1">${esc(title)}</h2><button class="icon-btn" data-a="sheet-close" aria-label="Cerrar">${ic('x')}</button></header>
     <div class="sheet-b">${body}</div>
     ${actions ? `<footer class="sheet-f">${actions}</footer>` : ''}
   </section></div>`;
   document.body.classList.add('lock');
   if (!isOpen) { isOpen = true; history.pushState({ sheet: 1 }, ''); }   // el botón "atrás" cierra la hoja
-  if (focus) root.querySelector(focus)?.focus();
+  const f = focus && root.querySelector(focus);
+  (f || root.querySelector('#sheet-title'))?.focus({ preventScroll: !f });
+  formSnap = null;
+  setTimeout(() => { if (!formSnap) snapForm(); }, 0);   // después de que la hoja termina de llenar sus campos
+  toastPlace();
 }
 
 export function close(fromPop = false) {
   stopDictation();
   Bor.clear();   // cerraste o guardaste: ya no hace falta el borrador
   root.innerHTML = '';
+  formSnap = null;
   document.body.classList.remove('lock');
   backFn = null;
   if (isOpen) {
     isOpen = false;
     if (!fromPop && history.state?.sheet) history.back();
   }
+  const o = opener; opener = null;
+  if (o?.isConnected && !o.closest('[hidden]')) o.focus({ preventScroll: true });
+  else document.querySelector('#view h1')?.focus?.({ preventScroll: true });
+  toastPlace();
 }
 
-// Cierra, o vuelve a la hoja anterior si esta se abrió desde otra
-export function closeOrBack() {
-  if (backFn) { const b = backFn; backFn = null; b(); } else close();
+// «¿Descartar cambios?»: aparece dentro de la hoja; «Descartar» sigue con lo que ibas a hacer
+function askDiscard(go) {
+  const sheet = root.querySelector('.sheet');
+  if (!sheet || sheet.querySelector('.discard')) return;
+  const box = document.createElement('div');
+  box.className = 'discard';
+  box.innerHTML = `<div class="discard-card" role="alertdialog" aria-modal="true" aria-labelledby="discard-t" aria-describedby="discard-d">
+    <h3 id="discard-t">¿Descartar cambios?</h3><p id="discard-d" class="hint">Lo que cambiaste en este formulario no se ha guardado.</p>
+    <div class="discard-btns"><button type="button" class="btn ghost" data-discard="no">Seguir editando</button><button type="button" class="btn primary danger-bg" data-discard="yes">Descartar</button></div></div>`;
+  sheet.append(box);
+  const back = sheet.querySelector('[data-discard="no"]');
+  back.focus();
+  box.addEventListener('click', e => {
+    e.stopPropagation();
+    const a = e.target.closest('[data-discard]')?.dataset.discard;
+    if (a === 'no') { box.remove(); root.querySelector('#sheet-title')?.focus(); }
+    else if (a === 'yes') { formSnap = null; box.remove(); go(); }
+  });
 }
 
-window.addEventListener('popstate', () => { if (isOpen) close(true); });
-window.addEventListener('keydown', e => { if (e.key === 'Escape' && isOpen) closeOrBack(); });
+// Cierra, o vuelve a la hoja anterior si esta se abrió desde otra.
+// ask = true cuando lo pide la persona (✕, Esc, tocar fuera): si cambió algo sin guardar, pregunta antes.
+export function closeOrBack(ask = false) {
+  const go = () => { if (backFn) { const b = backFn; backFn = null; b(); } else close(); };
+  if (!ask) { formSnap = null; return go(); }   // al guardar o borrar no se pregunta
+  if (root.querySelector('.discard')) { root.querySelector('[data-discard="no"]')?.click(); return; }
+  if (isDirty()) return askDiscard(go);
+  go();
+}
+
+window.addEventListener('popstate', () => {
+  if (!isOpen) return;
+  if (isDirty()) { history.pushState({ sheet: 1 }, ''); askDiscard(() => close()); return; }   // «atrás» del teléfono con cambios sin guardar
+  close(true);
+});
+window.addEventListener('keydown', e => {
+  if (!isOpen || !root.firstElementChild) return;
+  if (e.key === 'Escape') { e.preventDefault(); closeOrBack(true); return; }
+  if (e.key !== 'Tab') return;   // el foco no sale de la hoja abierta
+  const disc = root.querySelector('.discard');
+  const list = disc ? [...disc.querySelectorAll('button')] : focusables();
+  if (!list.length) return;
+  const first = list[0], last = list[list.length - 1], cur = document.activeElement;
+  const inside = disc ? disc.contains(cur) : root.contains(cur);
+  if (!inside || (e.shiftKey && (cur === first || cur?.id === 'sheet-title'))) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+  else if (!e.shiftKey && cur === last) { e.preventDefault(); first.focus(); }
+});
 
 // ───────────── Ayudas para formularios ─────────────
 
-const fld = (label, input, id) => `<div class="f"><label for="${id}">${label}</label>${input}</div>`;
+const fld = (label, input, id) => `<div class="f"><label for="${esc(id)}">${label}</label>${input}</div>`;
 const options = (obj, sel) => Object.entries(obj)
-  .map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(typeof v === 'string' ? v : v.n)}</option>`).join('');
+  .map(([k, v]) => `<option value="${esc(k)}" ${k === sel ? 'selected' : ''}>${esc(typeof v === 'string' ? v : v.n)}</option>`).join('');
 const foot = (col, id, label = 'Guardar') =>
-  `${id ? `<button type="button" class="btn ghost danger" data-a="delete" data-col="${col}" data-id="${id}">Eliminar</button>` : ''}
+  `${id ? `<button type="button" class="btn ghost danger" data-a="delete" data-col="${esc(col)}" data-id="${esc(id)}">Eliminar</button>` : ''}
    <button type="submit" form="f" class="btn primary">${label}</button>`;
-const formTag = (kind, id) => `<form id="f" data-form="${kind}" data-id="${id || ''}" autocomplete="off">`;
+const formTag = (kind, id) => `<form id="f" data-form="${kind}" data-id="${esc(id || '')}" autocomplete="off">`;
 
 // Círculo de foto que se puede tocar para cambiarla (toca la etiqueta → abre el selector de archivos, sin JS extra)
 const avatarPicker = (field, fallback, photo) => `<div class="avatar-pick">
@@ -90,20 +157,20 @@ const sortedPeople = () => [...data.people].sort((a, b) => a.name.localeCompare(
 const sortedGroups = () => [...data.groups].sort((a, b) => a.name.localeCompare(b.name, 'es'));
 
 const peopleSelect = (id, sel, emptyLabel) =>
-  `<select id="${id}" name="${id}"><option value="">${emptyLabel}</option>${sortedPeople().map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`;
+  `<select id="${esc(id)}" name="${esc(id)}"><option value="">${emptyLabel}</option>${sortedPeople().map(p => `<option value="${esc(p.id)}" ${p.id === sel ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`;
 
 // Lista de casillas para elegir varios grupos o personas a la vez (participantes de una reunión, etc.)
 const pickList = (title, items, name, chosen, label) => items.length
-  ? `<p class="hint pick-h">${title}</p><div class="checklist">${items.map(x => `<label class="check"><input type="checkbox" name="${name}" value="${x.id}" ${chosen.includes(x.id) ? 'checked' : ''}> <span>${label(x)}</span></label>`).join('')}</div>` : '';
+  ? `<p class="hint pick-h">${title}</p><div class="checklist">${items.map(x => `<label class="check"><input type="checkbox" name="${name}" value="${esc(x.id)}" ${chosen.includes(x.id) ? 'checked' : ''}> <span>${label(x)}</span></label>`).join('')}</div>` : '';
 
 // "Tipo": la lista fija + tus tipos propios + «✏️ Nuevo tipo…» (lo que escribas ahí queda en la lista)
 // known = todos los tipos fijos (aunque el perfil oculte algunos), para no mostrarlos como «escritos a mano»
 function typeSelect(id, builtIns, current, col, known = builtIns) {
   const custom = M.customTypes(col, id, known);
-  return `<select id="${id}" name="${id}" data-otro="${id}-otro">${options(builtIns, current)}${custom.map(c => `<option value="${esc(c)}" ${c === current ? 'selected' : ''}>${esc(c)}</option>`).join('')}<option value="__otro">✏️ Nuevo tipo…</option></select>`;
+  return `<select id="${esc(id)}" name="${esc(id)}" data-otro="${esc(id)}-otro">${options(builtIns, current)}${custom.map(c => `<option value="${esc(c)}" ${c === current ? 'selected' : ''}>${esc(c)}</option>`).join('')}<option value="__otro">✏️ Nuevo tipo…</option></select>`;
 }
 const typeOtro = (id, ph) =>
-  `<div class="f" id="${id}-otro" hidden><label for="${id}-otro-in">Nombre del nuevo tipo <span class="hint">(quedará en la lista)</span></label><input id="${id}-otro-in" name="${id}Otro" maxlength="60" placeholder="${ph}"></div>`;
+  `<div class="f" id="${esc(id)}-otro" hidden><label for="${esc(id)}-otro-in">Nombre del nuevo tipo <span class="hint">(quedará en la lista)</span></label><input id="${esc(id)}-otro-in" name="${esc(id)}Otro" maxlength="60" placeholder="${ph}"></div>`;
 
 // Guarda un tipo escrito a mano en tu lista, para que aparezca siempre como una opción más
 function rememberType(col, value, builtIns) {
@@ -144,10 +211,10 @@ export function eventSheet(id, preset = {}, back) {
         ${fld('Avisarme para prepararla', `<select id="prep" name="prep">${M.PREP_DAYS.map(([n, t]) => `<option value="${n}" ${n === (Number(v.prep) || 0) ? 'selected' : ''}>${t}</option>`).join('')}</select>`, 'prep')}
         <p class="hint">Escribe el tema o la referencia en «Tema sugerido». Te aparece en Hoy y en el resumen de la mañana desde que empieza el tiempo de preparación.</p>
       </div>
-      ${fld('Fecha', `<input id="date" name="date" type="date" required value="${v.date}">`, 'date')}
+      ${fld('Fecha', `<input id="date" name="date" type="date" required value="${esc(v.date)}">`, 'date')}
       <div class="two">
-        ${fld('Empieza', `<input id="time" name="time" type="time" value="${v.time || ''}">`, 'time')}
-        ${fld('Termina', `<input id="endTime" name="endTime" type="time" value="${v.endTime || ''}">`, 'endTime')}
+        ${fld('Empieza', `<input id="time" name="time" type="time" value="${esc(v.time || '')}">`, 'time')}
+        ${fld('Termina', `<input id="endTime" name="endTime" type="time" value="${esc(v.endTime || '')}">`, 'endTime')}
       </div>
       ${fld('Lugar', `<input id="place" name="place" maxlength="120" value="${esc(v.place || '')}" placeholder="Salón, dirección o enlace">`, 'place')}
       <div class="f"><span class="lbl">Color <span class="hint">(como en tu calendario impreso)</span></span>
@@ -174,16 +241,17 @@ export function eventSheet(id, preset = {}, back) {
       </div>
       ${fld('Notas', `<textarea id="notes" name="notes" rows="3">${esc(v.notes || '')}</textarea>`, 'notes')}
       ${owner ? '' : '</fieldset>'}
-      ${isCloud && owner ? `<div class="f" id="share-box"><span class="lbl">Compartir con <span class="hint">(otras cuentas de la app)</span></span><p class="hint">Cargando cuentas…</p></div>` : ''}
+      ${isCloud && owner && M.featureOn('agenda.compartir') ? `<div class="f" id="share-box"><span class="lbl">Compartir con <span class="hint">(otras cuentas de la app)</span></span><p class="hint">Cargando cuentas…</p></div>` : ''}
     </form>
     ${src ? '<p class="hint pad-top">Es una copia: cambia lo que haga falta y guarda. El original no se toca.</p>' : ''}
-    ${showSkip && !skipped && owner ? `<button type="button" class="btn pad-top" data-a="occ-edit" data-id="${e.id}" data-date="${occDate}">✏️ Cambiar solo el ${fmtShort(occDate)}</button>` : ''}
-    ${showSkip && owner ? `<button type="button" class="btn ghost pad-top" data-a="${skipped ? 'unskip-occ' : 'skip-occ'}" data-id="${e.id}" data-date="${occDate}">${skipped ? `Restaurar el ${fmtShort(occDate)}` : `Cancelar solo el ${fmtShort(occDate)}`}</button>` : ''}
-    ${e ? `<button type="button" class="btn ghost pad-top" data-a="ev-dup" data-id="${e.id}">⧉ Duplicar evento</button>` : ''}`,
+    ${showSkip && !skipped && owner ? `<button type="button" class="btn pad-top" data-a="occ-edit" data-id="${esc(e.id)}" data-date="${esc(occDate)}">✏️ Cambiar solo el ${fmtShort(occDate)}</button>` : ''}
+    ${showSkip && owner ? `<button type="button" class="btn ghost pad-top" data-a="${skipped ? 'unskip-occ' : 'skip-occ'}" data-id="${esc(e.id)}" data-date="${esc(occDate)}">${skipped ? `Restaurar el ${fmtShort(occDate)}` : `Cancelar solo el ${fmtShort(occDate)}`}</button>` : ''}
+    ${e ? `<button type="button" class="btn ghost pad-top" data-a="ev-dup" data-id="${esc(e.id)}">⧉ Duplicar evento</button>` : ''}`,
     actions: owner ? foot('events', e?.id)
-      : `<button type="button" class="btn ghost danger" data-a="delete" data-col="events" data-id="${e.id}">Quitar de mi agenda</button>`,
+      : `<button type="button" class="btn ghost danger" data-a="delete" data-col="events" data-id="${esc(e.id)}">Quitar de mi agenda</button>`,
   });
-  if (isCloud && owner) loadShareBox(v);
+  if (src || preset.category) { const c = document.getElementById('category'); if (c) c.dataset.manual = '1'; }   // el tipo ya viene elegido
+  if (isCloud && owner && M.featureOn('agenda.compartir')) loadShareBox(v);
 }
 
 // «Es una rutina»: mientras no la toques, se marca sola según la repetición, el tipo y el nombre del evento
@@ -196,6 +264,28 @@ export function routineAuto(form) {
   if (cb.dataset.set) return;
   const prev = form.dataset.id ? store.get('events', form.dataset.id) : null;
   cb.checked = M.routineDefault({ repeat, category: val('category'), title: val('title'), doneLog: prev?.doneLog, congreAuto: prev?.congreAuto });
+}
+
+// «Tipo» según el título (evento nuevo): mientras no lo elijas tú, «Visita de pastoreo» → Pastoreo, etc.
+const CAT_WORDS = [
+  ['pastoreo', /pastoreo/],
+  ['familia', /adoracion (en|de la) familia|noche de adoracion/],
+  ['ancianos', /ancianos/],
+  ['asignacion', /asignacion|discurso|lectura de la biblia (en|de) (la )?reunion/],
+  ['estudio', /estudio|lectura|texto diario|texto del dia|examinando las escrituras/],
+  ['predicacion', /predicacion|predicar|servicio/],
+  ['reunion', /reunion/],
+];
+export function categoryAuto(form) {
+  const sel = form?.querySelector('#category');
+  if (!sel || sel.dataset.manual || form.dataset.id) return;
+  const t = norm(form.querySelector('#title')?.value || '');
+  const hit = CAT_WORDS.find(([k, re]) => re.test(t) && [...sel.options].some(o => o.value === k));
+  if (!hit || sel.value === hit[0]) return;
+  sel.value = hit[0];
+  sel.dataset.autoing = '1';   // que el cambio no cuente como elegido a mano
+  sel.dispatchEvent(new Event('change', { bubbles: true }));
+  delete sel.dataset.autoing;
 }
 
 // Cambiar solo un día de un evento que se repite: ese día se salta en la serie y se crea un evento suelto
@@ -287,7 +377,7 @@ export function weekTemplates(start, span) {
     title: 'Plantillas de semana',
     body: `<p class="hint">Guarda cómo es una semana (sus eventos, con día y hora) y aplícala a otra semana cuando la necesites: por ejemplo tu «semana normal», una semana de asamblea o la visita del superintendente. Al aplicar solo se agrega lo que falta; no se repite lo que ya está.</p>
       ${list.length ? `<div class="mini-list">${list.map(t => `<div class="mini-row"><span class="grow"><strong>${esc(t.name)}</strong><span class="meta">${t.items.length} eventos</span></span>
-        <span class="ag-btns"><button type="button" class="btn small primary" data-a="wk-tpl-apply" data-id="${t.id}">Aplicar a la semana del ${fmtShort(monday)}</button><button type="button" class="icon-btn" data-a="wk-tpl-del" data-id="${t.id}" aria-label="Borrar plantilla">${ic('x', 'sm')}</button></span></div>`).join('')}</div>` : '<p class="hint">Aún no tienes plantillas.</p>'}
+        <span class="ag-btns"><button type="button" class="btn small primary" data-a="wk-tpl-apply" data-id="${esc(t.id)}">Aplicar a la semana del ${fmtShort(monday)}</button><button type="button" class="icon-btn" data-a="wk-tpl-del" data-id="${esc(t.id)}" aria-label="Borrar plantilla">${ic('x', 'sm')}</button></span></div>`).join('')}</div>` : '<p class="hint">Aún no tienes plantillas.</p>'}
       <h3 class="sub-h">Guardar la semana del ${fmtShort(monday)}</h3>
       <div class="log-add"><input id="wk-tpl-name" maxlength="60" placeholder="Nombre (ej. Semana normal)" aria-label="Nombre de la plantilla"><button type="button" class="btn" data-a="wk-tpl-save">Guardar</button></div>`,
     actions: '<button type="button" class="btn primary" data-a="sheet-close">Listo</button>',
@@ -510,13 +600,13 @@ export function taskSheet(id, preset = {}, back) {
   const v = t || { title: preset.title || '', kind: preset.kind || 'visita', personId: preset.personId || '', companionId: '', due: preset.due || '', dueTime: '', status: 'pendiente', notes: preset.notes || '', log: [], meetingId: preset.meetingId || '', fromAgreement: preset.fromAgreement || '', responsibles: preset.responsibles || [], responsibleIds: preset.responsibleIds || [], mine: preset.mine !== false, repeat: preset.repeat || '', deptId: preset.deptId || '' };
   const meeting = v.meetingId ? store.get('meetings', v.meetingId) : null;
   const meetings = [...data.meetings].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  const meetingSelect = `<select id="meetingId" name="meetingId"><option value="">Ninguna</option>${meetings.map(m => `<option value="${m.id}" ${m.id === v.meetingId ? 'selected' : ''}>${esc(m.title)} — ${fmtShort(m.date)}</option>`).join('')}</select>`;
+  const meetingSelect = `<select id="meetingId" name="meetingId"><option value="">Ninguna</option>${meetings.map(m => `<option value="${esc(m.id)}" ${m.id === v.meetingId ? 'selected' : ''}>${esc(m.title)} — ${fmtShort(m.date)}</option>`).join('')}</select>`;
 
   const log = t ? `<section class="log"><h3 class="sub-h">Seguimiento</h3>
       ${(t.log || []).length
         ? `<ul>${[...t.log].reverse().map(logLine).join('')}</ul>`
         : '<p class="hint">Aún no hay anotaciones. Registra aquí cada avance.</p>'}
-      <div class="log-add"><input id="log-text" maxlength="240" placeholder="Anota un avance" aria-label="Nuevo seguimiento"><button type="button" class="btn" data-a="log-add" data-id="${t.id}">Agregar</button></div>
+      <div class="log-add"><input id="log-text" maxlength="240" placeholder="Anota un avance" aria-label="Nuevo seguimiento"><button type="button" class="btn" data-a="log-add" data-id="${esc(t.id)}">Agregar</button></div>
     </section>` : '<p class="hint">Guarda la tarea para empezar a anotar seguimientos.</p>';
 
   open({
@@ -529,7 +619,7 @@ export function taskSheet(id, preset = {}, back) {
         ${fld('Estado', `<select id="status" name="status">${options(M.STATUS, v.status)}</select>`, 'status')}
       </div>
       ${typeOtro('kind', 'Ej. Estudio con la familia')}
-      <div class="f"><span class="lbl">Prioridad</span><div class="seg four three prio-pick" role="radiogroup" aria-label="Prioridad">${Object.entries(M.PRIORITIES).map(([k, n]) => `<label><input type="radio" name="priority" value="${k}" ${k === M.taskPrio(v) ? 'checked' : ''}><span>${n}</span></label>`).join('')}</div>
+      <div class="f"><span class="lbl">Prioridad</span><div class="seg four three prio-pick" role="radiogroup" aria-label="Prioridad">${Object.entries(M.PRIORITIES).map(([k, n]) => `<label><input type="radio" name="priority" value="${esc(k)}" ${k === M.taskPrio(v) ? 'checked' : ''}><span>${n}</span></label>`).join('')}</div>
         <p class="hint">Las de baja prioridad quedan al final de la lista.</p></div>
       ${fld('Persona a atender', peopleSelect('personId', v.personId, 'Sin persona'), 'personId')}
       ${!t && preset.subjectName && !v.personId ? `<p class="hint" id="subject-add">${esc(preset.subjectName)} no está en tus Personas. <button type="button" class="link sm" data-a="subject-add-person" data-name="${esc(preset.subjectName)}">Agregarla y elegirla</button></p>` : ''}
@@ -539,11 +629,11 @@ export function taskSheet(id, preset = {}, back) {
       <input type="hidden" name="deptId" value="${esc(v.deptId || '')}">
       ${v.deptId && M.taskDept(v) ? `<p class="hint">📋 Asignada desde el departamento «${esc(M.taskDept(v).name)}».</p>` : ''}
       <div class="two">
-        ${fld('Fecha límite', `<input id="due" name="due" type="date" value="${v.due || ''}">`, 'due')}
-        ${fld('Hora', `<input id="dueTime" name="dueTime" type="time" value="${v.dueTime || ''}">`, 'dueTime')}
+        ${fld('Fecha límite', `<input id="due" name="due" type="date" value="${esc(v.due || '')}">`, 'due')}
+        ${fld('Hora', `<input id="dueTime" name="dueTime" type="time" value="${esc(v.dueTime || '')}">`, 'dueTime')}
       </div>
-      ${fld('🔁 Repetir', `<select id="repeat" name="repeat">${Object.entries(M.TASK_REPEATS).map(([k, n]) => `<option value="${k}" ${k === (v.repeat || '') ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`, 'repeat')}
-      <p class="hint" id="repeat-hint" ${v.repeat ? '' : 'hidden'}>${v.repeat ? `${esc(M.repeatLabel(v.repeat, v.due))}. Al marcarla como hecha se crea la siguiente.` : ''}</p>
+      ${fld('🔁 Repetir', `<select id="repeat" name="repeat">${Object.entries(M.TASK_REPEATS).map(([k, n]) => `<option value="${esc(k)}" ${k === (v.repeat || '') ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`, 'repeat')}
+      <p class="hint" id="repeat-hint" ${v.repeat ? '' : 'hidden'}>${v.repeat ? `${esc(M.repeatLabel(v.repeat, v.due, v))}. Al marcarla como hecha se crea la siguiente.` : ''}</p>
       ${fld('Notas', `<textarea id="notes" name="notes" rows="3">${esc(v.notes || '')}</textarea>${micButton('notes')}`, 'notes')}
       ${meetings.length ? fld('Viene de la reunión…', meetingSelect, 'meetingId') : ''}
       ${v.fromAgreement && meeting ? `<p class="hint">Sale de un acuerdo de «${esc(meeting.title)}».</p>` : ''}
@@ -639,8 +729,8 @@ export function personSheet(id, back) {
           <div class="log-add"><input id="priv-new" maxlength="60" placeholder="Otro privilegio (ej. Superintendente de ciudad)" aria-label="Otro privilegio"><button type="button" class="btn" data-a="priv-add">Agregar</button></div>
         </details>
       </div>
-      ${fld('Grupos', `${groups.length ? `<div class="checklist">${groups.map(g => `<label class="check"><input type="checkbox" name="group" value="${g.id}" ${mine.includes(g.id) ? 'checked' : ''}> ${esc(g.name)}</label>`).join('')}</div>` : ''}<input id="newGroup" name="newGroup" maxlength="60" placeholder="${groups.length ? 'Agregar a un grupo nuevo' : 'Ej. Siervos ministeriales'}">`, 'newGroup')}
-      ${isCloud && !v.isMe ? `<div class="f" id="acct-box"><label for="accountUid">📲 Cuenta en la app <span class="hint">(para enviarle tareas)</span></label>${accountSelect(v)}<p class="hint" id="acct-hint">${esc(accountHint(v))}</p></div>` : ''}
+      ${fld('Grupos', `${groups.length ? `<div class="checklist">${groups.map(g => `<label class="check"><input type="checkbox" name="group" value="${esc(g.id)}" ${mine.includes(g.id) ? 'checked' : ''}> ${esc(g.name)}</label>`).join('')}</div>` : ''}<input id="newGroup" name="newGroup" maxlength="60" placeholder="${groups.length ? 'Agregar a un grupo nuevo' : 'Ej. Siervos ministeriales'}">`, 'newGroup')}
+      ${isCloud && !v.isMe && M.featureOn('tareas.asignar') ? `<div class="f" id="acct-box"><label for="accountUid">📲 Cuenta en la app <span class="hint">(para enviarle tareas)</span></label>${accountSelect(v)}<p class="hint" id="acct-hint">${esc(accountHint(v))}</p></div>` : ''}
       ${fld('También escrito como', `<input id="aliases" name="aliases" maxlength="120" value="${esc(v.aliases || '')}" placeholder="Apodos u otras formas, separadas por coma">`, 'aliases')}
       ${fld('Teléfono', `<input id="phone" name="phone" type="tel" maxlength="30" value="${esc(v.phone || '')}" placeholder="0414-1234567">`, 'phone')}
       ${fld('Dirección o referencia', `<input id="address" name="address" maxlength="160" value="${esc(v.address || '')}">`, 'address')}
@@ -684,7 +774,7 @@ function accountFields(r, prev) {
 // ───── Enviar una tarea a la app de su responsable ─────
 const ASSIGN_STATE = { nueva: '⏳ Esperando que la acepte', aceptada: '✓ La aceptó', rechazada: '✗ La rechazó' };
 function sendBoxHtml(v, pre = '') {
-  if (v.assignedFrom) return '';
+  if (v.assignedFrom || (!v.assignedId && !M.featureOn('tareas.asignar'))) return '';
   if (v.assignedId) {
     return `<span class="lbl">📲 Enviada a su app</span>
       <p class="assign-state ${esc(v.assignState || 'nueva')}"><b>${esc(v.assignToName || 'Otra cuenta')}</b> · ${esc(ASSIGN_STATE[v.assignState || 'nueva'])}</p>
@@ -727,9 +817,9 @@ function assignedSheet(id, back) {
       ${t.notes ? `<p class="as-notes">${esc(t.notes).replace(/\n/g, '<br>')}</p>` : ''}
       <section class="log"><h3 class="sub-h">Seguimiento</h3>
         ${(t.log || []).length ? `<ul>${[...t.log].reverse().map(logLine).join('')}</ul>` : '<p class="hint">Aún no hay avances. Lo que anotes aquí lo ve quien te la asignó.</p>'}
-        <div class="log-add"><input id="log-text" maxlength="240" placeholder="Anota un avance" aria-label="Nuevo avance"><button type="button" class="btn" data-a="as-log" data-id="${t.id}">Agregar</button></div>
+        <div class="log-add"><input id="log-text" maxlength="240" placeholder="Anota un avance" aria-label="Nuevo avance"><button type="button" class="btn" data-a="as-log" data-id="${esc(t.id)}">Agregar</button></div>
       </section>`,
-    actions: `<button type="button" class="btn ghost danger" data-a="as-reject" data-id="${esc(t.assignedFrom)}">No la puedo hacer</button><button type="button" class="btn primary" data-a="as-toggle" data-id="${t.id}">${done ? 'Volver a pendiente' : '✓ Marcar hecha'}</button>`,
+    actions: `<button type="button" class="btn ghost danger" data-a="as-reject" data-id="${esc(t.assignedFrom)}">No la puedo hacer</button><button type="button" class="btn primary" data-a="as-toggle" data-id="${esc(t.id)}">${done ? 'Volver a pendiente' : '✓ Marcar hecha'}</button>`,
   });
 }
 export function assignedToggle(id) {
@@ -841,17 +931,17 @@ export function personDetail(id, back = null) {
       ${p.phone ? `<div class="quick"><a class="btn small" href="${telLink(p.phone)}">${ic('phone', 'sm')} Llamar</a><a class="btn small" href="${waLink(p.phone)}" target="_blank" rel="noopener">${ic('chat', 'sm')} WhatsApp</a></div>` : ''}
       ${p.address ? `<p class="meta pad">${ic('pin', 'sm')}${esc(p.address)}</p>` : ''}
       <div class="quick">
-        <button class="btn small" data-a="new-task-for" data-id="${id}">Nueva tarea</button>
-        ${p.isMe ? '' : `<button class="btn small" data-a="visit-new" data-id="${id}">＋ Anotar visita</button>`}
+        <button class="btn small" data-a="new-task-for" data-id="${esc(id)}">Nueva tarea</button>
+        ${p.isMe ? '' : `<button class="btn small" data-a="visit-new" data-id="${esc(id)}">＋ Anotar visita</button>`}
       </div>
-      ${M.deptsOfPerson(id).length ? `<div class="tagrow">${M.deptsOfPerson(id).map(({ d, head }) => `<button class="chip dept-chip" data-a="dept" data-id="${d.id}">${head ? '★ ' : ''}${esc(d.name)}</button>`).join('')}</div>` : ''}
+      ${M.deptsOfPerson(id).length ? `<div class="tagrow">${M.deptsOfPerson(id).map(({ d, head }) => `<button class="chip dept-chip" data-a="dept" data-id="${esc(d.id)}">${head ? '★ ' : ''}${esc(d.name)}</button>`).join('')}</div>` : ''}
       ${p.isMe ? '' : followHtml(p)}
       <h3 class="sub-h">Tareas abiertas</h3>
-      ${tasks.length ? `<div class="stack">${tasks.map(t => `<button class="card mini" data-a="task-in-sheet" data-id="${t.id}" data-bk="person" data-bid="${id}"><strong>${esc(t.title)}</strong><span class="meta">${esc(M.kindLabel(t.kind))}${t.due ? `, ${fmtShort(t.due)}` : ''}</span></button>`).join('')}</div>` : '<p class="hint">No hay tareas abiertas para esta persona.</p>'}
+      ${tasks.length ? `<div class="stack">${tasks.map(t => `<button class="card mini" data-a="task-in-sheet" data-id="${esc(t.id)}" data-bk="person" data-bid="${esc(id)}"><strong>${esc(t.title)}</strong><span class="meta">${esc(M.kindLabel(t.kind))}${t.due ? `, ${fmtShort(t.due)}` : ''}</span></button>`).join('')}</div>` : '<p class="hint">No hay tareas abiertas para esta persona.</p>'}
       ${doneCount ? `<p class="hint pad">${doneCount} ${doneCount === 1 ? 'tarea completada' : 'tareas completadas'}.</p>` : ''}
       ${p.notes ? `<h3 class="sub-h">Notas</h3><p class="prose">${esc(p.notes)}</p>` : ''}
-      ${linkedNotes.length ? `<h3 class="sub-h">Notas de la agenda vinculadas</h3><div class="stack">${linkedNotes.map(n => `<button class="card mini" data-a="note-in-sheet" data-id="${n.id}" data-bk="person" data-bid="${id}"><strong>${esc(n.title || 'Sin título')}</strong><span class="meta">${M.noteDate(n) ? fmtShort(M.noteDate(n)) : ''}</span></button>`).join('')}</div>` : ''}`,
-    actions: `<button type="button" class="btn ghost" data-a="person-merge" data-id="${id}" title="Unir con una ficha repetida">🔗 Unir</button><button type="button" class="btn ghost" data-a="edit-person" data-id="${id}">Editar</button><button type="button" class="btn primary" data-a="sheet-close">Listo</button>`,
+      ${linkedNotes.length ? `<h3 class="sub-h">Notas de la agenda vinculadas</h3><div class="stack">${linkedNotes.map(n => `<button class="card mini" data-a="note-in-sheet" data-id="${esc(n.id)}" data-bk="person" data-bid="${esc(id)}"><strong>${esc(n.title || 'Sin título')}</strong><span class="meta">${M.noteDate(n) ? fmtShort(M.noteDate(n)) : ''}</span></button>`).join('')}</div>` : ''}`,
+    actions: `<button type="button" class="btn ghost" data-a="person-merge" data-id="${esc(id)}" title="Unir con una ficha repetida">🔗 Unir</button><button type="button" class="btn ghost" data-a="edit-person" data-id="${esc(id)}">Editar</button><button type="button" class="btn primary" data-a="sheet-close">Listo</button>`,
   });
 }
 
@@ -865,7 +955,7 @@ export function mergeSheet(pid) {
   open({ title: `Unir con ${p.name}`, back: () => personDetail(pid, b),
     body: `<p class="hint">Elige la <b>ficha repetida</b>. Todo lo suyo (departamentos, tareas, notas, reuniones, visitas, grupos y privilegios) pasa a <b>${esc(p.name)}</b> y la repetida se borra. Se queda el nombre «${esc(p.name)}».</p>
       <form id="merge-f">${personPick('mergeFrom', others, [], null, 'radio')}</form>`,
-    actions: `<button type="button" class="btn primary" data-a="person-merge-go" data-id="${pid}">Unir</button>` });
+    actions: `<button type="button" class="btn primary" data-a="person-merge-go" data-id="${esc(pid)}">Unir</button>` });
 }
 export function mergePeople(intoId) {
   const from = document.querySelector('#merge-f input[name="mergeFrom"]:checked')?.value;
@@ -908,20 +998,20 @@ function followHtml(p) {
     out.push(`<div class="follow-card ${st.late ? 'late' : ''}"><div class="grow"><b>📖 Curso bíblico</b>
       <span class="meta">${p.study?.pub ? esc(p.study.pub) : 'Publicación sin indicar'}${p.study?.lesson ? ` · lección ${esc(p.study.lesson)}` : ''}</span>
       <span class="meta">Última vez: ${agoText(st.days)}${st.next ? ` · próxima: ${relDays(st.next)}` : ''} (cada ${M.studyEvery(p)} días)</span></div>
-      <div class="fc-btns"><button class="btn small primary" data-a="visit-new" data-id="${p.id}" data-v="estudio">Estudiamos</button><button class="btn small ghost" data-a="study-edit" data-id="${p.id}">Ajustar</button></div></div>`);
+      <div class="fc-btns"><button class="btn small primary" data-a="visit-new" data-id="${esc(p.id)}" data-v="estudio">Estudiamos</button><button class="btn small ghost" data-a="study-edit" data-id="${esc(p.id)}">Ajustar</button></div></div>`);
   } else if (M.isInterested(p)) {
     const st = M.revisitStatus(p);
     out.push(`<div class="follow-card ${st.late ? 'late' : ''}"><div class="grow"><b>🚪 Revisitas</b><span class="meta">Última: ${agoText(st.days)}</span></div>
-      <div class="fc-btns"><button class="btn small primary" data-a="visit-new" data-id="${p.id}" data-v="revisita">La visité</button><button class="btn small ghost" data-a="study-edit" data-id="${p.id}">Empezar curso</button></div></div>`);
+      <div class="fc-btns"><button class="btn small primary" data-a="visit-new" data-id="${esc(p.id)}" data-v="revisita">La visité</button><button class="btn small ghost" data-a="study-edit" data-id="${esc(p.id)}">Empezar curso</button></div></div>`);
   }
   if (M.canShepherd() && M.isShepherdable(p)) {
     const st = M.pastoreoStatus(p);
     out.push(`<div class="follow-card ${st.late ? 'late' : ''}"><div class="grow"><b>🐑 Pastoreo</b><span class="meta">Última visita: ${agoText(st.days)}${st.late ? ` · más de ${M.pastoreoMonths()} meses` : ''}</span></div>
       ${M.helpedByName(p) ? `<span class="meta">🤝 Lo ayuda: ${esc(M.helpedByName(p))}</span>` : ''}
-      <div class="fc-btns"><button class="btn small primary" data-a="visit-new" data-id="${p.id}" data-v="pastoreo">Lo visité</button><button class="btn small ghost" data-a="helped-edit" data-id="${p.id}">Quién lo ayuda</button></div></div>`);
+      <div class="fc-btns"><button class="btn small primary" data-a="visit-new" data-id="${esc(p.id)}" data-v="pastoreo">Lo visité</button><button class="btn small ghost" data-a="helped-edit" data-id="${esc(p.id)}">Quién lo ayuda</button></div></div>`);
   }
   const vs = M.visitsOf(p).slice(0, 6);
-  if (vs.length) out.push(`<h3 class="sub-h">Visitas</h3><div class="stack">${vs.map(v => `<div class="card mini visit-row"><span class="grow"><strong>${esc(M.VISIT_KINDS[v.kind] || v.kind)} · ${esc(fmtShort(v.date))}</strong>${v.lesson || v.note ? `<span class="meta">${v.lesson ? `Lección ${esc(v.lesson)}` : ''}${v.lesson && v.note ? ' · ' : ''}${esc(v.note || '')}</span>` : ''}${(v.withIds || []).length ? `<span class="meta">👥 Con ${esc(v.withIds.map(M.personName).filter(Boolean).join(', '))}</span>` : ''}</span><button class="icon-btn" data-a="visit-del" data-id="${p.id}" data-v="${v.id}" aria-label="Borrar visita">${ic('x', 'sm')}</button></div>`).join('')}</div>
+  if (vs.length) out.push(`<h3 class="sub-h">Visitas</h3><div class="stack">${vs.map(v => `<div class="card mini visit-row"><span class="grow"><strong>${esc(M.VISIT_KINDS[v.kind] || v.kind)} · ${esc(fmtShort(v.date))}</strong>${v.lesson || v.note ? `<span class="meta">${v.lesson ? `Lección ${esc(v.lesson)}` : ''}${v.lesson && v.note ? ' · ' : ''}${esc(v.note || '')}</span>` : ''}${(v.withIds || []).length ? `<span class="meta">👥 Con ${esc(v.withIds.map(M.personName).filter(Boolean).join(', '))}</span>` : ''}</span><button class="icon-btn" data-a="visit-del" data-id="${esc(p.id)}" data-v="${esc(v.id)}" aria-label="Borrar visita">${ic('x', 'sm')}</button></div>`).join('')}</div>
     ${(p.visits || []).length > 6 ? `<p class="hint pad">Y ${(p.visits || []).length - 6} visitas más antiguas.</p>` : ''}`);
   return out.join('');
 }
@@ -932,7 +1022,7 @@ export function helpedSheet(pid) {
   if (!p) return;
   const b = backFn;
   open({ title: `Quién ayuda a ${p.name}`, back: () => personDetail(pid, b),
-    body: `<form id="f" data-form="helped" data-id="${pid}">${personPick('helpedById', M.elders().filter(x => x.id !== pid), p.helpedById ? [p.helpedById] : [], null, 'radio')}
+    body: `<form id="f" data-form="helped" data-id="${esc(pid)}">${personPick('helpedById', M.elders().filter(x => x.id !== pid), p.helpedById ? [p.helpedById] : [], null, 'radio')}
       ${fld('…o escribe su nombre', `<input id="helpedByName" name="helpedByName" maxlength="80" value="${esc(p.helpedById ? '' : p.helpedByName || '')}">`, 'helpedByName')}
       <label class="check"><input type="checkbox" name="clear"> Nadie</label></form>`,
     actions: '<button type="submit" form="f" class="btn primary">Guardar</button>' });
@@ -1024,7 +1114,7 @@ export function personPick(name, people, chosen, roles = null, type = 'checkbox'
   const list = [...people].sort((a, b) => (on.has(b.id) ? 1 : 0) - (on.has(a.id) ? 1 : 0) || a.name.localeCompare(b.name, 'es'));
   return `<div class="psel ${lazy ? 'lazy' : ''}" data-psel="${name}" ${lazy ? 'data-lazy="1"' : ''}>
     <div class="psel-q">${ic('search', 'sm')}<input type="search" data-psel-q placeholder="${lazy ? 'Escribe un nombre para buscar…' : 'Buscar por nombre…'}" aria-label="Buscar hermano" autocomplete="off"></div>
-    <div class="checklist psel-list">${list.map(p => `<label class="check psel-row" data-id="${p.id}" data-n="${esc(norm(p.name + ' ' + (p.role || '') + ' ' + (p.aliases || '')))}" ${lazy && !on.has(p.id) ? 'hidden' : ''}><input type="${type}" name="${name}" value="${p.id}" ${on.has(p.id) ? 'checked' : ''}> <span class="psel-name">${esc(p.name)}${p.role ? ` <span class="hint">${esc(p.role)}</span>` : ''}</span>${roles ? `<input class="psel-role" name="role_${p.id}" maxlength="60" value="${esc(roles[p.id] || '')}" placeholder="Función (opcional)" aria-label="Función de ${esc(p.name)}">` : ''}</label>`).join('')}
+    <div class="checklist psel-list">${list.map(p => `<label class="check psel-row" data-id="${esc(p.id)}" data-n="${esc(norm(p.name + ' ' + (p.role || '') + ' ' + (p.aliases || '')))}" ${lazy && !on.has(p.id) ? 'hidden' : ''}><input type="${type}" name="${name}" value="${esc(p.id)}" ${on.has(p.id) ? 'checked' : ''}> <span class="psel-name">${esc(p.name)}${p.role ? ` <span class="hint">${esc(p.role)}</span>` : ''}</span>${roles ? `<input class="psel-role" name="role_${esc(p.id)}" maxlength="60" value="${esc(roles[p.id] || '')}" placeholder="Función (opcional)" aria-label="Función de ${esc(p.name)}">` : ''}</label>`).join('')}
       <p class="hint psel-empty" ${lazy && !on.size ? '' : 'hidden'}>${lazy ? 'Escribe parte del nombre y marca a los que participan.' : 'Nadie con ese nombre. Escríbelo abajo en «Otros nombres».'}</p></div>
   </div>`;
 }
@@ -1044,7 +1134,7 @@ export function deptSheet(id, preset = {}) {
     title: d ? d.name : 'Nuevo departamento', focus: d ? null : '#name',
     body: `${formTag('dept', d?.id)}
       ${fld('Nombre', `<input id="name" name="name" required maxlength="80" value="${esc(v.name)}" placeholder="Ej. Audio y video">`, 'name')}
-      ${fld('Depende de', `<select id="parentId" name="parentId"><option value="">Nadie (arriba de todo)</option>${parents.map(x => `<option value="${x.id}" ${x.id === v.parentId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`, 'parentId')}
+      ${fld('Depende de', `<select id="parentId" name="parentId"><option value="">Nadie (arriba de todo)</option>${parents.map(x => `<option value="${esc(x.id)}" ${x.id === v.parentId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`, 'parentId')}
       ${v.info ? `<p class="hint">ℹ️ ${esc(v.info)}</p>` : ''}
       ${M.deptRule(v) ? `<p class="hint">👤 ${esc(M.deptRule(v).note ? `${M.deptRule(v).note}. ` : '')}${M.deptRule(v).who === 'anc' ? 'Responsable: un anciano.' : 'Responsable: anciano o siervo ministerial.'} Los demás hermanos pueden ir como ayudantes.</p><p class="warn-box" id="dept-warn" ${M.deptWarnings(v).length ? '' : 'hidden'}>⚠️ ${esc(M.deptWarnings(v).join(' '))}</p>` : ''}
       ${M.isGroupBox(v) ? '<p class="hint">Los grupos para el servicio del campo pertenecen a la congregación: no llevan responsable. Cada grupo de abajo tiene su superintendente y su auxiliar.</p>' : ''}
@@ -1063,8 +1153,8 @@ export function deptSheet(id, preset = {}) {
       <div class="f"><span class="lbl">Icono</span><div class="iconpick">${M.DEPT_ICONS.map(x => `<label><input type="radio" name="ic" value="${x}" ${x === (v.ic || 'flag') ? 'checked' : ''}><span>${ic(x)}</span></label>`).join('')}</div></div>
       ${fld('Notas <span class="hint">(opcional)</span>', `<textarea id="notes" name="notes" rows="2" maxlength="400">${esc(v.notes || '')}</textarea>`, 'notes')}
     </form>
-    ${d ? `<div class="stack pad-top">${M.isGroupBox(d) ? '' : `<button type="button" class="btn" data-a="dept-send" data-id="${d.id}">📤 Enviar a ${M.deptHeads(d).length > 1 ? 'los responsables' : 'el responsable'} por WhatsApp</button>`}
-      <button type="button" class="btn ghost" data-a="dept-new" data-id="${d.id}">＋ Agregar un departamento debajo</button></div>` : ''}
+    ${d ? `<div class="stack pad-top">${M.isGroupBox(d) ? '' : `<button type="button" class="btn" data-a="dept-send" data-id="${esc(d.id)}">📤 Enviar a ${M.deptHeads(d).length > 1 ? 'los responsables' : 'el responsable'} por WhatsApp</button>`}
+      <button type="button" class="btn ghost" data-a="dept-new" data-id="${esc(d.id)}">＋ Agregar un departamento debajo</button></div>` : ''}
     ${d && !M.isGroupBox(d) ? deptTasksHtml(d) : ''}
     ${d && (d.history || []).length ? `<h3 class="sub-h">🕓 Historial</h3><ul class="dept-hist">${[...d.history].reverse().slice(0, 10).map(h => `<li><span class="hint">${esc(fmtShort(h.d))}</span> ${h.op === '+' ? 'Entró' : 'Salió'} <b>${esc(M.personName(h.pid) || h.n || '—')}</b> como ${h.as === 'resp' ? 'responsable' : 'ayudante'}</li>`).join('')}</ul>` : ''}
     ${kids ? `<p class="hint pad-top">Tiene ${kids} ${kids === 1 ? 'departamento' : 'departamentos'} debajo. Si lo eliminas, esos suben un nivel.</p>` : ''}`,
@@ -1084,13 +1174,13 @@ function deptTasksHtml(d) {
   const heads = M.deptHeads(d);
   const t0 = today();
   return `<h3 class="sub-h">📋 Tareas${list.length ? ` pendientes <span class="hint">${list.length}</span>` : ''}</h3>
-    ${list.length ? `<div class="stack">${list.map(t => `<button type="button" class="card mini" data-a="dept-task" data-id="${t.id}" data-dept="${d.id}">
+    ${list.length ? `<div class="stack">${list.map(t => `<button type="button" class="card mini" data-a="dept-task" data-id="${esc(t.id)}" data-dept="${esc(d.id)}">
       <strong>${esc(t.title)}</strong>
       <span class="meta">${(t.responsibles || []).length ? `${esc(t.responsibles.join(', '))}` : ''}${t.due ? `${(t.responsibles || []).length ? ' · ' : ''}${t.due < t0 ? `<b class="late">venció el ${esc(fmtShort(t.due))}</b>` : `para el ${esc(fmtShort(t.due))}`}` : ''}${t.status === 'seguimiento' ? ' · En seguimiento' : ''}</span>
     </button>`).join('')}</div>` : ''}
-    <button type="button" class="btn pad-top" data-a="dept-assign" data-id="${d.id}">＋ Asignar una tarea${heads.length ? ` a ${esc(heads.join(', '))}` : ''}</button>
+    <button type="button" class="btn pad-top" data-a="dept-assign" data-id="${esc(d.id)}">＋ Asignar una tarea${heads.length ? ` a ${esc(heads.join(', '))}` : ''}</button>
     ${sug.length ? `<p class="hint pad-top">💡 Sugeridas para este departamento. Tócala para revisarla y guardarla:</p>
-      <div class="stack">${sug.map(s => `<button type="button" class="card mini" data-a="dept-assign" data-id="${d.id}" data-v="${s.i}">
+      <div class="stack">${sug.map(s => `<button type="button" class="card mini" data-a="dept-assign" data-id="${esc(d.id)}" data-v="${s.i}">
         <strong>＋ ${esc(s.t)}</strong><span class="meta">${s.r ? `${esc(M.TASK_REPEATS[s.r])} · ` : ''}la primera vence en ${s.d} días</span></button>`).join('')}</div>` : ''}`;
 }
 // Abre una tarea nueva para el departamento (vacía o con una sugerida); al guardar vuelve al departamento
@@ -1116,7 +1206,7 @@ export function deptSuggestSheet() {
     body: groups.length ? `<form id="f" onsubmit="return false">
       <p class="hint">Marca las que quieres asignar. Cada una se crea para el responsable de su departamento, con su repetición y su fecha. Después puedes cambiar cualquier detalle en la tarea.${sup.size ? ' Primero salen los departamentos que supervisas (👁).' : ''}</p>
       ${groups.map(g => { const heads = [...(M.deptHeadIds(g.d).includes(me?.id) ? ['Tú'] : []), ...M.deptHeads(g.d).filter(n => n !== me?.name)]; return `<h3 class="sub-h">${sup.has(g.d.id) ? '👁 ' : ''}${esc(g.d.name)} <span class="hint">${heads.length ? `★ ${esc(heads.join(', '))}` : 'sin responsable'}</span></h3>
-        <div class="checklist">${g.sug.map(s => `<label class="check"><input type="checkbox" name="sug" value="${g.d.id}|${s.i}"> <span>${esc(s.t)} <span class="hint">${s.r ? `${esc(M.TASK_REPEATS[s.r])} · ` : ''}en ${s.d} días</span></span></label>`).join('')}</div>`; }).join('')}
+        <div class="checklist">${g.sug.map(s => `<label class="check"><input type="checkbox" name="sug" value="${esc(g.d.id)}|${s.i}"> <span>${esc(s.t)} <span class="hint">${s.r ? `${esc(M.TASK_REPEATS[s.r])} · ` : ''}en ${s.d} días</span></span></label>`).join('')}</div>`; }).join('')}
     </form>` : '<p class="hint">No hay sugerencias pendientes: todos tus departamentos ya tienen sus tareas sugeridas, o aún no hay departamentos en el organigrama.</p>',
     actions: groups.length ? `<button class="btn primary" data-a="dept-suggest-save">Asignar las marcadas</button>` : '',
   });
@@ -1248,7 +1338,7 @@ export function pasteSheet() {
 export function pasteRead() {
   pasteRows = parseAgreementsText(document.getElementById('paste-txt')?.value || '');
   if (!pasteRows.length) return toast('No encontré líneas «Departamento: nombres»');
-  const deptOpts = sel => `<option value="__new">➕ Crear departamento nuevo</option><option value="__skip">— No aplicar esta línea</option>${[...(data.depts || [])].sort((a, b) => a.name.localeCompare(b.name, 'es')).map(d => `<option value="${d.id}" ${sel === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}`;
+  const deptOpts = sel => `<option value="__new">➕ Crear departamento nuevo</option><option value="__skip">— No aplicar esta línea</option>${[...(data.depts || [])].sort((a, b) => a.name.localeCompare(b.name, 'es')).map(d => `<option value="${esc(d.id)}" ${sel === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}`;
   open({ title: 'Revisar antes de aplicar', back: pasteSheet,
     body: `<p class="hint">✓ = ya está en Personas · ＋ = se agrega como persona nueva. Cambia el departamento o el papel si hace falta.</p>
       <form id="paste-f"><div class="stack">${pasteRows.map((r, i) => `<div class="card paste-row">
@@ -1307,7 +1397,7 @@ export function deptSend(id) {
     open({ title: 'Enviar a cada responsable', back: () => deptSheet(id),
       body: `<p class="hint">Toca a cada uno para abrir WhatsApp con su mensaje.</p><div class="stack">${heads.map(p => p.phone
         ? `<a class="btn" href="${waLink(p.phone)}?text=${encodeURIComponent(msg(p.name))}" target="_blank" rel="noopener">💬 ${esc(p.name)}</a>`
-        : `<button class="btn ghost" data-a="dept-send-share" data-id="${id}" data-v="${p.id}">📤 ${esc(p.name)} <small>(sin teléfono: compartir)</small></button>`).join('')}</div>` });
+        : `<button class="btn ghost" data-a="dept-send-share" data-id="${esc(id)}" data-v="${esc(p.id)}">📤 ${esc(p.name)} <small>(sin teléfono: compartir)</small></button>`).join('')}</div>` });
     return;
   }
   shareOut(d.name, msg(heads.length === 1 ? heads[0].name : ''));
@@ -1351,8 +1441,8 @@ function meetPick(k, label, c, days) {
   const old = parseMeet(c[k]);
   const d = c[`${k}Day`] ?? old.d, t = c[`${k}Time`] || old.t;
   return `<div class="f"><span class="lbl">${label}</span><div class="two">
-    <select name="${k}Day" aria-label="Día de la ${label.toLowerCase()}"><option value="">Día…</option>${days.map(i => `<option value="${i}" ${String(d) === String(i) ? 'selected' : ''}>${WDAYS[i]}</option>`).join('')}<option disabled>──</option>${[0, 1, 2, 3, 4, 5, 6].filter(i => !days.includes(i)).map(i => `<option value="${i}" ${String(d) === String(i) ? 'selected' : ''}>${WDAYS[i]}</option>`).join('')}</select>
-    <input type="time" name="${k}Time" value="${esc(t)}" aria-label="Hora de la ${label.toLowerCase()}"></div></div>`;
+    <select name="${esc(k)}Day" aria-label="Día de la ${label.toLowerCase()}"><option value="">Día…</option>${days.map(i => `<option value="${i}" ${String(d) === String(i) ? 'selected' : ''}>${WDAYS[i]}</option>`).join('')}<option disabled>──</option>${[0, 1, 2, 3, 4, 5, 6].filter(i => !days.includes(i)).map(i => `<option value="${i}" ${String(d) === String(i) ? 'selected' : ''}>${WDAYS[i]}</option>`).join('')}</select>
+    <input type="time" name="${esc(k)}Time" value="${esc(t)}" aria-label="Hora de la ${label.toLowerCase()}"></div></div>`;
 }
 const meetText = (d, t) => (d !== '' && d != null ? WDAYS[Number(d)] : '') + (t ? ` ${fmtTime(t)}` : '');
 // Las reuniones de la congregación como eventos semanales de la agenda (sin duplicar los que ya tenías)
@@ -1456,7 +1546,7 @@ export function groupSheet(id, back) {
       ${fld('Notas', `<textarea id="notes" name="notes" rows="2">${esc(v.notes || '')}</textarea>`, 'notes')}
       <div class="f"><span class="lbl">Personas del grupo</span>
         ${people.length
-          ? `<div class="checklist">${people.map(p => `<label class="check"><input type="checkbox" name="member" value="${p.id}" ${g && (p.groupIds || []).includes(g.id) ? 'checked' : ''}> <span>${esc(p.name)}${p.role ? ` <span class="hint">${esc(p.role)}</span>` : ''}</span></label>`).join('')}</div>`
+          ? `<div class="checklist">${people.map(p => `<label class="check"><input type="checkbox" name="member" value="${esc(p.id)}" ${g && (p.groupIds || []).includes(g.id) ? 'checked' : ''}> <span>${esc(p.name)}${p.role ? ` <span class="hint">${esc(p.role)}</span>` : ''}</span></label>`).join('')}</div>`
           : '<p class="hint">Aún no has agregado personas. Créalas en la pestaña Personas y luego súmalas aquí.</p>'}
       </div>
     </form>`,
@@ -1490,10 +1580,10 @@ export function groupDetail(id, back = null) {
     body: `${g.notes ? `<p class="prose">${esc(g.notes)}</p>` : ''}
       <h3 class="sub-h">${members.length} ${members.length === 1 ? 'persona' : 'personas'}</h3>
       ${members.length
-        ? `<div class="stack">${members.map(p => `<button class="card mini" data-a="person-in-sheet" data-id="${p.id}" data-bk="group" data-bid="${id}"><strong>${esc(p.name)}</strong>${p.role ? `<span class="meta">${esc(p.role)}</span>` : ''}</button>`).join('')}</div>`
+        ? `<div class="stack">${members.map(p => `<button class="card mini" data-a="person-in-sheet" data-id="${esc(p.id)}" data-bk="group" data-bid="${esc(id)}"><strong>${esc(p.name)}</strong>${p.role ? `<span class="meta">${esc(p.role)}</span>` : ''}</button>`).join('')}</div>`
         : '<p class="hint">Este grupo aún no tiene personas. Toca «Editar» para sumarlas.</p>'}
-      ${former.length ? `<h3 class="sub-h">Ya no forman parte</h3><div class="stack">${former.map(f => `<button class="card mini" data-a="person-in-sheet" data-id="${f.person.id}" data-bk="group" data-bid="${id}"><strong>${esc(f.person.name)}</strong><span class="meta">Desde ${fmtShort(f.leftAt)}</span></button>`).join('')}</div>` : ''}`,
-    actions: `<button type="button" class="btn ghost" data-a="edit-group" data-id="${id}">Editar</button><button type="button" class="btn primary" data-a="sheet-close">Listo</button>`,
+      ${former.length ? `<h3 class="sub-h">Ya no forman parte</h3><div class="stack">${former.map(f => `<button class="card mini" data-a="person-in-sheet" data-id="${esc(f.person.id)}" data-bk="group" data-bid="${esc(id)}"><strong>${esc(f.person.name)}</strong><span class="meta">Desde ${fmtShort(f.leftAt)}</span></button>`).join('')}</div>` : ''}`,
+    actions: `<button type="button" class="btn ghost" data-a="edit-group" data-id="${esc(id)}">Editar</button><button type="button" class="btn primary" data-a="sheet-close">Listo</button>`,
   });
 }
 
@@ -1505,13 +1595,13 @@ export function noteSheet(id, back) {
   const date = n ? (n.date || (n.createdAt ? dateOf(n.createdAt) : today())) : today();
   const v = { title: '', body: '', tag: '', pinned: false, meetingId: '', personId: '', ...n, date };
   const tags = [...new Set(data.notes.map(x => x.tag).filter(Boolean))];
-  const meetingsSelect = `<select id="meetingId" name="meetingId"><option value="">Ninguna</option>${[...data.meetings].sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(m => `<option value="${m.id}" ${m.id === v.meetingId ? 'selected' : ''}>${esc(m.title)} — ${fmtShort(m.date)}</option>`).join('')}</select>`;
+  const meetingsSelect = `<select id="meetingId" name="meetingId"><option value="">Ninguna</option>${[...data.meetings].sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(m => `<option value="${esc(m.id)}" ${m.id === v.meetingId ? 'selected' : ''}>${esc(m.title)} — ${fmtShort(m.date)}</option>`).join('')}</select>`;
   open({
     title: n ? 'Editar nota' : 'Nueva nota', back, focus: n ? null : '#title',
     body: `${formTag('note', n?.id)}
       ${fld('Título', `<input id="title" name="title" maxlength="120" value="${esc(v.title)}">`, 'title')}
       <div class="two">
-        ${fld('Fecha', `<input id="date" name="date" type="date" value="${v.date}">`, 'date')}
+        ${fld('Fecha', `<input id="date" name="date" type="date" value="${esc(v.date)}">`, 'date')}
         ${fld('Etiqueta', `<input id="tag" name="tag" list="tag-list" maxlength="40" value="${esc(v.tag || '')}" placeholder="Ej. Ideas"><datalist id="tag-list">${tags.map(t => `<option value="${esc(t)}">`).join('')}</datalist>`, 'tag')}
       </div>
       ${fld('Contenido', `<textarea id="body" name="body" rows="10">${esc(v.body || '')}</textarea>${micButton('body')}`, 'body')}
@@ -1519,7 +1609,7 @@ export function noteSheet(id, back) {
       ${data.meetings.length ? fld('Vincular a una reunión', meetingsSelect, 'meetingId') : ''}
       ${fld('Vincular a una persona', peopleSelect('personId', v.personId, 'Nadie'), 'personId')}
     </form>
-    ${n && isCloud && session.isAdmin ? `<button type="button" class="btn ghost pad-top" data-a="send-note" data-id="${n.id}">📤 Enviar esta nota a otra cuenta</button>` : ''}`,
+    ${n && isCloud && session.isAdmin ? `<button type="button" class="btn ghost pad-top" data-a="send-note" data-id="${esc(n.id)}">📤 Enviar esta nota a otra cuenta</button>` : ''}`,
     actions: foot('notes', n?.id),
   });
 }
@@ -1547,7 +1637,7 @@ function catDraftHtml() {
 }
 
 const iconPickerHtml = sel => `<div class="icon-pick" role="radiogroup" aria-label="Icono de la categoría">${M.CAT_ICONS.map(([k, n]) =>
-  `<label class="icon-opt" title="${esc(n)}"><input type="radio" name="catIcon" value="${k}" ${k === sel ? 'checked' : ''}><span>${ic(k)}</span><small>${esc(n)}</small></label>`).join('')}</div>`;
+  `<label class="icon-opt" title="${esc(n)}"><input type="radio" name="catIcon" value="${esc(k)}" ${k === sel ? 'checked' : ''}><span>${ic(k)}</span><small>${esc(n)}</small></label>`).join('')}</div>`;
 
 export function profileSheet() {
   const v = M.profile();
@@ -1562,7 +1652,7 @@ export function profileSheet() {
   const extra = roles.filter(r => !M.PUBLISHER_ROLES.includes(r)).join(', ');
   const myDepts = meP ? M.deptsOfPerson(meP.id) : [];
   const otherPriv = meP ? (meP.privileges || []).filter(x => !M.PUBLISHER_ROLES.some(r => norm(r) === norm(x)) && !/^var[oó]n bautizado/i.test(x)) : [];
-  const typeInfo = isCloud && M.PROFILE_TYPES[session.type] ? M.PROFILE_TYPES[session.type].n : '';
+  const typeInfo = isCloud && M.templates()[session.type] ? M.typeName(session.type) : '';
   open({
     title: 'Mi perfil',
     body: `${formTag('profile', 'me')}
@@ -1578,7 +1668,7 @@ export function profileSheet() {
         <input id="roleOtro" name="roleOtro" maxlength="80" value="${esc(extra)}" placeholder="Otro (escríbelo; separa varios con coma)" aria-label="Otro servicio">
       </div>
       ${meP && (myDepts.length || otherPriv.length) ? `<div class="f"><span class="lbl">🏛 En Congregación</span>
-        <div class="chips wrap">${myDepts.map(x => `<button type="button" class="chip" data-a="dept" data-id="${x.d.id}">${x.head ? '★ ' : ''}${esc(x.d.name)}</button>`).join('')}${otherPriv.map(x => `<span class="chip static">${esc(x)}</span>`).join('')}</div>
+        <div class="chips wrap">${myDepts.map(x => `<button type="button" class="chip" data-a="dept" data-id="${esc(x.d.id)}">${x.head ? '★ ' : ''}${esc(x.d.name)}</button>`).join('')}${otherPriv.map(x => `<span class="chip static">${esc(x)}</span>`).join('')}</div>
         <p class="hint">Salen solos del organigrama y de tu ficha en Personas. Para cambiarlos, hazlo allá: aquí se actualizan.</p></div>` : ''}
       ${!meP ? '<p class="hint">Marca tu ficha en Personas con «Soy yo» para que aquí salgan tus responsabilidades de Congregación.</p>' : ''}
       <label class="check"><input type="checkbox" id="goalEnabled" name="goalEnabled" ${v.goalEnabled ? 'checked' : ''}> Meta personal</label>
@@ -1690,7 +1780,7 @@ export function catPickSheet(mid, back, from = '') {
   open({
     title: 'Mi Informe', back,
     body: `<div class="cat-list">${Object.entries(M.allServicioCats()).map(([k, c]) =>
-      `<button type="button" class="cat-btn" style="--c:${c.c}" data-a="new-entry" data-cat="${k}" data-mid="${mid || ''}"${from ? ` data-from="${from}"` : ''}>${ic(c.ic)}<span>${esc(c.n)}<small>${c.credito ? 'Tiempo de crédito' : 'Tiempo de servicio'}</small></span></button>`
+      `<button type="button" class="cat-btn" style="--c:${esc(c.c)}" data-a="new-entry" data-cat="${esc(k)}" data-mid="${esc(mid || '')}"${from ? ` data-from="${esc(from)}"` : ''}>${ic(c.ic)}<span>${esc(c.n)}<small>${c.credito ? 'Tiempo de crédito' : 'Tiempo de servicio'}</small></span></button>`
     ).join('')}</div>`,
   });
 }
@@ -1772,7 +1862,7 @@ export function entrySheet(id, preset = {}, back) {
   // Nuevo registro dentro de un mes: hoy si es el mes en curso; si no, el día 1 de ese mes (y la fecha no se sale del mes)
   const date = e ? e.date : (preset.mid && preset.mid !== today().slice(0, 7) ? `${preset.mid}-01` : today());
   const [py, pm] = (preset.mid || '').split('-').map(Number);
-  const range = !e && preset.mid ? ` min="${preset.mid}-01" max="${preset.mid}-${String(new Date(py, pm, 0).getDate()).padStart(2, '0')}"` : '';
+  const range = !e && preset.mid ? ` min="${esc(preset.mid)}-01" max="${esc(preset.mid)}-${String(new Date(py, pm, 0).getDate()).padStart(2, '0')}"` : '';
   const minutes = e ? (e.minutes || 0) : 0;
   studyDraft = e?.studyNames ? [...e.studyNames] : [];
   const studentNames = sortedPeople().filter(p => norm(p.role || '').includes('estudiante')).map(p => p.name);
@@ -1780,7 +1870,7 @@ export function entrySheet(id, preset = {}, back) {
     title: e ? 'Editar registro' : 'Registrar tiempo', back,
     body: `${formTag('entry', e?.id)}
       <input type="hidden" name="category" value="${esc(catKey)}">
-      <span class="cat-badge" style="--c:${cat.c}">${ic(cat.ic)}${esc(cat.n)}</span>
+      <span class="cat-badge" style="--c:${esc(cat.c)}">${ic(cat.ic)}${esc(cat.n)}</span>
       <div class="time-wrap">
         <div class="time-btns">
           <button type="button" class="btn" data-a="adj" data-delta="60">+ 1h</button>
@@ -1793,10 +1883,11 @@ export function entrySheet(id, preset = {}, back) {
         </div>
         <input type="hidden" id="minutes" name="minutes" value="${minutes}">
       </div>
-      ${fld('Fecha', `<input id="date" name="date" type="date" required value="${date}"${range}>`, 'date')}
+      ${fld('Fecha', `<input id="date" name="date" type="date" required value="${esc(date)}"${range}>`, 'date')}
       ${e?.adj ? '<p class="hint">✏️ Este registro lo creó «Corregir un mes» para ajustar el total. Puedes cambiarlo o borrarlo.</p>' : ''}
       <div class="f"><span class="lbl">Cursos bíblicos</span>
         <div id="studies-box">${studiesListHtml()}</div>
+        ${e && !Array.isArray(e.studyNames) && Number(e.studies) > 0 ? `<p class="hint">Este registro es de antes y tiene <b>${Number(e.studies)}</b> ${Number(e.studies) === 1 ? 'curso' : 'cursos'} sin nombre: se siguen contando. Si agregas nombres, cuentan los nombres en su lugar.</p>` : ''}
         <div class="log-add">
           <input id="study-name" list="study-name-list" maxlength="80" placeholder="Nombre del estudiante" aria-label="Nombre del estudiante">
           <datalist id="study-name-list">${studentNames.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
@@ -1846,7 +1937,10 @@ function saveEntry(id, r) {
   let studyNames = [];
   try { studyNames = JSON.parse(r.studies || '[]'); } catch { studyNames = []; }
   const extra = readExtras(r, prev.extra || {});
-  store.upsert('entries', { ...prev, id: id || uid(), category: r.category, date: r.date, minutes: parseInt(r.minutes, 10) || 0, studyNames, notes: r.notes, extra });
+  const item = { ...prev, id: id || uid(), category: r.category, date: r.date, minutes: parseInt(r.minutes, 10) || 0, studyNames, notes: r.notes, extra };
+  // Registro viejo (solo con el número «studies»): si no le agregaste nombres, se queda como estaba y sus cursos siguen contando
+  if (id && !Array.isArray(prev.studyNames) && !studyNames.length) delete item.studyNames;
+  store.upsert('entries', item);
   // Los cursos anotados cuentan como visita de estudio en la ficha de cada estudiante
   studyNames.forEach(n => {
     const p = data.people.find(x => norm(x.name) === norm(n));
@@ -1873,7 +1967,7 @@ export function monthSheet(mid, withCredit = false) {
   open({
     title: fmtMonth(y, m),
     body: `${goal}
-      <div class="seg two"><button data-a="month" data-id="${mid}" data-credit="0" aria-pressed="${!withCredit}">Sin crédito</button><button data-a="month" data-id="${mid}" data-credit="1" aria-pressed="${withCredit}">Con crédito</button></div>
+      <div class="seg two"><button data-a="month" data-id="${esc(mid)}" data-credit="0" aria-pressed="${!withCredit}">Sin crédito</button><button data-a="month" data-id="${esc(mid)}" data-credit="1" aria-pressed="${withCredit}">Con crédito</button></div>
       <div class="stack pad">
         <div class="card mini"><strong>${M.fmtHM(t.minutes)} h</strong><span class="meta">Tiempo total</span></div>
         <div class="card mini"><strong>${t.studies}</strong><span class="meta">Cursos bíblicos</span></div>
@@ -1884,9 +1978,9 @@ export function monthSheet(mid, withCredit = false) {
         const c = M.catServicioOf(e.category);
         const names = (e.studyNames || []).join(', ');
         const xt = M.extrasText(e.extra || {});
-        return `<button class="card mini entry-row" data-a="entry" data-id="${e.id}" data-mid="${mid}"><span class="dot" style="--c:${c.c}"></span><span class="grow"><strong>${esc(c.n)}</strong><span class="meta">${fmtShort(e.date)}${e.notes ? ` · ${esc(e.notes)}` : ''}${names ? ` · ${esc(names)}` : ''}${xt ? ` · ${esc(xt)}` : ''}</span></span><span>${M.fmtHM(e.minutes)}</span></button>`;
+        return `<button class="card mini entry-row" data-a="entry" data-id="${esc(e.id)}" data-mid="${esc(mid)}"><span class="dot" style="--c:${esc(c.c)}"></span><span class="grow"><strong>${esc(c.n)}</strong><span class="meta">${fmtShort(e.date)}${e.notes ? ` · ${esc(e.notes)}` : ''}${names ? ` · ${esc(names)}` : ''}${xt ? ` · ${esc(xt)}` : ''}</span></span><span>${M.fmtHM(e.minutes)}</span></button>`;
       }).join('')}</div>` : '<p class="hint">Sin registros todavía. Toca «Agregar» para anotar tu primer tiempo.</p>'}`,
-    actions: `<button type="button" class="btn ghost" data-a="share-month" data-id="${mid}" data-credit="${withCredit ? 1 : 0}">Enviar</button><button type="button" class="btn ghost" data-a="fix-open" data-id="${mid}">✏️ Corregir</button><button type="button" class="btn primary" data-a="cat-pick" data-mid="${mid}">Agregar</button>`,
+    actions: `<button type="button" class="btn ghost" data-a="share-month" data-id="${esc(mid)}" data-credit="${withCredit ? 1 : 0}">Enviar</button><button type="button" class="btn ghost" data-a="fix-open" data-id="${esc(mid)}">✏️ Corregir</button><button type="button" class="btn primary" data-a="cat-pick" data-mid="${esc(mid)}">Agregar</button>`,
   });
 }
 
@@ -2018,24 +2112,24 @@ function departedNotice(groupIds, meetingDate) {
 function pickerHtml(key, selected = [], { placeholder = 'Elegir encargados', single = false } = {}) {
   const sel = selected.map(norm);
   const meName = M.profile().myName || data.people.find(p => p.isMe)?.name || '';
-  const box = (name, sub = '') => `<label class="check pp-opt" data-q="${esc(norm(name + ' ' + sub))}"><input type="${single ? 'radio' : 'checkbox'}" name="pp-${key}" value="${esc(name)}" ${sel.includes(norm(name)) ? 'checked' : ''}> <span>${esc(name)}${sub ? ` <span class="hint">${esc(sub)}</span>` : ''}</span></label>`;
+  const box = (name, sub = '') => `<label class="check pp-opt" data-q="${esc(norm(name + ' ' + sub))}"><input type="${single ? 'radio' : 'checkbox'}" name="pp-${esc(key)}" value="${esc(name)}" ${sel.includes(norm(name)) ? 'checked' : ''}> <span>${esc(name)}${sub ? ` <span class="hint">${esc(sub)}</span>` : ''}</span></label>`;
   const groups = sortedGroups();
   const people = sortedPeople().filter(p => !p.isMe);
   const known = new Set([meName, ...groups.map(g => g.name), ...people.map(p => p.name)].map(norm));
   const others = selected.filter(n => !known.has(norm(n)));
-  return `<details class="pp" data-pp="${key}">
+  return `<details class="pp" data-pp="${esc(key)}">
     <summary>${pickerSummary(selected, placeholder)}</summary>
     <div class="pp-body">
       ${groups.length + people.length > 8 ? '<input class="pp-q" type="search" placeholder="Buscar" aria-label="Buscar">' : ''}
       <div class="checklist">
-        ${single ? `<label class="check pp-opt" data-q=""><input type="radio" name="pp-${key}" value="" ${!selected.length ? 'checked' : ''}> <span class="hint">Sin asignar</span></label>` : ''}
+        ${single ? `<label class="check pp-opt" data-q=""><input type="radio" name="pp-${esc(key)}" value="" ${!selected.length ? 'checked' : ''}> <span class="hint">Sin asignar</span></label>` : ''}
         ${meName ? box(meName, 'Yo') : ''}
         ${groups.length ? `<p class="pp-h">Grupos</p>${groups.map(g => box(g.name, `${data.people.filter(p => (p.groupIds || []).includes(g.id)).length} personas`)).join('')}` : ''}
         ${people.length ? `<p class="pp-h">Personas</p>${people.map(p => box(p.name, (p.privileges || [])[0] || p.role || '')).join('')}` : ''}
       </div>
       <input class="pp-other" maxlength="120" value="${esc(others.join(', '))}" placeholder="Otro que no está en tu lista" aria-label="Otro encargado">
     </div>
-    <input type="hidden" id="${key}" value="${esc(selected.join(', '))}">
+    <input type="hidden" id="${esc(key)}" value="${esc(selected.join(', '))}">
   </details>`;
 }
 const pickerSummary = (names, placeholder) => names.length
@@ -2075,7 +2169,7 @@ const minOptions = sel => [2, 3, 5, 10, 15, 20, 30, 45, 60].map(n => `<option va
 function pendingPanelHtml(pend) {
   return `<div class="ag-panel">
     <p><b>Temas de reuniones anteriores</b></p>
-    <div class="checklist">${pend.map(t => `<label class="check"><input type="checkbox" name="agPend" value="${t.id}" checked> <span>${esc(t.title)}${(t.responsibles || []).length ? ` <span class="hint">${esc(A.joinNames(t.responsibles))}</span>` : ''}</span></label>`).join('')}</div>
+    <div class="checklist">${pend.map(t => `<label class="check"><input type="checkbox" name="agPend" value="${esc(t.id)}" checked> <span>${esc(t.title)}${(t.responsibles || []).length ? ` <span class="hint">${esc(A.joinNames(t.responsibles))}</span>` : ''}</span></label>`).join('')}</div>
     <div class="seg four" role="radiogroup" aria-label="Cómo traerlos">
       <label><input type="radio" name="agPendMode" value="one" checked><span>Resumidos en un punto</span></label>
       <label><input type="radio" name="agPendMode" value="each"><span>Uno por uno</span></label>
@@ -2102,7 +2196,7 @@ function assignPanelHtml() {
       <strong>${x.conf ? '🔒 ' : ''}${esc(x.t)}</strong>
       <div class="two">
         ${pickerHtml(`asg-${x.id}`, A.splitNames(x.by), { placeholder: 'Lo presenta(n)' })}
-        <input data-assign-ref="${x.id}" maxlength="160" value="${esc(x.ref || '')}" placeholder="Referencia" aria-label="Referencia de ${esc(x.t)}">
+        <input data-assign-ref="${esc(x.id)}" maxlength="160" value="${esc(x.ref || '')}" placeholder="Referencia" aria-label="Referencia de ${esc(x.t)}">
       </div></div>`).join('')}
     <div class="quick"><button type="button" class="btn primary small" data-a="ag-assign-save">Listo</button><button type="button" class="btn ghost small" data-a="ag-mode" data-v="">Cancelar</button></div>
   </div>`;
@@ -2122,7 +2216,7 @@ function agendaListHtml(m) {
       const x = agendaDraft[i];
       const picking = agendaMode === 'merge';
       return `<div class="mini-row ag-row ${picking && agendaPick.has(x.id) ? 'picked' : ''}">
-        ${picking ? `<label class="ag-pick"><input type="checkbox" data-a="ag-pick" data-id="${x.id}" ${agendaPick.has(x.id) ? 'checked' : ''} aria-label="Elegir ${esc(x.t)}"></label>` : ''}
+        ${picking ? `<label class="ag-pick"><input type="checkbox" data-a="ag-pick" data-id="${esc(x.id)}" ${agendaPick.has(x.id) ? 'checked' : ''} aria-label="Elegir ${esc(x.t)}"></label>` : ''}
         <span class="grow">${sch.items[x.id] ? `<span class="ag-time">${sch.items[x.id]}</span>` : ''}<strong>${x.conf ? '🔒 ' : ''}${esc(x.t)}</strong>
           ${(x.subs || []).length ? `<span class="ag-subs">${x.subs.map((sub, j) => `<span>${String.fromCharCode(97 + j)}) ${esc(sub)}</span>`).join('')}</span>` : ''}
           <span class="meta">${[x.by ? esc(A.joinNames(A.splitNames(x.by))) : '<i>sin asignar</i>', x.min ? `${x.min} min` : '', x.ref ? `📖 ${esc(A.formatRef(x.ref))}` : '<i>sin referencia</i>', x.notes ? 'con detalle' : ''].filter(Boolean).join(' · ')}</span>
@@ -2173,7 +2267,7 @@ function agendaEditorHtml() {
         <select id="ag-min" aria-label="Minutos">${[2, 3, 5, 10, 15, 20, 30, 45, 60].map(n => `<option value="${n}" ${n === 5 ? 'selected' : ''}>${n} min</option>`).join('')}</select>
       </div>
       <div class="f"><span class="lbl">Lo presenta(n)</span>${pickerHtml('ag-by', [])}</div>
-      <div class="seg four" role="radiogroup" aria-label="Qué se espera">${A.KIND_ORDER.map(k => `<label><input type="radio" name="agKind" value="${k}" ${k === 'decidir' ? 'checked' : ''}><span>${esc(A.AGENDA_KINDS[k].n)}</span></label>`).join('')}</div>
+      <div class="seg four" role="radiogroup" aria-label="Qué se espera">${A.KIND_ORDER.map(k => `<label><input type="radio" name="agKind" value="${esc(k)}" ${k === 'decidir' ? 'checked' : ''}><span>${esc(A.AGENDA_KINDS[k].n)}</span></label>`).join('')}</div>
       <input id="ag-ref" maxlength="160" placeholder="Referencia (ej. Sfg cap. 1, párrs. 4-6)" aria-label="Referencia">
       <textarea id="ag-subs" rows="2" placeholder="Subpuntos, uno por línea (ej. Auxiliar de La Atalaya)" aria-label="Subpuntos"></textarea>
       <label class="check"><input type="checkbox" id="ag-conf"> Confidencial <span class="hint">(al enviar solo salen el título, quién lo presenta y la referencia; los subpuntos no)</span></label>
@@ -2406,7 +2500,7 @@ function templatesPanelHtml() {
   return `<div class="ag-panel">
     <p><b>Plantillas</b> <span class="hint">· agendas que repites (por ejemplo, la junta mensual)</span></p>
     ${list.length ? `<div class="mini-list">${list.map(t => `<div class="mini-row"><span class="grow"><strong>${esc(t.name)}</strong><span class="meta">${t.items.length} ${t.items.length === 1 ? 'punto' : 'puntos'}${t.max ? ` · máx. ${A.fmtMin(t.max)}` : ''}</span></span>
-        <span class="ag-btns"><button type="button" class="btn small" data-a="tpl-load" data-id="${t.id}">Cargar</button><button type="button" class="icon-btn" data-a="tpl-del" data-id="${t.id}" aria-label="Borrar plantilla">${ic('x', 'sm')}</button></span></div>`).join('')}</div>`
+        <span class="ag-btns"><button type="button" class="btn small" data-a="tpl-load" data-id="${esc(t.id)}">Cargar</button><button type="button" class="icon-btn" data-a="tpl-del" data-id="${esc(t.id)}" aria-label="Borrar plantilla">${ic('x', 'sm')}</button></span></div>`).join('')}</div>`
       : '<p class="hint">Aún no tienes plantillas.</p>'}
     ${agendaDraft.length ? `<div class="log-add"><input id="tpl-name" maxlength="60" placeholder="Nombre (ej. Junta mensual)" aria-label="Nombre de la plantilla"><button type="button" class="btn" data-a="tpl-save">Guardar esta agenda</button></div>
       <p class="hint">Se guardan los puntos, tipos, minutos, referencias y subpuntos; no los encargados ni lo que viene de tareas.</p>` : ''}
@@ -2450,13 +2544,13 @@ export function supervisionSheet(meetingId = '', back = null) {
     body: `<p class="hint">${m ? `Reunión «${esc(m.title)}» del ${fmtShort(m.date)}` : 'Abiertas de todas las reuniones y las hechas en los últimos 30 días'}</p>
       ${rep.total ? `<div class="sup-bar"><div class="goal-bar"><span class="fill"><i style="width:${rep.pct}%"></i></span></div><p><b>${rep.done}</b> de <b>${rep.total}</b> hechas · ${rep.pct} %</p></div>
       ${rep.groups.filter(g => g.rows.length).map(g => `<h3 class="sub-h">${g.e} ${esc(g.n)} <span class="hint">${g.rows.length}</span></h3>
-        <div class="stack">${g.rows.map(r => `<button class="card mini sup-row ${g.id}" data-a="sup-task" data-id="${r.t.id}" data-mid="${meetingId}">
+        <div class="stack">${g.rows.map(r => `<button class="card mini sup-row ${esc(g.id)}" data-a="sup-task" data-id="${esc(r.t.id)}" data-mid="${esc(meetingId)}">
           <strong>${esc(r.t.title)}</strong>
           <span class="meta">${[r.who ? esc(r.who) : '', r.t.due && g.id !== 'done' ? `vence ${fmtShort(r.t.due)}` : '', !m && r.meeting ? esc(r.meeting.title) : ''].filter(Boolean).join(' · ')}</span>
           ${g.id === 'done' ? '' : `<span class="meta">${r.last ? `Última novedad ${fmtShort(r.last.d)}: ${esc(String(r.last.t).slice(0, 70))}` : `Sin novedades hace ${r.quiet} días`}</span>`}
         </button>`).join('')}</div>`).join('')}`
       : '<p class="hint pad">Todavía no hay tareas que hayan salido de reuniones.</p>'}`,
-    actions: rep.total ? `<button type="button" class="btn ghost" data-a="sup-share" data-id="${meetingId}">Enviar</button><button type="button" class="btn primary" data-a="sheet-close">Listo</button>` : '',
+    actions: rep.total ? `<button type="button" class="btn ghost" data-a="sup-share" data-id="${esc(meetingId)}">Enviar</button><button type="button" class="btn primary" data-a="sheet-close">Listo</button>` : '',
   });
 }
 export function supervisionShare(meetingId = '') {
@@ -2520,8 +2614,8 @@ export function meetingSheet(id, back) {
     body: `${formTag('meeting', m?.id)}
       ${fld('Título', `<input id="title" name="title" required maxlength="120" value="${esc(v.title)}" placeholder="Ej. Reunión con el coordinador">`, 'title')}
       <div class="two">
-        ${fld('Fecha', `<input id="date" name="date" type="date" required value="${v.date}">`, 'date')}
-        ${fld('Hora', `<input id="time" name="time" type="time" value="${v.time || ''}">`, 'time')}
+        ${fld('Fecha', `<input id="date" name="date" type="date" required value="${esc(v.date)}">`, 'date')}
+        ${fld('Hora', `<input id="time" name="time" type="time" value="${esc(v.time || '')}">`, 'time')}
       </div>
       ${fld('Lugar', `<input id="place" name="place" maxlength="120" value="${esc(v.place || '')}">`, 'place')}
       <div class="f"><span class="lbl">Participantes</span>
@@ -2544,12 +2638,12 @@ export function meetingSheet(id, back) {
     </form>
     ${m ? `<section id="agree-box">${agreementsHtml(m)}</section>` : ''}
     ${m ? `<section><h3 class="sub-h">Tareas de esta reunión</h3>
-      ${linked.length ? `<div class="stack">${linked.map(t => `<button class="card mini" data-a="task-in-sheet" data-id="${t.id}" data-bk="meeting" data-bid="${m.id}"><strong>${esc(t.title)}</strong><span class="meta">${esc(M.STATUS[t.status] || '')}</span></button>`).join('')}</div>` : '<p class="hint">Todavía no hay tareas.</p>'}
-      <button type="button" class="btn pad-top" data-a="task-from-meeting" data-id="${m.id}">Crear tarea de esta reunión</button>
-      ${linked.length ? `<button type="button" class="btn pad-top" data-a="supervision" data-id="${m.id}">📋 Informe de supervisión</button>` : ''}
-      <button type="button" class="btn ghost pad-top" data-a="meeting-next" data-id="${m.id}">Preparar la próxima reunión a partir de esta</button></section>
+      ${linked.length ? `<div class="stack">${linked.map(t => `<button class="card mini" data-a="task-in-sheet" data-id="${esc(t.id)}" data-bk="meeting" data-bid="${esc(m.id)}"><strong>${esc(t.title)}</strong><span class="meta">${esc(M.STATUS[t.status] || '')}</span></button>`).join('')}</div>` : '<p class="hint">Todavía no hay tareas.</p>'}
+      <button type="button" class="btn pad-top" data-a="task-from-meeting" data-id="${esc(m.id)}">Crear tarea de esta reunión</button>
+      ${linked.length ? `<button type="button" class="btn pad-top" data-a="supervision" data-id="${esc(m.id)}">📋 Informe de supervisión</button>` : ''}
+      <button type="button" class="btn ghost pad-top" data-a="meeting-next" data-id="${esc(m.id)}">Preparar la próxima reunión a partir de esta</button></section>
       <section><h3 class="sub-h">Notas de la agenda vinculadas</h3>
-      ${linkedNotes.length ? `<div class="stack">${linkedNotes.map(n => `<button class="card mini" data-a="note-in-sheet" data-id="${n.id}" data-bk="meeting" data-bid="${m.id}"><strong>${esc(n.title || 'Sin título')}</strong><span class="meta">${M.noteDate(n) ? fmtShort(M.noteDate(n)) : ''}</span></button>`).join('')}</div>` : '<p class="hint">Ninguna nota vinculada todavía.</p>'}</section>` : ''}`,
+      ${linkedNotes.length ? `<div class="stack">${linkedNotes.map(n => `<button class="card mini" data-a="note-in-sheet" data-id="${esc(n.id)}" data-bk="meeting" data-bid="${esc(m.id)}"><strong>${esc(n.title || 'Sin título')}</strong><span class="meta">${M.noteDate(n) ? fmtShort(M.noteDate(n)) : ''}</span></button>`).join('')}</div>` : '<p class="hint">Ninguna nota vinculada todavía.</p>'}</section>` : ''}`,
     actions: foot('meetings', m?.id),
   });
 }
@@ -2573,8 +2667,8 @@ function agreementsHtml(m) {
         <span class="tag ${a.mine ? 'mine' : 'sup'}">${a.mine ? '👉 Te toca a ti' : '👁 Supervisas'}</span>
       </span>
       ${a.task
-        ? `<button type="button" class="btn small ghost" data-a="task-in-sheet" data-id="${a.task.id}" data-bk="meeting" data-bid="${m.id}">✓ Ver tarea</button>`
-        : `<button type="button" class="btn small" data-a="agree-task" data-id="${m.id}" data-i="${i}">Crear tarea</button>`}
+        ? `<button type="button" class="btn small ghost" data-a="task-in-sheet" data-id="${esc(a.task.id)}" data-bk="meeting" data-bid="${esc(m.id)}">✓ Ver tarea</button>`
+        : `<button type="button" class="btn small" data-a="agree-task" data-id="${esc(m.id)}" data-i="${i}">Crear tarea</button>`}
     </div>`).join('')}</div>`;
 }
 
@@ -2636,7 +2730,7 @@ export function quickAdd() {
   ];
   open({
     title: '¿Qué quieres agregar?',
-    body: `<div class="qa">${items.map(([k, i, n, d]) => `<button data-a="quick" data-v="${k}">${ic(i)}<span><strong>${n}</strong><span class="meta">${d}</span></span></button>`).join('')}</div>`,
+    body: `<div class="qa">${items.map(([k, i, n, d]) => `<button data-a="quick" data-v="${esc(k)}">${ic(i)}<span><strong>${n}</strong><span class="meta">${d}</span></span></button>`).join('')}</div>`,
   });
 }
 
@@ -2709,11 +2803,11 @@ export function renderSearchResults(q) {
   const section = (title, items, row) => items.length
     ? `<h3 class="sub-h">${title}</h3><div class="stack">${items.map(row).join('')}</div>` : '';
   return `
-    ${section('Eventos', r.events, e => `<button class="card mini" data-a="event" data-id="${e.id}"><strong>${esc(e.title)}</strong><span class="meta">${fmtShort(e.date)}${e.place ? ` · ${esc(e.place)}` : ''}</span></button>`)}
-    ${section('Tareas', r.tasks, t => `<button class="card mini" data-a="task" data-id="${t.id}"><strong>${esc(t.title)}</strong><span class="meta">${esc(M.STATUS[t.status] || '')}</span></button>`)}
-    ${section('Personas', r.people, p => `<button class="card mini" data-a="person" data-id="${p.id}"><strong>${esc(p.name)}</strong>${p.role ? `<span class="meta">${esc(p.role)}</span>` : ''}</button>`)}
-    ${section('Notas', r.notes, n => `<button class="card mini" data-a="note" data-id="${n.id}"><strong>${esc(n.title || 'Sin título')}</strong>${M.noteDate(n) ? `<span class="meta">${fmtShort(M.noteDate(n))}</span>` : ''}</button>`)}
-    ${section('Reuniones', r.meetings, m => `<button class="card mini" data-a="meeting" data-id="${m.id}"><strong>${esc(m.title)}</strong><span class="meta">${fmtShort(m.date)}</span></button>`)}`;
+    ${section('Eventos', r.events, e => `<button class="card mini" data-a="event" data-id="${esc(e.id)}"><strong>${esc(e.title)}</strong><span class="meta">${fmtShort(e.date)}${e.place ? ` · ${esc(e.place)}` : ''}</span></button>`)}
+    ${section('Tareas', r.tasks, t => `<button class="card mini" data-a="task" data-id="${esc(t.id)}"><strong>${esc(t.title)}</strong><span class="meta">${esc(M.STATUS[t.status] || '')}</span></button>`)}
+    ${section('Personas', r.people, p => `<button class="card mini" data-a="person" data-id="${esc(p.id)}"><strong>${esc(p.name)}</strong>${p.role ? `<span class="meta">${esc(p.role)}</span>` : ''}</button>`)}
+    ${section('Notas', r.notes, n => `<button class="card mini" data-a="note" data-id="${esc(n.id)}"><strong>${esc(n.title || 'Sin título')}</strong>${M.noteDate(n) ? `<span class="meta">${fmtShort(M.noteDate(n))}</span>` : ''}</button>`)}
+    ${section('Reuniones', r.meetings, m => `<button class="card mini" data-a="meeting" data-id="${esc(m.id)}"><strong>${esc(m.title)}</strong><span class="meta">${fmtShort(m.date)}</span></button>`)}`;
 }
 
 // ───────────── Ajustes ─────────────
@@ -2728,7 +2822,7 @@ const SETTINGS_SECS = [
   { id: 'medida', ic: '🧩', n: 'La app a mi medida', d: 'Secciones, accesos rápidos y tipos propios', k: 'secciones accesos rápidos tipos ocultar módulos compartidos' },
   { id: 'datos', ic: '💾', n: 'Mis datos', d: 'Respaldo, restaurar e importar', k: 'respaldo restaurar importar keep exportar datos cerrar sesión' },
   { id: 'ayuda', ic: '❓', n: 'Ayuda', d: 'Guía, recorrido e instalar en el teléfono', k: 'ayuda guía recorrido instalar' },
-  { id: 'admin', ic: '🛡️', n: 'Administración', d: 'Aprobar cuentas y tipos de perfil', k: 'administrar usuarios cuentas aprobar', admin: true },
+  { id: 'admin', ic: '🛡️', n: 'Administración', d: 'Aprobar cuentas, sus funciones y plantillas', k: 'administrar usuarios cuentas aprobar funciones permisos plantillas', admin: true },
 ];
 
 export function settings(sec) {
@@ -2737,8 +2831,8 @@ export function settings(sec) {
   const list = SETTINGS_SECS.filter(x => !x.admin || session.isAdmin);
   open({
     title: 'Ajustes',
-    body: `<input id="set-q" class="set-search" type="search" placeholder="¿Qué quieres cambiar? (ej. avisos, color, PIN)" aria-label="Buscar en ajustes" autocomplete="off">
-      <div class="set-menu">${list.map(x => `<button type="button" class="set-item" data-a="set-sec" data-v="${x.id}" data-k="${esc(norm(x.n + ' ' + x.d + ' ' + x.k))}">
+    body: `${updateBanner()}<input id="set-q" class="set-search" type="search" placeholder="¿Qué quieres cambiar? (ej. avisos, color, PIN)" aria-label="Buscar en ajustes" autocomplete="off">
+      <div class="set-menu">${list.map(x => `<button type="button" class="set-item" data-a="set-sec" data-v="${esc(x.id)}" data-k="${esc(norm(x.n + ' ' + x.d + ' ' + x.k))}">
         <span class="set-ic" aria-hidden="true">${x.ic}</span><span class="grow"><strong>${esc(x.n)}</strong><span class="meta">${esc(x.d)}</span></span>${ic('right', 'sm')}</button>`).join('')}</div>
       <p class="hint set-none" hidden>No encontré ese ajuste. Prueba con otra palabra.</p>
       <p class="hint pad">${isCloud ? `Sesión: <b>${esc(account.user?.email || '')}</b> · ` : 'Modo local · '}Versión ${M.APP_VERSION}</p>`,
@@ -2757,7 +2851,7 @@ function settingsSection(id) {
   if (!sec) { setSec = ''; return settings(); }
   const body = {
     perfil: () => `<p>${isCloud ? `Sesión iniciada como <b>${esc(account.user?.email || '')}</b>.` : 'Modo local: los datos están solo en este teléfono.'}</p>
-      ${isCloud && M.PROFILE_TYPES[session.type] ? `<p class="hint">Tipo de perfil: <b>${esc(M.PROFILE_TYPES[session.type].n)}</b> (lo asigna el administrador).</p>` : ''}
+      ${isCloud && M.templates()[session.type] ? `<p class="hint">Tu cuenta: <b>${esc(M.typeName(session.type))}</b> (lo asigna el administrador, con las secciones y funciones que puedes usar).</p>` : ''}
       ${M.profile().myName ? `<p class="hint">Tu nombre: <b>${esc(M.profile().myName)}</b></p>` : '<p class="hint warn">Aún no escribiste tu nombre: así otros te encuentran al compartir y la app sabe qué tareas te tocan.</p>'}
       <div class="stack pad"><button class="btn primary" data-a="profile">Editar mi perfil</button>
       ${isCloud ? '<button class="btn ghost danger" data-a="signout">Cerrar sesión</button>' : ''}</div>
@@ -2765,11 +2859,11 @@ function settingsSection(id) {
     apariencia: () => {
       const t = Theme.pref();
       return `<p class="hint pick-h">Tema</p>
-      <div class="seg">${[['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([k, n]) => `<button data-a="theme-set" data-v="${k}" aria-pressed="${t === k}">${n}</button>`).join('')}</div>
+      <div class="seg">${[['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([k, n]) => `<button data-a="theme-set" data-v="${esc(k)}" aria-pressed="${t === k}">${n}</button>`).join('')}</div>
       <p class="hint pick-h">Color de la app</p>
-      <div class="swatches" role="radiogroup" aria-label="Color de la app">${Theme.ACCENTS.map(x => `<button type="button" class="swatch" data-a="accent-set" data-v="${x.id}" style="--sw:${x.c}" aria-pressed="${Theme.accent() === x.id}" aria-label="${esc(x.n)}"><i></i><span>${esc(x.n)}</span></button>`).join('')}</div>
+      <div class="swatches" role="radiogroup" aria-label="Color de la app">${Theme.ACCENTS.map(x => `<button type="button" class="swatch" data-a="accent-set" data-v="${esc(x.id)}" style="--sw:${x.c}" aria-pressed="${Theme.accent() === x.id}" aria-label="${esc(x.n)}"><i></i><span>${esc(x.n)}</span></button>`).join('')}</div>
       <p class="hint pick-h">Tamaño de letra</p>
-      <div class="seg">${Theme.SIZES.map(x => `<button data-a="size-set" data-v="${x.id}" aria-pressed="${Theme.size() === x.id}">${esc(x.n)}</button>`).join('')}</div>
+      <div class="seg">${Theme.SIZES.map(x => `<button data-a="size-set" data-v="${esc(x.id)}" aria-pressed="${Theme.size() === x.id}">${esc(x.n)}</button>`).join('')}</div>
       <p class="hint pad">El color de cada evento se elige dentro del evento.</p>`;
     },
     avisos: () => notifSettingsHtml(),
@@ -2781,10 +2875,10 @@ function settingsSection(id) {
       : `<p class="hint">Protege lo que guardas si alguien toma tu teléfono: la app pedirá un PIN al abrirla. Después podrás usar también la huella.</p><div class="stack pad"><button class="btn" data-a="pin" data-v="on">🔒 Activar bloqueo con PIN</button></div>`,
     medida: () => `<h3 class="sub-h">Accesos rápidos</h3>
       <p class="hint">Botones que aparecen en Hoy para lo que más usas.</p>
-      <div class="stack pad">${M.QUICK_ACTIONS.filter(q => !q.mod || M.isModuleVisible(q.mod)).map(q => `<label class="check"><input type="checkbox" data-a="toggle-quick" data-v="${q.id}" ${M.quickActions().some(x => x.id === q.id) ? 'checked' : ''}> ${esc(q.n)}</label>`).join('')}</div>
+      <div class="stack pad">${M.QUICK_ACTIONS.filter(q => (!q.mod || M.isModuleVisible(q.mod)) && M.quickAllowed(q.id)).map(q => `<label class="check"><input type="checkbox" data-a="toggle-quick" data-v="${esc(q.id)}" ${M.quickActions().some(x => x.id === q.id) ? 'checked' : ''}> ${esc(q.n)}</label>`).join('')}</div>
       <h3 class="sub-h">Secciones visibles</h3>
       <p class="hint">Apaga las que no uses; siempre puedes volver a activarlas aquí. «Hoy» siempre está disponible.</p>
-      <div class="stack pad">${M.MODULES.filter(m => M.moduleAllowed(m.id)).map(m => `<label class="check"><input type="checkbox" data-a="toggle-module" data-v="${m.id}" ${M.isModuleVisible(m.id) ? 'checked' : ''}> ${esc(m.n)}</label>`).join('')}</div>
+      <div class="stack pad">${M.MODULES.filter(m => M.moduleAllowed(m.id)).map(m => `<label class="check"><input type="checkbox" data-a="toggle-module" data-v="${esc(m.id)}" ${M.isModuleVisible(m.id) ? 'checked' : ''}> ${esc(m.n)}</label>`).join('')}</div>
       ${typesSettingsHtml()}
       ${(M.profile().sharedHidden || []).length ? `<h3 class="sub-h">Eventos compartidos</h3><p class="hint">Quitaste ${M.profile().sharedHidden.length} de tu agenda.</p><div class="stack pad"><button class="btn" data-a="shared-unhide">Volver a mostrarlos</button></div>` : ''}`,
     datos: () => `<p class="hint">Haz un respaldo de vez en cuando: guarda una copia de todo en un archivo. En el teléfono, «Guardar en Google Drive» abre Compartir: elige <b>Drive</b> y toca Guardar.${(() => { try { const d = localStorage.getItem('miagenda.ultimoRespaldo'); return d ? ` Tu último respaldo desde este teléfono: <b>${esc(fmtShort(d))}</b>.` : ''; } catch { return ''; } })()}</p>
@@ -2812,7 +2906,8 @@ function settingsSection(id) {
       <h3 class="sub-h">Instalar en el teléfono</h3>
       <p class="hint">Android (Chrome): menú ⋮ y «Instalar app». iPhone (Safari): botón Compartir y «Añadir a pantalla de inicio».</p>
       <p class="hint pad">Versión ${M.APP_VERSION}</p>`,
-    admin: () => `<p class="hint">Las cuentas nuevas aparecen como «Pendiente»: elige su tipo y se les abre la app. No ves los datos de nadie.</p><div class="stack pad"><button class="btn primary" data-a="admin">${ic('shield', 'sm')} Administrar usuarios</button></div>`,
+    admin: () => `<p class="hint">Las cuentas nuevas aparecen como «Pendiente»: elige su tipo y se les abre la app. No ves los datos de nadie.</p>
+      <p class="hint">En <b>Administración</b> eliges, por cuenta, qué secciones y funciones puede usar, y editas las <b>plantillas</b> de cada tipo de perfil.</p><div class="stack pad"><button class="btn primary" data-a="admin">${ic('shield', 'sm')} Abrir Administración</button></div>`,
   }[id];
   open({ title: `${sec.ic} ${sec.n}`, back: settingsMenu, body: body() });
   if (id === 'privacidad') settingsBio();
@@ -2821,7 +2916,7 @@ function settingsSection(id) {
 // Avisos en la app de Android: los programa el propio teléfono (exactos, sin internet, con sonidos por tipo)
 function nativeNotifHtml() {
   const p = N.prefs();
-  const opt = (k, n) => `<label class="check"><input type="checkbox" data-a="notif-pref" data-v="${k}" ${p[k] ? 'checked' : ''}> ${n}</label>`;
+  const opt = (k, n) => `<label class="check"><input type="checkbox" data-a="notif-pref" data-v="${esc(k)}" ${p[k] ? 'checked' : ''}> ${n}</label>`;
   const hours = Array.from({ length: 17 }, (_, i) => i + 5);
   const hh = h => `${h % 12 || 12}:00 ${h < 12 ? 'a. m.' : 'p. m.'}`;
   return `<p class="hint">Estás en la app de Android: los avisos los programa tu teléfono, así llegan a la hora exacta aunque no haya internet, y cada tipo tiene su sonido.</p>
@@ -2878,12 +2973,12 @@ export async function avisosCheck() {
   const rut = (rs || []).map(x => {
     const title = `<b>${esc(x.e.title || 'Sin título')}</b>`;
     let st;
-    if (!x.routine) st = `<span class="hint">No te pregunta si la hiciste.</span> <button class="btn small ghost" data-a="routine-on" data-id="${x.e.id}">🔔 Que me pregunte</button>`;
+    if (!x.routine) st = `<span class="hint">No te pregunta si la hiciste.</span> <button class="btn small ghost" data-a="routine-on" data-id="${esc(x.e.id)}">🔔 Que me pregunte</button>`;
     else if (x.done) st = '✓ Ya la marcaste hoy.';
     else if (x.firstPending && x.lastPending) st = `🔔 Te pregunta a las ${hmOf(x.first)} y, si aún no la marcas, a las ${hmOf(x.last)}`;
     else if (x.firstPending) st = `🔔 Te pregunta a las ${hmOf(x.first)}`;
     else if (x.lastPending) st = `🔔 Ya pasó el aviso de las ${hmOf(x.first)}; te queda el último a las ${hmOf(x.last)}`;
-    else if (nowMin >= (x.last ?? x.first)) st = `⏰ Ya pasó la hora de los avisos de hoy. <button class="btn small" data-a="ev-done" data-id="${x.e.id}" data-date="${today()}">✓ Ya lo hice</button>`;
+    else if (nowMin >= (x.last ?? x.first)) st = `⏰ Ya pasó la hora de los avisos de hoy. <button class="btn small" data-a="ev-done" data-id="${esc(x.e.id)}" data-date="${today()}">✓ Ya lo hice</button>`;
     else st = '⚠️ Sin aviso programado todavía. Toca «Volver a programar».';
     return `<li>${title}<br>${st}</li>`;
   }).join('');
@@ -2910,7 +3005,7 @@ function notifSettingsHtml() {
   const on = N.isOn(), p = N.prefs();
   const hours = Array.from({ length: 17 }, (_, i) => i + 5);
   const hh = h => `${h % 12 || 12}:00 ${h < 12 ? 'a. m.' : 'p. m.'}`;
-  const opt = (k, n) => `<label class="check"><input type="checkbox" data-a="notif-pref" data-v="${k}" ${p[k] ? 'checked' : ''}> ${n}</label>`;
+  const opt = (k, n) => `<label class="check"><input type="checkbox" data-a="notif-pref" data-v="${esc(k)}" ${p[k] ? 'checked' : ''}> ${n}</label>`;
   return `<p class="hint">Un resumen por la mañana y avisos durante el día (antes de tus eventos, rutinas sin marcar…). Se activa en cada teléfono por separado.</p>
     ${N.blocked() ? '<p class="hint warn">Los avisos están bloqueados para esta app. Actívalos en los ajustes del navegador o del teléfono y vuelve aquí.</p>' : ''}
     <div class="stack pad">
@@ -2943,8 +3038,8 @@ function notifSettingsHtml() {
         ${opt('report', 'Primeros días del mes: enviar tu informe')}
         <p class="hint pick-h"><b>🔊 Sonidos de Mi Agenda</b></p>
         <p class="hint">Suena en la app cuando llega un aviso con la app abierta. Para que el teléfono use este sonido siempre, descárgalo y elígelo en el teléfono (abajo te explico cómo).</p>
-        <div class="sound-list">${N.SOUNDS.map(([id, n]) => `<div class="sound-row"><label class="check"><input type="radio" name="notif-sound" value="${id}" ${p.sound === id ? 'checked' : ''}> ${n}</label>
-          <span class="quick"><button type="button" class="btn small" data-a="sound-play" data-v="${id}">▶ Oír</button><a class="btn small ghost" href="sonidos/${id}.mp3" download="MiAgenda-${n}.mp3">⬇ Descargar</a></span></div>`).join('')}
+        <div class="sound-list">${N.SOUNDS.map(([id, n]) => `<div class="sound-row"><label class="check"><input type="radio" name="notif-sound" value="${esc(id)}" ${p.sound === id ? 'checked' : ''}> ${n}</label>
+          <span class="quick"><button type="button" class="btn small" data-a="sound-play" data-v="${esc(id)}">▶ Oír</button><a class="btn small ghost" href="sonidos/${esc(id)}.mp3" download="MiAgenda-${n}.mp3">⬇ Descargar</a></span></div>`).join('')}
           <label class="check"><input type="radio" name="notif-sound" value="ninguno" ${p.sound === 'ninguno' ? 'checked' : ''}> Sin sonido en la app</label></div>
         <details class="howto"><summary>Cómo poner el sonido en el teléfono (Android)</summary>
           <ol><li>Toca <b>⬇ Descargar</b> en el sonido que te guste (queda en «Descargas»).</li>
@@ -2980,7 +3075,7 @@ export async function notifTest() {
 function typesSettingsHtml() {
   const block = (col, title) => {
     const list = M.savedTypes(col);
-    return list.length ? `<p class="hint pick-h">${title}</p><div class="tagrow">${list.map(t => `<span class="chip static removable">${esc(t)}<button type="button" data-a="type-remove" data-col="${col}" data-v="${esc(t)}" aria-label="Quitar ${esc(t)}">${ic('x', 'sm')}</button></span>`).join('')}</div>` : '';
+    return list.length ? `<p class="hint pick-h">${title}</p><div class="tagrow">${list.map(t => `<span class="chip static removable">${esc(t)}<button type="button" data-a="type-remove" data-col="${esc(col)}" data-v="${esc(t)}" aria-label="Quitar ${esc(t)}">${ic('x', 'sm')}</button></span>`).join('')}</div>` : '';
   };
   const html = block('tasks', 'De tareas') + block('events', 'De eventos') + block('privileges', 'Privilegios');
   return html ? `<h3 class="sub-h">Tus tipos propios</h3><p class="hint">Se agregan solos cuando escribes un tipo nuevo. Quita los que no uses; si alguna tarea o evento ya lo tiene, seguirá apareciendo.</p>${html}` : '';
@@ -3036,10 +3131,10 @@ export function guideSheet(back = null) {
 // ───────────── Bloqueo con PIN ─────────────
 export function pinSheet(mode) {
   const title = { on: 'Activar bloqueo con PIN', change: 'Cambiar PIN', off: 'Quitar el PIN' }[mode] || 'PIN';
-  const inp = (id, label) => fld(label, `<input id="${id}" name="${id}" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" autocomplete="off" required>`, id);
+  const inp = (id, label) => fld(label, `<input id="${esc(id)}" name="${esc(id)}" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" autocomplete="off" required>`, id);
   open({
     title, back: settings,
-    body: `<form id="f" data-form="pin" data-id="${mode}" autocomplete="off">
+    body: `<form id="f" data-form="pin" data-id="${esc(mode)}" autocomplete="off">
       ${mode !== 'on' ? inp('pinOld', 'PIN actual') : ''}
       ${mode !== 'off' ? `${inp('pin1', 'Nuevo PIN (4 a 6 números)')}${inp('pin2', 'Repite el PIN')}` : ''}
       <p class="hint">${mode === 'off' ? 'La app dejará de pedir el PIN en este teléfono.' : `Es solo para este teléfono. ${isCloud ? 'Si lo olvidas, podrás quitarlo cerrando sesión y volviendo a entrar.' : 'Como estás en modo local, si lo olvidas no se puede restablecer: anótalo en un lugar seguro.'}`}</p>
@@ -3065,9 +3160,14 @@ async function savePin(mode, r) {
 // ───────────── Administración de usuarios (solo el administrador) ─────────────
 
 const typeOptions = sel => `<option value="" ${!sel ? 'selected' : ''}>Pendiente (sin acceso)</option>`
-  + Object.entries(M.PROFILE_TYPES).map(([k, t]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(t.n)}</option>`).join('');
+  + Object.entries(M.templates()).map(([k, t]) => `<option value="${esc(k)}" ${k === sel ? 'selected' : ''}>${esc(t.n)}</option>`).join('');
 
+// v10.0: el panel nuevo de Administración (usuarios + plantillas) vive en admin.js; el de antes queda como respaldo
 export async function adminSheet() {
+  if (!session.isAdmin) return;
+  return import('./admin.js').then(A => A.openAdmin()).catch(e => { console.error(e); return adminSheetClassic(); });
+}
+async function adminSheetClassic() {
   if (!session.isAdmin) return;
   open({ title: 'Administrar usuarios', body: '<p class="hint pad">Cargando cuentas…</p>' });
   let users;
@@ -3130,7 +3230,7 @@ export async function sendNoteSheet(id) {
   const b = root.querySelector('.sheet-b');
   if (!b) return;
   b.innerHTML = users.length ? `<p class="hint">Se le envía una copia de «${esc(n.title || 'la nota')}» (sin la reunión ni la persona vinculadas). Le aparece para importarla al abrir su app.</p>
-    <div class="stack">${users.map(u => `<button type="button" class="btn" data-a="send-note-go" data-id="${n.id}" data-v="${esc(u.uid)}" data-name="${esc(u.name || u.email || '')}">📤 ${esc(u.name || u.email)}</button>`).join('')}</div>`
+    <div class="stack">${users.map(u => `<button type="button" class="btn" data-a="send-note-go" data-id="${esc(n.id)}" data-v="${esc(u.uid)}" data-name="${esc(u.name || u.email || '')}">📤 ${esc(u.name || u.email)}</button>`).join('')}</div>`
     : '<p class="hint pad">No hay otras cuentas con acceso.</p>';
 }
 export async function sendNoteGo(id, uidTo, name) {
@@ -3157,7 +3257,7 @@ export async function inboxDiscard() {
 export function adminSetType(uid, type, select) {
   select.disabled = true;
   store.admin.setType(uid, type)
-    .then(() => toast(type ? `Perfil asignado: ${M.PROFILE_TYPES[type].n}` : 'Acceso quitado: la cuenta queda pendiente'))
+    .then(() => toast(type ? `Perfil asignado: ${M.typeName(type)}` : 'Acceso quitado: la cuenta queda pendiente'))
     .catch(e => { console.error(e); toast('No se pudo guardar el cambio'); })
     .finally(() => { select.disabled = false; });
 }
@@ -3168,22 +3268,27 @@ let importPending = null;
 export function importPreview(txt, opts = {}) {
   let parsed;
   try { parsed = JSON.parse(txt); } catch { importPending = null; return toast('El archivo no es un respaldo válido'); }
+  if (!parsed || typeof parsed !== 'object') { importPending = null; return toast('El archivo no es un respaldo válido'); }
   const src = parsed.data || parsed;
   const dupPeople = (Array.isArray(src.people) ? src.people : []).filter(x => x && x.id && store.isDuplicatePerson(x)).length;
-  const counts = store.COLS.map(c => [c, Array.isArray(src[c]) ? src[c].filter(x => x && x.id && !(c === 'people' && store.isDuplicatePerson(x))) : []]);
+  const plan = store.importPlan(parsed);
+  const counts = plan.map(r => [r.col, { length: r.add + r.replace }]);
+  const bad = plan.reduce((n, r) => n + r.bad, 0);
   const rm = parsed.remove || {};
   const removes = store.COLS.map(c => [c, (Array.isArray(rm[c]) ? rm[c] : []).filter(id => store.get(c, id))]);
   const nRemove = removes.reduce((n, [, l]) => n + l.length, 0);
   const assign = Array.isArray(parsed.assign) ? parsed.assign.filter(x => x && x.dept) : [];
   const total = counts.reduce((n, [, l]) => n + l.length, 0) + nRemove + assign.length;
   if (!total) { importPending = null; return toast('El respaldo no tiene elementos'); }
-  const replace = counts.reduce((n, [c, l]) => n + l.filter(x => store.get(c, x.id)).length, 0);
+  const replace = plan.reduce((n, r) => n + r.replace, 0);
   importPending = txt;
   const names = { notes: 'notas', events: 'eventos', tasks: 'tareas', people: 'personas', groups: 'grupos', meetings: 'reuniones', entries: 'registros de tiempo', profile: 'perfil', weeks: 'semanas con objetivos', depts: 'departamentos', mecas: 'arreglos de asignaciones', visitas: 'visitas del superintendente' };
   open({
     title: opts.title || 'Restaurar respaldo', back: opts.title ? null : settings,
     body: `${opts.intro ? `<p class="hint">${esc(opts.intro)}</p>` : ''}<p>${opts.title ? 'Trae' : 'El archivo trae'} <b>${total}</b> elementos:</p>
-      <ul class="steps">${counts.filter(([, l]) => l.length).map(([c, l]) => `<li>${l.length} ${names[c]}</li>`).join('')}</ul>
+      <ul class="steps">${plan.filter(r => r.add + r.replace).map(r => `<li><b>${r.add + r.replace}</b> ${names[r.col]}${r.replace ? ` <span class="hint">(${r.add ? `${r.add} nuevos, ` : ''}${r.replace} ya los tienes y se reemplazan)</span>` : ' <span class="hint">(nuevos)</span>'}</li>`).join('')}</ul>
+      ${bad ? `<p class="hint pad">⚠️ ${bad} ${bad === 1 ? 'elemento no es válido y se deja' : 'elementos no son válidos y se dejan'} por fuera.</p>` : ''}
+      ${plan.some(r => r.col === 'profile' && r.add + r.replace) ? '<p class="hint pad">Tu enlace para los ancianos, Google Calendar y los avisos de este teléfono se quedan como los tienes.</p>' : ''}
       ${assign.length ? `<p class="hint pad">🏛 Y pone responsables o ayudantes en ${assign.length} departamentos del organigrama (${esc(assign.slice(0, 4).map(x => x.dept).join(', '))}${assign.length > 4 ? '…' : ''}). Se suman a los que ya tengan; si falta un departamento o una persona, se crea.</p>` : ''}
       ${nRemove ? `<p class="err pad">Y se quitarán ${nRemove}: ${removes.filter(([, l]) => l.length).map(([c, l]) => `${l.length} ${names[c]}`).join(', ')}.</p>` : ''}
       ${dupPeople ? `<p class="hint pad">${dupPeople} ${dupPeople === 1 ? 'persona ya estaba' : 'personas ya estaban'} en tu lista con el mismo nombre: no se duplican.</p>` : ''}
@@ -3195,7 +3300,7 @@ export function importPreview(txt, opts = {}) {
 export function importConfirm() {
   if (!importPending) return;
   try {
-    const n = store.importAll(importPending);
+    const n = store.importAll(importPending, { inbox: !!inboxItem });
     const a = applyAssign(JSON.parse(importPending).assign);
     close(); toast(`${n} elementos ${inboxItem ? 'importados' : 'restaurados'}${a ? ` · ${a} departamentos actualizados` : ''}`);
     if (inboxItem) { store.inbox.remove(inboxItem.id).catch(() => {}); inboxItem = null; }

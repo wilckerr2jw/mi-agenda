@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   publicar:
@@ -31,6 +31,10 @@ jobs:
       - name: Revisar la versión
         run: node herramientas/version.mjs
 
+      # Pruebas de las funciones puras (fechas, .ics, horas, metas, importación); si fallan, no se publica
+      - name: Pruebas
+        run: node --test "tests/*.test.mjs"
+
       - name: Iniciar sesión en Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -41,13 +45,12 @@ jobs:
           set -o pipefail
           npx --yes firebase-tools@15 deploy --only hosting,firestore --project mi-agenda-app-855f1 --non-interactive 2>&1 | tee deploy.log
 
-      # Si falla, deja el registro en la rama «diag» para poder revisarlo sin iniciar sesión
+      # Si falla, guarda el registro como artefacto de la ejecución (Actions → la ejecución → Artifacts), 7 días
       - name: Guardar el registro del error
         if: failure()
-        run: |
-          [ -f deploy.log ] || exit 0
-          mkdir -p /tmp/diag && cp deploy.log /tmp/diag/deploy.log
-          cd /tmp/diag && git init -q && git checkout -q -b diag
-          git add deploy.log
-          git -c user.name=diag -c user.email=diag@users.noreply.github.com commit -q -m "registro de ${{ github.workflow }} #${{ github.run_number }}"
-          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" diag
+        uses: actions/upload-artifact@v4
+        with:
+          name: registro-publicar-${{ github.run_number }}
+          path: deploy.log
+          if-no-files-found: ignore
+          retention-days: 7

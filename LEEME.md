@@ -151,8 +151,9 @@ ni siquiera el administrador) y el administrador decide **qué tipo de perfil** 
    ⚠️ Si publicas las reglas antes del paso 2, tu cuenta quedará «en revisión» hasta que crees ese documento
    (tus datos no se pierden, solo no se ven mientras tanto).
 4. Comparte el enlace. Cuando alguien crea su cuenta ve «Cuenta en revisión» y puede enviarte su nombre.
-5. En la app: **Ajustes (⋯) → Administrar usuarios** → elige el tipo de cada cuenta. Su pantalla se abre sola.
-   Elegir «Pendiente» le quita el acceso otra vez.
+5. En la app: **Ajustes (⋯) → Administración** → elige el tipo de cada cuenta. Su pantalla se abre sola.
+   Elegir «Pendiente» le quita el acceso otra vez. Desde la v10.0 también eliges ahí qué secciones y funciones usa
+   cada cuenta y editas las plantillas de cada tipo (ver «Novedades de la v10.0»).
 
 Colecciones nuevas en Firestore: `admins/{uid}` (a mano), `access/{uid}` (tipo asignado, solo lo escribe el
 administrador) y `directory/{uid}` (correo y nombre de cada cuenta, para la lista del administrador).
@@ -169,6 +170,41 @@ administrador) y `directory/{uid}` (correo y nombre de cada cuenta, para la list
 - **Llave de firma** (una sola vez): en `.publicar/android-llave.txt` están los dos secretos que hay que crear en
   GitHub → Settings → Secrets and variables → Actions: `ANDROID_KEYSTORE_PASS` y `ANDROID_KEYSTORE_B64`.
   Guarda también `.publicar/miagenda.jks`: **sin esa llave no se pueden publicar actualizaciones de la app**.
+
+## Novedades de la v10.0: Administración de funciones
+
+**Ajustes → 🛡 Administración** (solo el administrador, con cuenta en la nube) tiene dos pestañas:
+
+- **Usuarios**: buscador, «X con acceso · Y pendientes» y la lista (pendientes primero). Al tocar una cuenta eliges su
+  tipo (o «Pendiente (sin acceso)») y, por sección, qué funciones puede usar: cada sección se despliega, tiene su
+  interruptor y sus funciones con casillas. Lo que difiere de la plantilla se marca «• cambiado»; «Restablecer a la
+  plantilla» lo deja igual que su tipo. Sigue estando «📤 Enviarle un respaldo».
+- **Plantillas**: lo que trae cada tipo de perfil (nombre, secciones, funciones, tipos de evento, categorías de Mi Informe
+  y si se le invita a activar la meta). «＋ Nueva plantilla» copia una existente para crear un tipo propio
+  (p. ej. «Siervo ministerial»); las propias se pueden eliminar si ninguna cuenta las usa.
+
+**Modelo de datos**
+
+- `js/perms.js` (puro, sin dependencias; pruebas en `tests/admin.test.mjs` → `node --test tests/admin.test.mjs`):
+  catálogo `FEATURES` por sección (`general`, `agenda`, `tareas`, `personas`, `notas`, `informe`, `congregacion`), cada
+  función con `id` (`congregacion.mecanicas`…), nombre, descripción y los botones (`data-a`) que controla;
+  `defaultTemplates`, `mergeTemplates`, `effectivePerms(plantilla, acceso)` y `overridesFor`.
+- `config/plantillas` → `{ types: { <id>: { n, modules, features, hideEventCats, hideServCats, goal } }, updatedAt, by }`.
+  Lo escribe solo el administrador y lo leen las cuentas aprobadas; los cambios se aplican al instante (`watchAccess`).
+  Si no existe, se usan las de siempre, calculadas de `PROFILE_TYPES` (Publicador y Precursor sin Congregación ni
+  Pastoreo; Anciano con todo), así que nada cambia hasta que edites una.
+- `access/{uid}` → `{ type, allow: [ids], deny: [ids], updatedAt, by }` (`type` = id de plantilla, `^[a-z0-9_-]{1,30}$`;
+  listas de hasta 200). Lo que ve la cuenta = plantilla ∪ `allow` − `deny`; una función solo cuenta si su sección
+  está encendida. El administrador sin tipo, el modo local y las reglas sin publicar siguen viendo todo.
+- En la app: `M.featureOn(id)`; `moduleAllowed`, `isModuleVisible`, `profileTypeInfo()` y `canShepherd()` ahora salen de
+  la plantilla. Los botones de las funciones apagadas no se muestran (CSS generado con `permCss()` y condiciones en las
+  vistas) y, si se tocan por otro camino, salen con «Esta función no está activada para tu cuenta».
+
+**Importante (seguridad):** estos permisos se aplican en la **interfaz** de la app. Los datos de cada persona ya son
+privados por las reglas (`users/{uid}` solo lo lee su dueño), pero las funciones compartidas —crear eventos compartidos
+(`shared`), tareas enviadas (`assigned`) o el enlace para los ancianos (`shares`)— **no se bloquean en el servidor** según
+estas funciones: una cuenta aprobada con conocimientos técnicos podría usarlas igual. Recuerda publicar las reglas
+(`firebase deploy --only firestore:rules`) para que funcionen las plantillas.
 
 ## Novedades de la v9.8: mínimo privilegio y tareas enviadas a otra cuenta
 
@@ -235,7 +271,12 @@ Cada cambio que llega a la rama `main` del repositorio se publica solo en Fireba
    Permisos: **Contents: Read and write**, **Workflows: Read and write**, **Actions: Read-only**. Vence en 1 año.
    Guárdalo en `.publicar/github.txt` dentro de esta carpeta: línea 1 el token, línea 2 `tu-usuario/mi-agenda`.
    Esa carpeta nunca se sube a GitHub ni a la web (`.gitignore` y `firebase.json`).
-6. Para publicar a mano sin GitHub sigue funcionando `firebase deploy`. En GitHub → Actions → Publicar → *Run workflow*
+6. **`ci/` es solo la copia**: GitHub ejecuta lo que está en `.github/workflows/`. Cada vez que cambies `ci/publicar.yml`
+   (o `ci/avisos.yml`, `ci/android.yml`) copia el archivo a `.github/workflows/` con el mismo nombre y súbelo.
+   `publicar.yml` corre las pruebas (`node --test "tests/*.test.mjs"`, carpeta `tests/`) antes de publicar y, si algo falla, guarda
+   `deploy.log` como artefacto de la ejecución (Actions → la ejecución → *Artifacts*, 7 días) en vez de subirlo a la rama `diag`.
+   Ya no necesita permiso de escritura (`contents: read`). La rama `diag` vieja se puede borrar.
+7. Para publicar a mano sin GitHub sigue funcionando `firebase deploy`. En GitHub → Actions → Publicar → *Run workflow*
    se puede volver a publicar la última versión.
 
 ## Novedades de la v4.0: modo junta, avisos y diseño
