@@ -7,7 +7,7 @@
 // También puedes editar, borrar o agregar registros sueltos del mes. Todo se puede deshacer.
 import * as store from './store.js';
 import { data } from './store.js';
-import { esc, ic, uid, today, toast, fmtShort, fmtMonth, addDays, cap } from './util.js';
+import { esc, ic, uid, today, toast, fmtShort, fmtMonth, addDays, cap, norm } from './util.js';
 import * as M from './model.js';
 import { open } from './sheets.js';
 
@@ -50,7 +50,7 @@ function monthState(mid) {
   const entries = M.entriesForMonth(mid);
   const mins = {};
   entries.forEach(e => { mins[e.category] = (mins[e.category] || 0) + (Number(e.minutes) || 0); });
-  const studies = entries.reduce((s, e) => s + studiesOf(e), 0);
+  const studies = M.studiesCount(entries);   // cada estudiante una vez en el mes
   return { entries, mins, studies, extra: M.monthExtras(mid) };
 }
 // Tipos que salen en la lista: los que puedes usar hoy + los que tienen tiempo en ese mes (aunque ya no los uses)
@@ -58,6 +58,14 @@ function catsFor(mins) {
   const cats = { ...M.allServicioCats() };
   Object.keys(mins).forEach(k => { if (!cats[k] && mins[k]) cats[k] = M.catServicioOf(k); });
   return Object.entries(cats);
+}
+
+// «Luis (3 veces) · Ana»: con quién estudiaste en el mes; cada uno cuenta como un curso
+function studentsLine(entries) {
+  const map = new Map();
+  entries.forEach(e => (e.studyNames || []).forEach(n => { const k = norm(n); if (!k) return; const x = map.get(k) || { n, c: 0 }; x.c++; if (x.n === x.n.toLowerCase() && n !== n.toLowerCase()) x.n = n; map.set(k, x); }));
+  if (!map.size) return '';
+  return `<p class="hint">${[...map.values()].map(x => `${esc(x.n)}${x.c > 1 ? ` (${x.c} veces)` : ''}`).join(' · ')}. Cada estudiante cuenta como un curso en el mes, aunque estudies con él varias veces.</p>`;
 }
 
 export function fixMonthSheet(mid = prevMid(mid0())) {
@@ -89,6 +97,7 @@ export function fixMonthSheet(mid = prevMid(mid0())) {
         ${cred.length ? `<h3 class="sub-h">Tiempo de crédito</h3><div class="fx-list">${cred.map(row).join('')}</div>` : ''}
         <h3 class="sub-h">Cursos bíblicos</h3>
         <div class="fx-list"><div class="fx-row"><span class="grow">Cursos bíblicos del mes</span><input class="fx-in" name="studies" type="number" min="0" step="1" inputmode="numeric" value="${st.studies}" data-cur="${st.studies}" aria-label="Total correcto de cursos bíblicos"></div></div>
+        ${studentsLine(st.entries)}
         ${fields.length ? `<h3 class="sub-h">Otros datos</h3><div class="fx-list">${fields.map(f => `<div class="fx-row"><span class="grow">${esc(f.ic)} ${esc(f.n)}</span><input class="fx-in" name="x_${esc(f.id)}" inputmode="${f.dec ? 'decimal' : 'numeric'}" value="${st.extra[f.id] ? esc(M.fmtExtra(f, st.extra[f.id])) : ''}" placeholder="0" data-cur="${Number(st.extra[f.id]) || 0}" aria-label="Total correcto de ${esc(f.n)}"></div>`).join('')}</div>` : ''}
       </form>
       <h3 class="sub-h">Registros de ${esc(label(mid).toLowerCase())} <span class="hint">· toca uno para cambiarlo o borrarlo</span></h3>
@@ -163,16 +172,26 @@ export function saveFixMonth(mid, form) {
 
   // 2) Cursos bíblicos
   const wantS = Math.max(0, Math.round(Number(r.studies) || 0));
-  const haveS = entries().reduce((s, e) => s + studiesOf(e), 0);
+  const haveS = M.studiesCount(entries());
   if (wantS !== haveS && String(r.studies ?? '').trim() !== '') {
     const d = wantS - haveS;
     if (d > 0) { const a = monthAdj(); work.set(a.id, { ...a, studies: (Number(a.studies) || 0) + d }); }
-    else reduce(entries(), -d, (e, left) => {
-      const n = e.adj || !Array.isArray(e.studyNames) ? Number(e.studies) || 0 : 0, names = [...(e.studyNames || [])];
-      let used = Math.min(left, n); const studies = n - used;   // primero el número del ajuste (o del registro viejo), luego los nombres
-      while (used < left && names.length) { names.pop(); used++; }
-      return { next: { ...e, studies, studyNames: names }, used };
-    }).forEach((e, id) => work.set(id, e));
+    else {
+      // Primero se bajan los números sueltos (ajustes y registros viejos)…
+      let left = -d;
+      reduce(entries(), left, (e, rest) => {
+        const n = e.adj || !Array.isArray(e.studyNames) ? Number(e.studies) || 0 : 0, used = Math.min(rest, n);
+        return { next: { ...e, studies: n - used }, used };
+      }).forEach((e, id) => { left -= (Number(work.get(id).studies) || 0) - (Number(e.studies) || 0); work.set(id, e); });
+      // …y después se quita del mes al estudiante anotado más recientemente (en todos sus registros de ese mes)
+      while (left > 0) {
+        const latest = entries().filter(e => (e.studyNames || []).length).sort((a, b) => b.date.localeCompare(a.date))[0];
+        if (!latest) break;
+        const key = norm(latest.studyNames[latest.studyNames.length - 1]);
+        entries().forEach(e => { if ((e.studyNames || []).some(n => norm(n) === key)) work.set(e.id, { ...e, studyNames: e.studyNames.filter(n => norm(n) !== key) }); });
+        left--;
+      }
+    }
     changes.push(`${d > 0 ? '+' : '−'}${Math.abs(d)} ${Math.abs(d) === 1 ? 'curso' : 'cursos'}`);
   }
 

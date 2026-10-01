@@ -284,7 +284,7 @@ function planFor(iso, p, errs = []) {
   if (M.isModuleVisible('informe') && !(M.profile().noActivityDays || []).includes(iso)) safe('registro', () => {
     const hoy = data.entries.filter(e => e.date === iso);
     const mins = hoy.reduce((s, e) => s + (Number(e.minutes) || 0), 0);
-    const cursos = hoy.reduce((s, e) => s + M.studiesIn(e), 0);
+    const cursos = M.studiesCount(hoy);   // cada estudiante una vez
     const body = hoy.length ? `📝 Hoy registraste ${M.fmtHM(mins)} h${cursos ? ` y ${plural(cursos, 'curso', 'cursos')}` : ''}. ¿Te falta algo por anotar?`
       : '📝 Registra tu actividad de hoy: aún no guardaste horas ni cursos. Hazlo antes de que termine el día.';
     add(Number(p.logAt) || 1230, 'lg', body, 'registro', { kind: 'log' }, 'Importante · Mi Agenda');

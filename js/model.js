@@ -3,7 +3,7 @@
 import { data, session } from './store.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '9.8.1';
+export const APP_VERSION = '9.8.2';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -364,23 +364,30 @@ export const entriesForMonth = mid => data.entries.filter(e => (e.date || '').st
 // y los ajustes de «✏️ Corregir un mes» suman su número aparte (adj)
 export const studiesIn = e => (Array.isArray(e.studyNames) ? e.studyNames.length + (e.adj ? Number(e.studies) || 0 : 0) : Number(e.studies) || 0);
 
-// Suma de un mes: minutos de servicio (y de crédito si se pide), y cursos bíblicos
+// Cursos bíblicos de varios registros (9.8.2): cada estudiante cuenta UNA sola vez aunque hayas estudiado
+// con él varias veces en el período. Se comparan los nombres sin mayúsculas ni acentos.
+// Los números sueltos (registros viejos sin nombres y los ajustes de «✏️ Corregir un mes») se suman aparte.
+export const studentKeys = list => { const seen = new Set(); list.forEach(e => (Array.isArray(e.studyNames) ? e.studyNames : []).forEach(n => { const k = norm(n); if (k) seen.add(k); })); return seen; };
+const studyNumbers = list => list.reduce((s, e) => s + (Array.isArray(e.studyNames) && !e.adj ? 0 : Number(e.studies) || 0), 0);
+export const studiesCount = list => studentKeys(list).size + studyNumbers(list);
+
+// Suma de un mes: minutos de servicio (y de crédito si se pide), y cursos bíblicos (cada estudiante una vez)
 export function monthTotals(mid, withCredit = false) {
-  let minutes = 0, studies = 0;
-  entriesForMonth(mid).forEach(e => {
+  let minutes = 0;
+  const list = entriesForMonth(mid);
+  list.forEach(e => {
     const cat = catServicioOf(e.category);
     if (!cat.credito || withCredit) minutes += Number(e.minutes) || 0;
-    studies += studiesIn(e);
   });
-  return { minutes, studies };
+  return { minutes, studies: studiesCount(list) };
 }
 
 // Suma del año de servicio completo, para la meta anual
 export function yearTotals(withCredit = false, startYear = serviceYearStart()) {
-  return serviceYearMonths(startYear).reduce((acc, mo) => {
-    const t = monthTotals(mo.id, withCredit);
-    return { minutes: acc.minutes + t.minutes, studies: acc.studies + t.studies };
-  }, { minutes: 0, studies: 0 });
+  // Cursos del año: estudiantes distintos del año (cada uno una vez), no la suma de los meses
+  const months = serviceYearMonths(startYear);
+  const minutes = months.reduce((acc, mo) => acc + monthTotals(mo.id, withCredit).minutes, 0);
+  return { minutes, studies: studiesCount(months.flatMap(mo => entriesForMonth(mo.id))) };
 }
 
 export const fmtHM = min => { min = Math.max(0, Math.round(min)); return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`; };
