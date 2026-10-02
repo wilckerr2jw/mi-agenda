@@ -4,7 +4,7 @@ import { data, session, isCloud } from './store.js';
 import * as P from './perms.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '10.0.0';
+export const APP_VERSION = '10.0.1';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -901,6 +901,61 @@ export function taskBuckets(list, t0 = today()) {
   const out = defs.map(([k, n, fn]) => ({ k, n, tasks: hiFirst(rest.filter(fn)) })).filter(b => b.tasks.length);
   if (low.length) out.push({ k: 'low', n: 'Baja prioridad', tasks: sortActive(low) });
   return out;
+}
+
+// ───── Tareas agrupadas por el departamento que las ejecuta ─────
+// Departamentos en el orden del organigrama, con su nivel y su departamento padre
+export function deptFlat() {
+  const out = [];
+  const walk = (list, depth, parent) => list.forEach(n => { out.push({ d: n.d, depth, parent }); walk(n.children, depth + 1, n.d); });
+  walk(deptTree(), 0, null);
+  return out;
+}
+// Departamentos que se pueden elegir para una tarea (no la caja de los grupos de servicio)
+export const taskDeptChoices = () => deptFlat().filter(x => !isGroupBox(x.d));
+// El único departamento donde TODOS esos hermanos son encargados (sin el Comité ni el Cuerpo, que incluyen a todos)
+export function guessDept(ids) {
+  ids = (ids || []).filter(Boolean);
+  if (!ids.length) return null;
+  const cands = (data.depts || []).filter(d => !canAutoHeads(d) && !isGroupBox(d));
+  const common = cands.filter(d => { const h = deptHeadIds(d); return ids.every(id => h.includes(id)); });
+  return common.length === 1 ? common[0] : null;
+}
+// Departamento de una tarea: el que se eligió en la tarea o, si no tiene, el de su responsable (guess = true).
+// deptNone = la pasaste a «Sin departamento» a propósito: ya no se ubica por su responsable.
+export function taskDeptOf(t) {
+  const d = taskDept(t);
+  if (d) return { d, guess: false };
+  if (t.deptNone) return { d: null, guess: false };
+  const g = guessDept(t.responsibleIds);
+  return { d: g, guess: !!g };
+}
+// Grupos por departamento (orden del organigrama) y, al final, «Sin departamento».
+// Dentro de cada grupo: activas por fecha con las de prioridad alta primero y las de baja al final; hechas, la más reciente primero.
+export function taskDeptGroups(list, done = false) {
+  const by = new Map(), guessed = new Map(), none = [];
+  list.forEach(t => {
+    const { d, guess } = taskDeptOf(t);
+    if (!d) { none.push(t); return; }
+    if (!by.has(d.id)) { by.set(d.id, []); guessed.set(d.id, 0); }
+    by.get(d.id).push(t);
+    if (guess) guessed.set(d.id, guessed.get(d.id) + 1);
+  });
+  const sort = done ? sortDone : l => { const s = sortActive(l); return ['alta', 'normal', 'baja'].flatMap(p => s.filter(t => taskPrio(t) === p)); };
+  const order = deptFlat().map(x => x.d);
+  // Un departamento que ya no está en el árbol (no debería pasar) va al final, antes de «Sin departamento»
+  (data.depts || []).forEach(d => { if (!order.includes(d)) order.push(d); });
+  const parentOf = d => (d.parentId ? (data.depts || []).find(x => x.id === d.parentId) || null : null);
+  const out = order.filter(d => by.has(d.id))
+    .map(d => ({ k: d.id, d, n: d.name || 'Departamento', parent: parentOf(d), tasks: sort(by.get(d.id)), guessed: guessed.get(d.id) }));
+  if (none.length) out.push({ k: '', d: null, n: 'Sin departamento', parent: null, tasks: sort(none), guessed: 0 });
+  return out;
+}
+// Pasar una tarea a otro departamento ('' = Sin departamento). Devuelve la tarea cambiada, o null si ya estaba ahí.
+export function taskMovedTo(t, deptId) {
+  deptId = deptId || '';
+  if ((taskDeptOf(t).d?.id || '') === deptId) return null;
+  return { ...t, deptId, deptNone: !deptId };
 }
 
 // Participantes de una reunión: grupos y personas elegidos + los nombres escritos a mano

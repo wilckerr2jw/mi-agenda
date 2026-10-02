@@ -1,11 +1,8 @@
 {
-  "version": "10.0.0",
+  "version": "10.0.1",
   "notes": [
-    "🛡 Administración: el administrador elige qué secciones y funciones tiene cada cuenta, con plantillas editables",
-    "📱 Barra de abajo con 5 pestañas y «Más», letra más grande",
-    "🔄 Las actualizaciones se instalan cuando tocas «Actualizar»",
-    "💾 Ya no se pierde lo escrito al cerrar un formulario sin querer",
-    "🔒 Más seguridad en eventos compartidos, respaldos y el enlace para los ancianos",
-    "🐞 Arreglos en cursos bíblicos, tareas mensuales, calendario .ics y corregir un mes"
+    "🏢 Tareas por departamento: agrupa tus tareas por el departamento que las ejecuta, con cuántas tiene y cuántas están atrasadas",
+    "⠿ Arrastra una tarea de un departamento a otro (o tócala y elige a cuál), con «Deshacer»",
+    "🏢 En cada tarea eliges el departamento; si el responsable atiende un solo departamento, se pone solo"
   ]
 }

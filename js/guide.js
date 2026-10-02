@@ -5,7 +5,7 @@
 // MANTENERLA AL DÍA: cuando cambie algo que el usuario ve, ajustar aquí el tema correspondiente
 // (y también la guía completa para compartir, guia.html).
 
-import { isCloud, session } from './store.js';
+import { isCloud, session, data } from './store.js';
 import * as M from './model.js';
 
 // Contexto del usuario actual
@@ -20,6 +20,7 @@ function ctx() {
     cloud: isCloud,
     hasGoal: v.goalEnabled && Number(v.goalMonthly) > 0,
     on: id => M.isModuleVisible(id),
+    depts: (data.depts || []).length > 0,
   };
 }
 
@@ -89,7 +90,7 @@ const TOPICS = [
   { g: 'Personas y notas', t: 'De acuerdo a tarea', when: c => c.on('notas') && c.on('tareas'),
     b: () => `En «Acuerdos y notas» escribe un acuerdo por línea, por ejemplo «Ana: los hermanos Pedro y Juan hablarán con ella el viernes». La app reconoce a quién atender, quiénes son responsables y la fecha. Toca ${k('Crear tarea')}, revísala y guárdala.` },
   { g: 'Personas y notas', t: 'Ordenar mis tareas', when: c => c.on('tareas'),
-    b: () => `En Tareas las activas se agrupan en Atrasadas, Hoy, Próximos 7 días, Más adelante y Sin fecha. En cada tarea elige la ${k('Prioridad')}: las 🔴 de prioridad alta van primero y las ⬇ de baja prioridad quedan al final. Arriba cambias entre ${k('☰ Lista')} y ${k('▦ Tarjetas')}.` },
+    b: c => `En Tareas las activas se agrupan en Atrasadas, Hoy, Próximos 7 días, Más adelante y Sin fecha. En cada tarea elige la ${k('Prioridad')}: las 🔴 de prioridad alta van primero y las ⬇ de baja prioridad quedan al final. Arriba cambias entre ${k('☰ Lista')} y ${k('▦ Tarjetas')}.${c.depts ? ` Con ${k('🏢 Por departamento')} las ves agrupadas por el departamento que las ejecuta (lo eliges en la tarea, en ${k('🏢 Departamento que la ejecuta')}). Para cambiarla de departamento, arrástrala por su ${k('⠿')} hasta el otro, o toca ${k('⠿')} y elígelo.` : ''}` },
   { g: 'Personas y notas', t: '¿Me toca a mí o lo superviso?', when: c => c.on('notas') && c.on('tareas'),
     b: c => `Escribe ${k('Tu nombre')} y ${k('Cómo te escriben')} en Mi perfil (por ejemplo «Tony, Antonio J.»). Así cada acuerdo sale como 👉 ${k('Te toca a ti')} o 👁 ${k('Supervisas')}.${c.elder ? ' Las que supervisas aparecen en Hoy, en «Por supervisar», cuando llevan 7 días sin novedades.' : ''} En Tareas puedes filtrar ${k('Me tocan a mí')} o ${k('Las que superviso')}.` },
   { g: 'Personas y notas', t: 'Asignar tareas a un departamento', when: c => c.on('tareas') && c.on('congregacion'),

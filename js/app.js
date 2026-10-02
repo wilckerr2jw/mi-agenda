@@ -19,13 +19,15 @@ import * as Sh from './compartir.js';
 import * as Gc from './gcal.js';
 import * as Fx from './corregir.js';
 import * as Pwa from './pwa.js';
+import * as Mv from './mover.js';
 import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays, uid, fmtShort } from './util.js';
 
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
 const ui = {
   route: 'hoy',
   agenda: { span: (() => { try { return Number(localStorage.getItem('miagenda.semanaDias')) || 0; } catch { return 0; } })(), ym: today().slice(0, 7), sel: today(), mode: (() => { try { return localStorage.getItem('miagenda.agendaVista') || 'mes'; } catch { return 'mes'; } })() },
-  tareas: { f: 'activas', p: '', m: '', view: (() => { try { return localStorage.getItem('miagenda.tareasVista') || 'lista'; } catch { return 'lista'; } })() },
+  tareas: { f: 'activas', p: '', m: '', view: (() => { try { return localStorage.getItem('miagenda.tareasVista') || 'lista'; } catch { return 'lista'; } })(),
+    group: (() => { try { return localStorage.getItem('miagenda.tareasGrupo') || 'fecha'; } catch { return 'fecha'; } })(), closed: [] },
   personas: { q: '', seg: 'personas', g: '', pv: '' },
   notas: { seg: 'notas', q: '', tag: '' },
   informe: { sy: 0, sm: '' },
@@ -272,6 +274,9 @@ document.addEventListener('click', e => {
     case 'toggle-task': return toggleTask(id);
     case 'filter-tasks': ui.tareas.f = v; return render();
     case 'tasks-view': ui.tareas.view = v; try { localStorage.setItem('miagenda.tareasVista', v); } catch { /* sin almacenamiento */ } return render();
+    case 'task-move-pick': return S.taskMoveSheet(id);
+    case 'task-move': S.close(); return Mv.moveTask(id, v, openDeptGroup);
+    case 'tasks-group': ui.tareas.group = v === 'depto' ? 'depto' : 'fecha'; try { localStorage.setItem('miagenda.tareasGrupo', ui.tareas.group); } catch { /* sin almacenamiento */ } return render();
     case 'log-add': return S.addLog(id);
     case 'task-in-sheet': {
       const { bk, bid } = el.dataset;
@@ -646,6 +651,16 @@ document.addEventListener('change', e => {
 
 // Tareas: recordar si la sección «Baja prioridad» está abierta
 document.addEventListener('toggle', e => { if (e.target.matches?.('details.tgroup.low')) ui.tareas.lowOpen = e.target.open; }, true);
+// Tareas por departamento: al mover una tarea a un departamento cerrado, se abre para verla
+function openDeptGroup(k) { if ((ui.tareas.closed || []).includes(k)) ui.tareas.closed = ui.tareas.closed.filter(x => x !== k); }
+Mv.initTaskDrag(openDeptGroup);
+// Tareas por departamento: recordar qué departamentos cerraste (mientras la app esté abierta)
+document.addEventListener('toggle', e => {
+  if (!e.target.matches?.('details.tgroup.dept')) return;
+  const k = e.target.dataset.k, set = new Set(ui.tareas.closed || []);
+  if (e.target.open) set.delete(k); else set.add(k);
+  ui.tareas.closed = [...set];
+}, true);
 document.addEventListener('submit', e => {
   const form = e.target.closest('form[data-form]');
   if (!form) return;

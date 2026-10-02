@@ -25,7 +25,8 @@
       "vendor/LEEME.txt",
       "herramientas/**",
       "tests/**",
-      "package.json"
+      "package.json",
+      "empaquetar-para-claude.*"
     ],
     "headers": [
       {

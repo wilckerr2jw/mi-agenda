@@ -67,7 +67,10 @@ function tlButton({ kind, item }, iso, { color, label, occ, companions, racha, o
   </button>`;
 }
 
-export function taskRow(t) {
+// ⠿ para mover la tarea a otro departamento (solo en Tareas → Por departamento; no en las que te asignó otra cuenta)
+const dragHandle = t => (t.assignedFrom ? '' : `<button type="button" class="tdrag" data-a="task-move-pick" data-id="${esc(t.id)}" aria-label="Mover «${esc(t.title)}» a otro departamento" title="Arrastra para moverla a otro departamento">⠿</button>`);
+
+export function taskRow(t, movable = false) {
   const p = M.person(t.personId);
   const due = M.dueInfo(t);
   const done = t.status === 'hecha';
@@ -75,13 +78,14 @@ export function taskRow(t) {
   const comp = M.person(t.companionId);
   const mtg = t.meetingId ? data.meetings.find(m => m.id === t.meetingId) : null;
   const prio = M.taskPrio(t);
-  return `<div class="row task ${done ? 'is-done' : ''} prio-${prio}">
+  return `<div class="row task ${done ? 'is-done' : ''} prio-${prio}${movable && !t.assignedFrom ? ' movable' : ''}">
     <button class="chk" data-a="toggle-task" data-id="${esc(t.id)}" aria-pressed="${done}" aria-label="${done ? 'Marcar como pendiente' : 'Marcar como hecha'}">${ic('check')}</button>
     <button class="row-main" data-a="task" data-id="${esc(t.id)}">
       <span class="title">${prio === 'alta' && !done ? '<span class="prio-tag" title="Prioridad alta">Alta</span> ' : ''}${esc(t.title)}</span>
       <span class="meta-line">${p ? `<span class="who">${esc(p.name)}</span>` : ''}${kind ? `<span>${esc(kind)}</span>` : ''}${comp ? `<span>Con ${esc(comp.name)}</span>` : ''}${t.repeat && !done ? `<span title="${esc(M.repeatLabel(t.repeat, t.due, t))}">🔁 ${esc(M.repeatLabel(t.repeat, t.due, t))}</span>` : ''}${t.status === 'seguimiento' ? '<span class="follow">En seguimiento</span>' : ''}${mtg ? `<span class="from-mtg" title="Sale de la reunión «${esc(mtg.title)}»">${ic('clip', 'sm')}${esc(mtg.title)}</span>` : ''}${acctTag(t)}${!M.isMineTask(t) ? `<span class="sup">👁 Supervisas${(t.responsibles || []).length ? ` · ${esc(t.responsibles.join(', '))}` : ''}</span>` : (mtg && (t.responsibles || []).length ? '<span class="mine">👉 Te toca</span>' : '')}</span>
     </button>
     ${due.label ? `<span class="due ${due.cls}">${due.label}${due.time ? `<small>${due.time}</small>` : ''}</span>` : ''}
+    ${movable ? dragHandle(t) : ''}
   </div>`;
 }
 
@@ -101,7 +105,7 @@ function assignedNotice() {
 }
 
 // Tarea como tarjeta (vista de tarjetas en Tareas)
-function taskCard(t) {
+function taskCard(t, movable = false) {
   const p = M.person(t.personId);
   const due = M.dueInfo(t);
   const done = t.status === 'hecha';
@@ -112,6 +116,7 @@ function taskCard(t) {
     <div class="tcard-top">
       ${due.label ? `<span class="due-pill ${due.cls}">${esc(due.label)}${due.time ? ` · ${esc(due.time)}` : ''}</span>` : '<span class="due-pill none">Sin fecha</span>'}
       ${prio !== 'normal' && !done ? `<span class="prio-tag ${prio}">${prio === 'alta' ? 'Alta' : 'Baja'}</span>` : ''}
+      ${movable ? dragHandle(t) : ''}
     </div>
     <button class="tcard-main" data-a="task" data-id="${esc(t.id)}">
       <strong>${esc(t.title)}</strong>
@@ -489,12 +494,29 @@ export function tareas(ui) {
   }[f];
   const cards = ui.tareas.view === 'tarjetas';
   const item = cards ? taskCard : taskRow;
-  const wrap = l => `<div class="${cards ? 'tgrid' : 'stack'}">${l.map(item).join('')}</div>`;
+  const wrap = (l, movable = false) => `<div class="${cards ? 'tgrid' : 'stack'}">${l.map(t => item(t, movable)).join('')}</div>`;
   const viewSeg = `<div class="seg small tview" role="group" aria-label="Cómo ver las tareas"><button data-a="tasks-view" data-v="lista" aria-pressed="${!cards}">☰ Lista</button><button data-a="tasks-view" data-v="tarjetas" aria-pressed="${cards}">▦ Tarjetas</button></div>`;
+  // Agrupar por fecha (como siempre) o por el departamento que ejecuta la tarea (solo si hay departamentos)
+  const hasDepts = (data.depts || []).length > 0;
+  const byDept = hasDepts && ui.tareas.group === 'depto';
+  const groupSeg = hasDepts ? `<div class="seg small tgroup-pick" role="group" aria-label="Agrupar las tareas"><button data-a="tasks-group" data-v="fecha" aria-pressed="${!byDept}">📅 Por fecha</button><button data-a="tasks-group" data-v="depto" aria-pressed="${byDept}">🏢 Por departamento</button></div>` : '';
+  const tools = `<div class="ttools">${groupSeg}${viewSeg}</div>`;
+  const t0 = today();
+  const closed = ui.tareas.closed || [];
+  const deptBody = () => M.taskDeptGroups(list, f === 'hechas').map(g => {
+    const key = g.k || '__none';
+    const late = f === 'hechas' ? 0 : g.tasks.filter(x => x.due && x.due < t0).length;
+    const hi = f === 'hechas' ? 0 : g.tasks.filter(x => M.taskPrio(x) === 'alta').length;
+    const info = [g.parent ? `De ${esc(g.parent.name)}` : '', g.guessed ? `${g.guessed === 1 ? '1 ubicada' : `${g.guessed} ubicadas`} por su responsable` : ''].filter(Boolean).join(' · ');
+    return `<details class="tgroup dept ${g.d ? '' : 'none'}" data-k="${esc(key)}" ${closed.includes(key) ? '' : 'open'}>
+      <summary><h2>${g.d ? `<span class="org-ic">${ic(g.d.ic || 'flag', 'sm')}</span>` : ''}<span>${esc(g.n)}</span></h2><span class="tg-n">${late ? `<span class="tsum late"><b>${late}</b> ${late === 1 ? 'atrasada' : 'atrasadas'}</span>` : ''}${hi ? `<span class="tsum hi"><b>${hi}</b> alta</span>` : ''}<b class="tg-count">${g.tasks.length}</b></span></summary>
+      ${info ? `<p class="hint tg-info">${info}</p>` : ''}
+      ${wrap(g.tasks, true)}</details>`;
+  }).join('') + `<p class="hint pad tmove-hint">⠿ Arrastra una tarea por su ⠿ a otro departamento, o toca ⠿ para elegirlo de una lista.</p>`;
   // Activas y en seguimiento: por grupos (atrasadas, hoy, semana, más adelante, sin fecha y, al final, baja prioridad)
   let body = '';
   if (!list.length) body = empty(msg, f === 'hechas' ? '' : `<button class="btn" data-a="new-task">Nueva tarea</button>`, 'tasks');
-  else if (f === 'hechas') body = wrap(list);
+  else if (f === 'hechas') body = byDept ? deptBody() : wrap(list);
   else {
     const buckets = M.taskBuckets(list);
     const n = k => buckets.find(b => b.k === k)?.tasks.length || 0;
@@ -505,8 +527,8 @@ export function tareas(ui) {
       n('week') ? `<span class="tsum"><b>${n('week')}</b> esta semana</span>` : '',
       hi ? `<span class="tsum hi"><b>${hi}</b> de prioridad alta</span>` : '',
     ].filter(Boolean).join('');
-    body = `<div class="tbar"><div class="tsums">${sum}</div>${viewSeg}</div>
-      ${buckets.map(b => b.k === 'low'
+    body = `<div class="tbar"><div class="tsums">${sum}</div>${tools}</div>
+      ${byDept ? deptBody() : buckets.map(b => b.k === 'low'
         ? `<details class="tgroup low" ${ui.tareas.lowOpen ? 'open' : ''}><summary><h2>⬇ ${b.n}</h2><span class="hint">${b.tasks.length} · tócalo para verlas</span></summary>${wrap(b.tasks)}</details>`
         : `<section class="tgroup ${esc(b.k)}"><div class="sec-h"><h2>${b.n}</h2><span class="hint">${b.tasks.length}</span></div>${wrap(b.tasks)}</section>`).join('')}`;
   }
@@ -517,7 +539,7 @@ export function tareas(ui) {
   ${rem.length ? `<button class="log-now remind-now" data-a="remind-tasks" data-v="3">💬 <span><b>Recordar por WhatsApp</b><small>${rem.length} ${rem.length === 1 ? 'hermano tiene' : 'hermanos tienen'} ${remLate ? `${remLate} ${remLate === 1 ? 'tarea atrasada' : 'tareas atrasadas'}` : 'tareas que vencen pronto'}. Toca para mandarle a cada uno su recordatorio.</small></span></button>` : ''}
   <div class="chips">${chips}</div>
   ${personFilter}
-  ${list.length && f === 'hechas' ? `<div class="tbar"><span></span>${viewSeg}</div>` : ''}
+  ${list.length && f === 'hechas' ? `<div class="tbar"><span></span>${tools}</div>` : ''}
   ${body}`;
 }
 

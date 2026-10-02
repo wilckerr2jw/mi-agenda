@@ -626,8 +626,7 @@ export function taskSheet(id, preset = {}, back) {
       ${fld('Persona que me acompaña', peopleSelect('companionId', v.companionId, 'Nadie'), 'companionId')}
       <div class="f"><span class="lbl">Responsables</span><div id="resp-box">${responsiblesHtml(splitResponsibles(v))}</div></div>
       ${isCloud ? `<div class="f" id="send-box">${sendBoxHtml(v, preset.sendTo)}</div>` : ''}
-      <input type="hidden" name="deptId" value="${esc(v.deptId || '')}">
-      ${v.deptId && M.taskDept(v) ? `<p class="hint">📋 Asignada desde el departamento «${esc(M.taskDept(v).name)}».</p>` : ''}
+      ${deptChoice(v)}
       <div class="two">
         ${fld('Fecha límite', `<input id="due" name="due" type="date" value="${esc(v.due || '')}">`, 'due')}
         ${fld('Hora', `<input id="dueTime" name="dueTime" type="time" value="${esc(v.dueTime || '')}">`, 'dueTime')}
@@ -642,8 +641,49 @@ export function taskSheet(id, preset = {}, back) {
   });
   // Al marcar responsables, se actualiza a quién se le puede enviar
   const f = document.getElementById('f');
+  // Departamento: si no lo has elegido, se propone el único donde los responsables son encargados
+  const deptSel = f?.querySelector('#deptId');
+  if (deptSel) {
+    let touched = !!v.deptId || !!v.deptNone;
+    const hint = f.querySelector('#dept-guess');
+    deptSel.addEventListener('change', () => { touched = true; if (hint) hint.hidden = true; });
+    f.addEventListener('change', e => {
+      if (touched || (e.target.name !== 'respPerson' && e.target.name !== 'respMe')) return;
+      const g = M.guessDept(readResponsibles(f).ids);
+      deptSel.value = g ? g.id : '';
+      if (hint) { hint.hidden = !g; hint.textContent = g ? `Se eligió «${g.name}» porque el responsable lo atiende. Puedes cambiarlo.` : ''; }
+    });
+  }
   if (f && isCloud && !v.assignedId) f.addEventListener('change', e => { if (e.target.name === 'respPerson' || e.target.name === 'respMe') { const box = document.getElementById('send-box'); const cur = f.querySelector('#sendTo')?.value || ''; if (box) box.innerHTML = sendBoxHtml({ ...v, responsibleIds: readResponsibles(f).ids }, cur); } });
   if (isCloud && !store.cachedMembers()) store.listMembers().catch(() => {});
+}
+
+// «Mover a…»: elegir otro departamento para una tarea (al tocar ⠿ sin arrastrar, o con el teclado)
+export function taskMoveSheet(id) {
+  const t = store.get('tasks', id);
+  if (!t) return;
+  const cur = M.taskDeptOf(t).d?.id || '';
+  const btn = (k, name, depth = 0, icon = '') => `<button type="button" class="move-opt ${k === cur ? 'is-cur' : ''}" data-a="task-move" data-id="${esc(id)}" data-v="${esc(k)}" ${k === cur ? 'aria-current="true"' : ''} style="--d:${Math.min(depth, 4)}">${icon ? `<span class="org-ic">${ic(icon, 'sm')}</span>` : ''}<span>${esc(name)}</span>${k === cur ? '<small>Está aquí</small>' : ''}</button>`;
+  open({
+    title: 'Mover a otro departamento',
+    body: `<p class="hint">«${esc(t.title)}»</p>
+      <div class="move-list">${M.taskDeptChoices().map(x => btn(x.d.id, x.d.name || 'Departamento', x.depth, x.d.ic || 'flag')).join('')}${btn('', 'Sin departamento')}</div>
+      <p class="hint">También puedes arrastrar la tarea por su ⠿ hasta el departamento.</p>`,
+  });
+}
+
+// Departamento que ejecuta la tarea (para agruparlas en Tareas). Sin departamentos, solo se conserva el que tenía.
+function deptChoice(v) {
+  const choices = M.taskDeptChoices();
+  const cur = M.taskDept(v);
+  if (!choices.length && !cur) return `<input type="hidden" name="deptId" value="${esc(v.deptId || '')}">`;
+  const extra = cur && !choices.some(x => x.d.id === cur.id) ? `<option value="${esc(cur.id)}" selected>${esc(cur.name)}</option>` : '';
+  // Sin elegir: se muestra ya puesto el de su responsable (al guardar queda fijo); si la pasaste a «Sin departamento», se respeta
+  const guess = !v.deptId && !v.deptNone ? M.guessDept(v.responsibleIds) : null;
+  const sel = v.deptId || guess?.id || '';
+  const opts = choices.map(x => `<option value="${esc(x.d.id)}" ${x.d.id === sel ? 'selected' : ''}>${'\u2003'.repeat(Math.min(x.depth, 4))}${esc(x.d.name || 'Departamento')}</option>`).join('');
+  return `${fld('🏢 Departamento que la ejecuta', `<select id="deptId" name="deptId"><option value="">Sin departamento</option>${extra}${opts}</select>`, 'deptId')}
+      <p class="hint" id="dept-guess" ${guess ? '' : 'hidden'}>${guess ? `Se eligió «${esc(guess.name)}» porque el responsable lo atiende. Puedes cambiarlo.` : ''}</p>`;
 }
 
 // Devuelve la tarea con lo escrito en el formulario, o null si falta escribir el tipo
@@ -664,7 +704,7 @@ function collectTask(form, id) {
   const kind = M.resolveType(r.kind, r.kindOtro, M.KINDS);
   if (kind === null) return null;
   const prev = id ? store.get('tasks', id) : null;
-  const t = { ...(prev || {}), id: id || uid(), title: r.title, kind, personId: r.personId, companionId: r.companionId, due: r.due, dueTime: r.due ? r.dueTime : '', status: r.status, notes: r.notes, meetingId: r.meetingId || '', fromAgreement: r.meetingId ? (r.fromAgreement || '') : '', ...responsiblesFrom(form), deptId: r.deptId ?? prev?.deptId ?? '', priority: r.priority || prev?.priority || 'normal', log: prev?.log || [], repeat: r.repeat || '' };
+  const t = { ...(prev || {}), id: id || uid(), title: r.title, kind, personId: r.personId, companionId: r.companionId, due: r.due, dueTime: r.due ? r.dueTime : '', status: r.status, notes: r.notes, meetingId: r.meetingId || '', fromAgreement: r.meetingId ? (r.fromAgreement || '') : '', ...responsiblesFrom(form), deptId: r.deptId ?? prev?.deptId ?? '', deptNone: form.querySelector('select#deptId') ? !r.deptId && !!M.guessDept(readResponsibles(form).ids) : !!prev?.deptNone, priority: r.priority || prev?.priority || 'normal', log: prev?.log || [], repeat: r.repeat || '' };
   t.doneAt = t.status === 'hecha' ? (prev?.doneAt || today()) : '';
   return t;
 }
