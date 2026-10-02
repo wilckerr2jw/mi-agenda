@@ -1,0 +1,28 @@
+npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+npm warn deprecated json-ptr@3.1.1: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+npm warn deprecated uuid@9.0.1: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+
+[1m[37m===[39m Deploying to 'mi-agenda-app-855f1'...[22m
+
+[36m[1mi [22m[39m deploying [1mfirestore, hosting[22m
+[36m[1mi  firestore:[22m[39m ensuring required API [1mfirestore.googleapis.com[22m is enabled...
+[32m[1m✔  firestore:[22m[39m required API [1mfirestore.googleapis.com[22m is enabled
+[36m[1mi  firestore:[22m[39m ensuring required API [1mfirestore.googleapis.com[22m is enabled...
+[36m[1mi  cloud.firestore:[22m[39m checking [1mfirestore.rules[22m for compilation errors...
+[32m[1m✔  cloud.firestore:[22m[39m rules file [1mfirestore.rules[22m compiled successfully
+[36m[1mi  firestore:[22m[39m latest version of [1mfirestore.rules[22m already up to date, skipping upload...
+[36m[1mi [22m[39m [1m[36mfirestore: [39m[22mdeploying indexes...
+[36m[1mi  hosting[mi-agenda-app-855f1]:[22m[39m beginning deploy...
+[36m[1mi  hosting[mi-agenda-app-855f1]:[22m[39m found 79 files in [1m.[22m
+[36m[1mi  hosting:[22m[39m adding files to version [0/79] ([1m[32m0%[39m[22m)
+[36m[1mi  hosting:[22m[39m uploading new files [10/11] ([1m[32m90%[39m[22m)
+[36m[1mi  hosting:[22m[39m uploading new files [10/11] ([1m[32m90%[39m[22m)
+[36m[1mi  hosting:[22m[39m uploading new files [10/11] ([1m[32m90%[39m[22m)
+[36m[1mi  hosting:[22m[39m uploading new files [10/11] ([1m[32m90%[39m[22m)
+[36m[1mi  hosting:[22m[39m uploading new files [10/11] ([1m[32m90%[39m[22m)
+[36m[1mi  hosting:[22m[39m uploading new files [10/11] ([1m[32m90%[39m[22m)
+[36m[1mi  hosting:[22m[39m uploading new files [10/11] ([1m[32m90%[39m[22m)
+[36m[1mi  hosting:[22m[39m uploading new files [11/11] ([1m[32m100%[39m[22m)
+
+[1m[31mError:[39m[22m Task a1004b273ad8aa6ca9c63a43047f44a9c9de3259dcb0d8f18aadd0aa6775dc85 failed: retries exhausted after 6 attempts, with error: Unexpected error while uploading file: Couldn't process request (status=400): content hash doesn't match content
