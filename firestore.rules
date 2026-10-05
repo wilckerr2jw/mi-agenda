@@ -53,6 +53,12 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Respaldo completo de todas las cuentas (dirección del programa de Google, su clave y la clave de cifrado):
+    // solo el administrador. El servidor de avisos lo lee con su cuenta de servicio.
+    match /config/respaldo {
+      allow read, write: if isAdmin();
+    }
+
     // Cuentas a las que se puede compartir: solo el nombre. Lo escribe cada uno; lo leen los aprobados.
     match /members/{uid} {
       allow read: if signedIn() && (approved(request.auth.uid) || isAdmin());
@@ -194,7 +200,8 @@ service cloud.firestore {
       function member() { return signedIn() && request.auth.uid in resource.data.members; }
       function okItem(d) {
         return d.keys().hasOnly(['owner', 'ownerName', 'members', 'memberNames', 'kind', 'title', 'body', 'tag', 'date', 'about',
-            'due', 'dueTime', 'status', 'priority', 'responsibles', 'log', 'comments', 'createdAt', 'updatedAt', 'updatedBy'])
+            'due', 'dueTime', 'status', 'priority', 'responsibles', 'log', 'comments', 'createdAt', 'updatedAt', 'updatedBy',
+            'doneAt', 'doneBy', 'doneByName'])
           && d.members is list && d.members.size() >= 2 && d.members.size() <= 30 && d.owner in d.members
           && d.kind in ['note', 'task'] && d.title is string && d.title.size() <= 140
           && (!('body' in d) || (d.body is string && d.body.size() <= 20000))
@@ -211,13 +218,22 @@ service cloud.firestore {
           && after[before.size()].by == request.auth.uid
           && after[before.size()].t is string && after[before.size()].t.size() <= 1000;
       }
+      // Quien la recibe puede marcar hecha (o volver a abrir) una tarea; queda quién y cuándo
+      function markDone() {
+        let d = request.resource.data;
+        return resource.data.kind == 'task'
+          && d.diff(resource.data).affectedKeys().hasOnly(['status', 'doneAt', 'doneBy', 'doneByName', 'updatedAt', 'updatedBy'])
+          && d.updatedBy == request.auth.uid
+          && d.status in ['hecha', 'pendiente', 'seguimiento']
+          && (d.status != 'hecha' || d.doneBy == request.auth.uid);
+      }
       allow read: if member();
       allow create: if signedIn() && (approved(request.auth.uid) || isAdmin())
         && id.matches('^[A-Za-z0-9_-]{1,40}$')
         && request.resource.data.owner == request.auth.uid && okItem(request.resource.data);
       allow update: if member() && okItem(request.resource.data)
         && request.resource.data.owner == resource.data.owner
-        && (request.auth.uid == resource.data.owner || oneMoreComment());
+        && (request.auth.uid == resource.data.owner || oneMoreComment() || markDone());
       allow delete: if signedIn() && request.auth.uid == resource.data.owner;
     }
 

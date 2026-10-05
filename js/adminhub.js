@@ -7,6 +7,7 @@ import * as M from './model.js';
 import { esc, toast, fmtShort, today, dateOf, isPhone } from './util.js';
 import { open } from './sheets.js';
 import { openAdmin } from './admin.js';
+import * as Rs from './respaldo.js';
 
 let tab = 'cuentas';
 let users = null, loading = null, loadedAt = 0;
@@ -60,8 +61,9 @@ export async function hub(t) {
   if (!session.isAdmin) return toast('Solo para el administrador');
   if (t) tab = t;
   const seg = (k, n) => `<button type="button" data-a="adm-hub" data-v="${k}" aria-pressed="${tab === k}">${n}</button>`;
-  const head = `<div class="seg ah-seg" role="group" aria-label="Mi administración">${seg('cuentas', 'Cuentas')}${seg('uso', 'Uso')}${seg('novedades', 'Novedades')}${seg('compartido', 'Compartido')}</div>`;
-  open({ title: '🛡 Mi administración', body: `${head}<div id="ah-body">${tab === 'novedades' ? newsAdminHtml() : tab === 'compartido' ? sharedHtml() : '<p class="hint pad">Cargando cuentas…</p>'}</div>` });
+  const head = `<div class="seg ah-seg" role="group" aria-label="Mi administración">${seg('cuentas', 'Cuentas')}${seg('uso', 'Uso')}${seg('novedades', 'Novedades')}${seg('compartido', 'Compartido')}${seg('respaldo', 'Respaldo')}</div>`;
+  open({ title: '🛡 Mi administración', body: `${head}<div id="ah-body">${tab === 'novedades' ? newsAdminHtml() : tab === 'compartido' ? sharedHtml() : '<p class="hint pad">Cargando…</p>'}</div>` });
+  if (tab === 'respaldo') { const html = await Rs.tabHtml(); const b = document.getElementById('ah-body'); if (b) b.innerHTML = html; return; }
   if (tab === 'cuentas' || tab === 'uso') {
     await loadUsers(true);
     const b = document.getElementById('ah-body');

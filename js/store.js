@@ -61,6 +61,7 @@ function protectMe(item) {
 function write(col, item, opts = {}) {
   if (col === 'events' && item.sharedId) return sharedWrite(item);
   if (col === 'tasks' && item.assignedFrom) return assignedAnswer(item);
+  if ((col === 'tasks' || col === 'notes') && (item.sharedItemId || String(item.id).startsWith(SI))) return shReadOnly(item);
   // Protección: nunca se guarda el perfil antes de haberlo recibido de la nube
   // (si no, un perfil vacío borraría tu rol, tus metas y tus ajustes)
   if (col === 'profile' && isCloud && !profileLoaded) { console.warn('Perfil aún no cargado: no se guarda'); return; }
@@ -113,6 +114,7 @@ export function remove(col, id) {
   if (col === 'events' && String(id).startsWith(SH)) return sharedRemove(id);
   if (col === 'tasks' && String(id).startsWith(AS)) return assignedRespond(id.slice(AS.length), false);
   if (cgBlocked(col, id)) return;
+  if ((col === 'tasks' || col === 'notes') && String(id).startsWith(SI)) return shReadOnly(data[col].find(x => x.id === id));
   const gone = col === 'tasks' ? data.tasks.find(x => x.id === id) : null;
   const was = col === 'notes' || col === 'tasks' ? data[col].find(x => x.id === id) : null;
   if (was?.shareId) shItemDelete(was.shareId);
@@ -128,7 +130,7 @@ export const restore = (col, item) => write(col, item);
 
 // ---------- Respaldo ----------
 export function exportAll() {
-  const own = { ...data, events: data.events.filter(e => !e.sharedId), tasks: data.tasks.filter(t => !t.assignedFrom), ...cgOwnData() };   // los compartidos y las tareas recibidas son de otra colección
+  const own = { ...data, events: data.events.filter(e => !e.sharedId), tasks: data.tasks.filter(t => !t.assignedFrom && !t.sharedItemId), notes: data.notes.filter(n => !n.sharedItemId), ...cgOwnData() };   // los compartidos y las tareas recibidas son de otra colección
   return JSON.stringify({ app: 'mi-agenda-teocrática', version: 1.3, exportedAt: new Date().toISOString(), data: own }, null, 2);
 }
 
@@ -299,6 +301,7 @@ export function startSync(uid) {
         const list = snap.docs.map(d => ({ ...d.data(), id: d.id }));
         if (c === 'events') { ownEvents = list; composeEvents(); }
         else if (c === 'tasks') { ownTasks = list; composeTasks(); }
+        else if (c === 'notes') { ownNotes = list; composeNotes(); }
         else if (CG_COLS.includes(c) || c === 'people') { cgOwn[c] = list; composeCg(); }
         else { data[c] = list; if (c === 'profile') { if (list.length || !snap.metadata.fromCache) profileArrived(); composeEvents(); if (myName() !== lastMemberName) touchMember(); } }
         if (c === 'profile') cgFollowSync();
@@ -485,8 +488,22 @@ function composeTasks() {
     ...aPick(d), id: AS + d._id, assignedFrom: d._id, fromName: d.ownerName || 'otra cuenta',
     status: d.done ? 'hecha' : (d.log || []).length ? 'seguimiento' : 'pendiente', doneAt: d.doneAt || '',
     log: d.log || [], mine: true, responsibles: [], personId: '', createdAt: d.createdAt, updatedAt: d.updatedAt,
+  })), ...shReceived('task').map(d => ({
+    // 👥 Tareas que te compartieron: se ven en Hoy y en Tareas, marcadas «De …»; solo quien la compartió la cambia
+    id: SI + d.id, sharedItemId: d.id, fromName: d.ownerName || 'otra cuenta', title: d.title || '', notes: d.body || '', kind: 'otro',
+    due: d.due || '', dueTime: d.dueTime || '', status: d.status || 'pendiente', priority: d.priority || 'normal',
+    responsibles: d.responsibles || [], responsibleIds: [], log: d.log || [], mine: true, personId: '', createdAt: d.createdAt, updatedAt: d.updatedAt,
+    doneAt: d.doneAt || '', doneByName: d.status === 'hecha' ? (d.doneByName || '') : '',
   }))];
 }
+// 👥 Notas que te compartieron (se ven en Notas, marcadas «De …»)
+let ownNotes = [];
+function composeNotes() {
+  data.notes = [...ownNotes, ...shReceived('note').map(d => ({ id: SI + d.id, sharedItemId: d.id, fromName: d.ownerName || 'otra cuenta',
+    title: d.title || '', body: d.body || '', tag: d.tag || '', date: d.date || '', pinned: false, createdAt: d.createdAt, updatedAt: d.updatedAt }))];
+}
+const SI = 'si_';
+const shReceived = kind => shItems.filter(d => d.kind === kind && d.owner !== uidOf());
 
 // Quien asigna: guarda en la nube lo que cambió en su tarea (o la envía por primera vez)
 function assignedPush(item) {
@@ -555,7 +572,7 @@ export function stopSync() {
   seenCols.clear(); syncStart = 0;
   COLS.forEach(c => { data[c] = []; });
   ownEvents = []; sharedDocs = []; ownTasks = []; assignedIn = []; assignedOut = []; membersCache = null;
-  cgReset(); shItems = []; shReady = false; newsItems = [];
+  cgReset(); shItems = []; shReady = false; newsItems = []; ownNotes = [];
   notify();
 }
 
@@ -905,7 +922,7 @@ function shPayload(col, item) {
 }
 function shItemsWatch(uid) {
   const q = fb.fs.query(fb.fs.collection(fb.db, 'sharedItems'), fb.fs.where('members', 'array-contains', uid));
-  unsubs.push(fb.fs.onSnapshot(q, snap => { shItems = snap.docs.map(d => ({ ...d.data(), id: d.id })); shReady = true; notify(); },
+  unsubs.push(fb.fs.onSnapshot(q, snap => { shItems = snap.docs.map(d => ({ ...d.data(), id: d.id })); shReady = true; composeTasks(); composeNotes(); shPullDone(); notify(); },
     err => { shReady = true; console.warn('Notas compartidas no disponibles', err); }));
 }
 function shItemPush(col, item) {
@@ -925,6 +942,28 @@ function shItemPush(col, item) {
     fb.fs.setDoc(ref, JSON.parse(JSON.stringify({ ...p, owner: uidOf(), ownerName: myName(), members, memberNames: { [uidOf()]: myName(), ...(item.shareNames || {}) },
       ...first, updatedAt: now, updatedBy: uidOf() })), { merge: true }).catch(onError);
   }
+}
+// Quien compartió una tarea: si la otra persona la marcó hecha (o la volvió a abrir), se refleja en tu tarea.
+// La app (app.js) lo hace con su propia lógica de «hecha» (así también se crea la siguiente si se repite).
+export const sharedHooks = { taskDone: null };
+const pulled = new Set();
+function shPullDone() {
+  const me = uidOf();
+  shItems.filter(d => d.owner === me && d.kind === 'task' && d.updatedBy && d.updatedBy !== me).forEach(d => {
+    const own = ownTasks.find(t => t.shareId === d.id);
+    if (!own) return;
+    const remoteDone = d.status === 'hecha', mineDone = own.status === 'hecha';
+    const key = `${d.id}|${d.updatedAt}`;
+    if (remoteDone === mineDone || pulled.has(key) || String(d.updatedAt || '') <= String(own.updatedAt || '')) return;
+    pulled.add(key);
+    sharedHooks.taskDone?.(own.id, remoteDone, d.doneByName || d.memberNames?.[d.updatedBy] || 'Otra cuenta');
+  });
+}
+// Lo que te compartieron no se cambia aquí (solo se comenta)
+let shWarned = 0;
+function shReadOnly(item) {
+  notify();
+  if (Date.now() - shWarned > 3000) { shWarned = Date.now(); onError({ friendly: `La compartió ${item?.fromName || 'otra cuenta'}: solo esa cuenta la cambia. Tú puedes comentarla.` }); }
 }
 function shItemDelete(id) { if (fb && account.user) fb.fs.deleteDoc(fb.fs.doc(fb.db, 'sharedItems', id)).catch(() => {}); }
 
@@ -948,6 +987,16 @@ export const shared = {
     write(col, next, { noShare: true });
     shItemPush(col, next);
     return next;
+  },
+  // Quien la recibe: marcarla hecha o volver a abrirla (lo único que puede cambiar, además de comentar)
+  setDone(id, done) {
+    const d = shItems.find(x => x.id === id);
+    if (!d || d.kind !== 'task' || !fb || !account.user) return Promise.resolve(false);
+    const now = new Date().toISOString();
+    const patch = done ? { status: 'hecha', doneAt: now.slice(0, 10), doneBy: uidOf(), doneByName: myName(), updatedAt: now, updatedBy: uidOf() }
+      : { status: (d.log || []).length ? 'seguimiento' : 'pendiente', doneAt: '', updatedAt: now, updatedBy: uidOf() };
+    Object.assign(d, patch); composeTasks(); notify();
+    return fb.fs.updateDoc(fb.fs.doc(fb.db, 'sharedItems', id), patch).then(() => true).catch(e => { onError(e); return false; });
   },
   // Agrega un comentario (lo puede hacer quien la comparte y quienes la reciben)
   comment(id, text) {
@@ -990,3 +1039,18 @@ export function reportClient(ver, dev) {
 }
 // Repintar la pantalla cuando algo de fuera de los datos cambió (por ejemplo, llegó el número de cuentas pendientes)
 export const refresh = () => notify();
+
+// ═════════════════════════════ RESPALDO COMPLETO (solo el administrador) ═════════════════════════════
+// config/respaldo → { url, token, key, on, every, keep, folderUrl, requestAt, lastAt, last } (ver avisos/run.js y js/respaldo.js)
+export const respaldo = {
+  async get() {
+    if (!fb || !account.user) return null;
+    const d = await fb.fs.getDoc(fb.fs.doc(fb.db, 'config', 'respaldo'));
+    return d.exists() ? d.data() : null;
+  },
+  save(patch) {
+    if (!fb || !account.user) return Promise.reject(new Error('sin sesión'));
+    return fb.fs.setDoc(fb.fs.doc(fb.db, 'config', 'respaldo'), JSON.parse(JSON.stringify({ ...patch, updatedAt: new Date().toISOString(), by: account.user.uid })), { merge: true });
+  },
+  remove() { return fb.fs.deleteDoc(fb.fs.doc(fb.db, 'config', 'respaldo')); },
+};

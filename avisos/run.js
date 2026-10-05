@@ -7,6 +7,8 @@
 //  3. Aviso de prueba: si alguien tocó «Enviar un aviso de prueba» (users/{uid}/meta/test), se lo manda.
 //  4. Aviso diario: a cada usuario, a la hora que eligió (Ajustes → Avisos), con lo pendiente del día.
 //  5. Copia automática semanal de los datos de cada cuenta (se guardan las últimas 4).
+//  6. Respaldo completo de TODAS las cuentas, cifrado, a la carpeta «Mi Agenda · Respaldos» del Google Drive del
+//     administrador (por medio de su programa de Google Apps Script). Ver config/respaldo y js/respaldo.js.
 //
 // Privacidad: por defecto el aviso solo dice CUÁNTAS cosas hay, sin títulos. La copia semanal queda dentro de la
 // misma cuenta (users/{uid}/…), con las mismas reglas: solo su dueño la puede ver.
@@ -524,6 +526,60 @@ async function weeklyBackup(uid) {
   return 1;
 }
 
+// ───── Respaldo completo de todas las cuentas a Google Drive (cifrado) ─────
+// config/respaldo → { url, token, key (AES-256 en base64), on, every (días), requestAt, lastAt, last: { ok, at, size, cuentas, error } }
+// El archivo va cifrado (AES-256-GCM sobre JSON comprimido): sin la clave, que solo está en config/respaldo,
+// no se puede leer aunque alguien abra el Drive. Se guarda con el programa de Apps Script del administrador.
+const zlib = require('node:zlib');
+const nodeCrypto = require('node:crypto');
+const GLOBAL_COLS = ['access', 'directory', 'members', 'shared', 'assigned', 'sharedItems', 'shares'];
+const isScriptUrl = u => /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(String(u || ''));
+async function fullBackup() {
+  const ref = db.doc('config/respaldo');
+  const cfg = (await ref.get()).data();
+  if (!cfg?.on || !isScriptUrl(cfg.url) || !cfg.token || !cfg.key) return 0;
+  const every = Math.max(1, Number(cfg.every) || 7);
+  const due = !cfg.lastAt || Date.now() - Date.parse(cfg.lastAt) > (every - 0.1) * 86400e3;
+  const asked = cfg.requestAt && (!cfg.lastAt || cfg.requestAt > cfg.lastAt);
+  if (!due && !asked) return 0;
+  const startedAt = new Date().toISOString();
+  try {
+    const out = { app: 'mi-agenda-respaldo', v: 1, at: startedAt, users: {}, global: {} };
+    const docs = q => q.docs.map(d => ({ ...d.data(), id: d.id }));
+    const userRefs = await db.collection('users').listDocuments();
+    for (const u of userRefs) {
+      const one = {};
+      for (const c of BACKUP_COLS) one[c] = docs(await u.collection(c).get());
+      if (Object.values(one).some(l => l.length)) out.users[u.id] = one;
+    }
+    for (const c of GLOBAL_COLS) out.global[c] = docs(await db.collection(c).get());
+    out.global.config = docs(await db.collection('config').get()).filter(d => d.id !== 'respaldo');
+    out.global.congres = [];
+    for (const h of docs(await db.collection('congres').get())) {
+      out.global.congres.push({ ...h, parts: docs(await db.collection('congres').doc(h.id).collection('parts').get()) });
+    }
+    const plain = zlib.gzipSync(Buffer.from(JSON.stringify(out), 'utf8'));
+    const iv = nodeCrypto.randomBytes(12);
+    const c = nodeCrypto.createCipheriv('aes-256-gcm', Buffer.from(cfg.key, 'base64'), iv);
+    const enc = Buffer.concat([c.update(plain), c.final(), c.getAuthTag()]);   // igual que AES-GCM del navegador
+    const file = JSON.stringify({ app: 'mi-agenda-respaldo', v: 1, alg: 'AES-256-GCM+gzip', at: startedAt, cuentas: Object.keys(out.users).length, iv: iv.toString('base64'), data: enc.toString('base64') });
+    const name = `mi-agenda-respaldo-${startedAt.slice(0, 10)}.agenda`;
+    const res = await fetch(cfg.url, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ token: cfg.token, action: 'guardar', name, data: file, keep: Number(cfg.keep) || 8 }) });
+    const text = await res.text();
+    let r; try { r = JSON.parse(text); } catch { throw new Error(/<html/i.test(text) ? 'Google pidió iniciar sesión: en la implementación, «Quién tiene acceso» debe ser «Cualquier usuario».' : 'Respuesta rara del programa de Google'); }
+    if (!r.ok) throw new Error(r.error === 'clave' ? 'El programa de Google tiene otra clave: vuelve a conectarlo desde la app.' : r.error || 'El programa de Google no lo guardó');
+    await ref.set({ lastAt: startedAt, last: { ok: true, at: startedAt, size: file.length, cuentas: Object.keys(out.users).length, name, error: '' } }, { merge: true });
+    log.info('Respaldo completo', { cuentas: Object.keys(out.users).length, kb: Math.round(file.length / 1024) });
+    return 1;
+  } catch (e) {
+    // No se reintenta en cada ejecución: se anota el error y se vuelve a intentar en 6 horas
+    await ref.set({ lastAt: new Date(Date.now() - (every - 0.25) * 86400e3).toISOString(), requestAt: '', last: { ok: false, at: startedAt, error: String(e.message || e).slice(0, 300) } }, { merge: true });
+    log.error('Respaldo completo', e.message);
+    return 0;
+  }
+}
+
 async function main() {
   const runRef = db.doc('meta/avisos');
   const lastRun = (await runRef.get()).data()?.lastRun || new Date(Date.now() - 2 * 3600e3).toISOString();
@@ -544,8 +600,9 @@ async function main() {
       during += await dayReminders(u.id, devices);
     } catch (e) { log.error('Error con un usuario', e.message); }
   }
+  const full = await fullBackup().catch(e => { log.error('Respaldo completo', e.message); return 0; });
   await runRef.set({ lastRun: startedAt }, { merge: true });
-  log.info('Listo', { cuentas: users.size, cuentasConAvisos: withPhone, telefonos: phones, resumenDiario: sent, avisosDelDia: during, pruebas: tests, copiasSemanales: backups, rutinasCompartidas: partner, entregadosAGoogle: stats.ok, fallidos: stats.fallidos, errores: stats.errores });
+  log.info('Listo', { cuentas: users.size, cuentasConAvisos: withPhone, telefonos: phones, resumenDiario: sent, avisosDelDia: during, pruebas: tests, copiasSemanales: backups, respaldoCompleto: full, rutinasCompartidas: partner, entregadosAGoogle: stats.ok, fallidos: stats.fallidos, errores: stats.errores });
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });

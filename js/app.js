@@ -148,17 +148,32 @@ function refreshList() {
 
 // ───────────── Acciones ─────────────
 
-function toggleTask(id) {
+function toggleTask(id, o = {}) {
   const t = store.get('tasks', id);
   if (!t) return;
   const wasDone = t.status === 'hecha';
+  // 👥 Compartida por otra cuenta: se marca en la tarea compartida y a quien la compartió le llega
+  if (t.sharedItemId) {
+    store.shared.setDone(t.sharedItemId, !wasDone).then(ok => ok && toast(wasDone ? 'Vuelve a estar pendiente' : `✓ ¡Hecha! ${String(t.fromName).split(' ')[0]} lo verá`));
+    return;
+  }
   const next = { ...t, status: wasDone ? ((t.log || []).length ? 'seguimiento' : 'pendiente') : 'hecha', doneAt: wasDone ? '' : today() };
   const again = !wasDone ? M.repeatNext(t, uid()) : null;
   if (again) next.repeatDone = true;
+  // Si se repite y está compartida, la compartida pasa a la siguiente; la hecha queda solo tuya
+  if (again && t.shareId) { delete next.shareId; delete next.shareWith; delete next.shareNames; }
   store.upsert('tasks', next);
   if (again) store.upsert('tasks', again);
+  if (o.quiet) return;
   if (!wasDone) toast(again ? `Tarea completada. La próxima: ${fmtShort(again.due)}` : 'Tarea completada', 'Deshacer', () => { store.upsert('tasks', t); if (again) store.remove('tasks', again.id); });
 }
+// La otra persona marcó hecha (o volvió a abrir) una tarea que le compartiste
+store.sharedHooks.taskDone = (id, done, who) => {
+  const t = store.get('tasks', id);
+  if (!t || (t.status === 'hecha') === done) return;
+  toggleTask(id, { quiet: true });
+  toast(done ? `✓ ${String(who).split(' ')[0]} marcó hecha «${t.title}»` : `${String(who).split(' ')[0]} volvió a abrir «${t.title}»`, null, null, 8000);
+};
 
 function shiftMonth(n) {
   const [y, m] = ui.agenda.ym.split('-').map(Number);
@@ -370,6 +385,8 @@ document.addEventListener('click', e => {
     case 'sh-comment': return Cp.comment(id);
     case 'sh-inbox': return Cp.inboxSheet();
     case 'sh-item': return Cp.itemSheet(id);
+    case 'sh-done': return Cp.setDone(id, v === '1');
+    case 'sh-done-seen': return Cp.doneSeen(id, v);
     // 🛡 Mi administración y 📰 Novedades (adminhub.js)
     case 'adm-hub': return Ah.hub(v);
     case 'adm-approve': return Ah.approve(id, el.dataset.name);
@@ -379,6 +396,14 @@ document.addEventListener('click', e => {
     case 'news-del': return Ah.newsDel(v);
     case 'news-cancel': return Ah.newsCancel();
     case 'news-fill': return Ah.newsFill();
+    // 💾 Respaldo completo de todas las cuentas (respaldo.js)
+    case 'rs-copy': return import('./respaldo.js').then(R => R.copyScript());
+    case 'rs-connect': return import('./respaldo.js').then(R => R.connect()).then(ok => ok && Ah.hub('respaldo'));
+    case 'rs-now': return import('./respaldo.js').then(R => R.now()).then(ok => ok && Ah.hub('respaldo'));
+    case 'rs-key': return import('./respaldo.js').then(R => R.copyKey());
+    case 'rs-off': return import('./respaldo.js').then(R => R.off()).then(ok => ok && Ah.hub('respaldo'));
+    case 'rs-dl': return import('./respaldo.js').then(R => R.download(id));
+    case 'rs-send': return import('./respaldo.js').then(R => R.send(id, el.dataset.name));
     case 'meca-add-unknown': return Mc.addUnknown();
     case 'meca-add-all': Mc.addAll(id); return render();
     case 'meca-mv': ui.congre.mv = v; return render();

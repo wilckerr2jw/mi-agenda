@@ -70,7 +70,7 @@ function tlButton({ kind, item }, iso, { color, label, occ, companions, racha, o
 }
 
 // ⠿ para mover la tarea a otro departamento (solo en Tareas → Por departamento; no en las que te asignó otra cuenta)
-const dragHandle = t => (t.assignedFrom ? '' : `<button type="button" class="tdrag" data-a="task-move-pick" data-id="${esc(t.id)}" aria-label="Mover «${esc(t.title)}» a otro departamento" title="Arrastra para moverla a otro departamento">⠿</button>`);
+const dragHandle = t => (t.assignedFrom || t.sharedItemId ? '' : `<button type="button" class="tdrag" data-a="task-move-pick" data-id="${esc(t.id)}" aria-label="Mover «${esc(t.title)}» a otro departamento" title="Arrastra para moverla a otro departamento">⠿</button>`);
 
 export function taskRow(t, movable = false) {
   const p = M.person(t.personId);
@@ -80,7 +80,7 @@ export function taskRow(t, movable = false) {
   const comp = M.person(t.companionId);
   const mtg = t.meetingId ? data.meetings.find(m => m.id === t.meetingId) : null;
   const prio = M.taskPrio(t);
-  return `<div class="row task ${done ? 'is-done' : ''} prio-${prio}${movable && !t.assignedFrom ? ' movable' : ''}">
+  return `<div class="row task ${done ? 'is-done' : ''} prio-${prio}${movable && !t.assignedFrom && !t.sharedItemId ? ' movable' : ''}${t.sharedItemId ? ' shared-in' : ''}">
     <button class="chk" data-a="toggle-task" data-id="${esc(t.id)}" aria-pressed="${done}" aria-label="${done ? 'Marcar como pendiente' : 'Marcar como hecha'}">${ic('check')}</button>
     <button class="row-main" data-a="task" data-id="${esc(t.id)}">
       <span class="title">${prio === 'alta' && !done ? '<span class="prio-tag" title="Prioridad alta">Alta</span> ' : ''}${esc(t.title)}</span>
@@ -94,6 +94,7 @@ export function taskRow(t, movable = false) {
 // Tareas con otra cuenta: las que te asignaron («📥 De …») y las que enviaste («📲 …» y si ya la aceptó)
 const ACCT_STATE = { nueva: 'esperando', aceptada: 'la aceptó', rechazada: 'la rechazó' };
 function acctTag(t) {
+  if (t.sharedItemId) return `<span class="acct-tag shared-in">👥 Compartida por ${esc(String(t.fromName).split(' ')[0])}${t.status === 'hecha' && t.doneByName ? ` · ✓ ${esc(String(t.doneByName).split(' ')[0])}` : ''}</span>`;
   if (t.assignedFrom) return `<span class="acct-tag from">📥 De ${esc(t.fromName)}</span>`;
   if (t.assignedId) return `<span class="acct-tag ${esc(t.assignState || 'nueva')}">📲 ${esc(t.assignToName || 'Enviada')} · ${esc(ACCT_STATE[t.assignState || 'nueva'])}</span>`;
   return '';
@@ -114,7 +115,7 @@ function taskCard(t, movable = false) {
   const prio = M.taskPrio(t);
   const mtg = t.meetingId ? data.meetings.find(m => m.id === t.meetingId) : null;
   const resp = !M.isMineTask(t) && (t.responsibles || []).length ? t.responsibles.join(', ') : '';
-  return `<div class="tcard prio-${prio} ${done ? 'is-done' : ''}">
+  return `<div class="tcard prio-${prio} ${done ? 'is-done' : ''}${t.sharedItemId ? ' shared-in' : ''}">
     <div class="tcard-top">
       ${due.label ? `<span class="due-pill ${due.cls}">${esc(due.label)}${due.time ? ` · ${esc(due.time)}` : ''}</span>` : '<span class="due-pill none">Sin fecha</span>'}
       ${prio !== 'normal' && !done ? `<span class="prio-tag ${prio}">${prio === 'alta' ? 'Alta' : 'Baja'}</span>` : ''}
@@ -293,9 +294,15 @@ export function hoy() {
   </section>
   <section>
     <div class="sec-h"><h2>Tareas por atender</h2></div>
-    ${due.length ? `<div class="stack">${due.map(taskRow).join('')}</div>`
+    ${due.length ? `<div class="stack">${due.map(x => taskRow(x)).join('')}</div>`
       : empty('Sin tareas para hoy ni atrasadas.', `<button class="btn" data-a="new-task">Nueva tarea</button>`, 'tasks')}
   </section>
+  ${(() => {   // 👥 Tareas que te compartieron (las que no salen arriba): pendientes, primero las que vencen antes
+    const sh = data.tasks.filter(x => x.sharedItemId && x.status !== 'hecha' && !(x.due && x.due <= t))
+      .sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).slice(0, 6);
+    return sh.length ? `<section><div class="sec-h"><h2>👥 Compartidas contigo</h2><button class="btn small ghost" data-a="sh-inbox">Ver todas</button></div>
+      <div class="stack">${sh.map(x => taskRow(x)).join('')}</div></section>` : '';
+  })()}
   ${sup.length ? `<section><div class="sec-h"><h2>Por supervisar</h2>${remindList(3).length ? '<button class="btn small ghost" data-a="remind-tasks" data-v="3">💬 Recordar</button>' : `<span class="hint">${sup.length}</span>`}</div>
     <p class="hint pad">Tareas de otros hermanos sin novedades hace ${M.SUPERVISE_DAYS} días o más. Pregunta cómo van y anota el avance en su seguimiento.</p>
     <div class="stack">${sup.map(({ task: x, quiet, late }) => `<button class="card mini" data-a="task" data-id="${esc(x.id)}">
@@ -323,7 +330,7 @@ function agendaUpcoming() {
     if (!entries.length && !a.tasks.length) continue;
     html += `<section class="day-block"><div class="sec-h"><h2>${i === 0 ? 'Hoy · ' : i === 1 ? 'Mañana · ' : ''}${cap(fmtLong(iso))}</h2><button class="btn small ghost" data-a="new-event" data-date="${esc(iso)}" aria-label="Agregar evento el ${fmtLong(iso)}">${ic('plus', 'sm')}</button></div>
       ${entries.length ? `<div class="tl">${entries.map(x => tlItem(x, iso)).join('')}</div>` : ''}
-      ${a.tasks.length ? `<div class="stack">${a.tasks.map(taskRow).join('')}</div>` : ''}</section>`;
+      ${a.tasks.length ? `<div class="stack">${a.tasks.map(x => taskRow(x)).join('')}</div>` : ''}</section>`;
   }
   return html || empty(`No hay nada en los próximos ${LIST_DAYS} días.`, '<button class="btn" data-a="new-event">Agregar evento</button>', 'calendar');
 }
@@ -441,7 +448,7 @@ export function agenda(ui) {
   const entries = M.entriesFor(a);
   const list = entries.length || a.tasks.length
     ? `${entries.length ? `<div class="tl">${entries.map(x => tlItem(x, st.sel)).join('')}</div>` : ''}
-       ${a.tasks.length ? `<h3 class="sub-h">Tareas con esta fecha</h3><div class="stack">${a.tasks.map(taskRow).join('')}</div>` : ''}`
+       ${a.tasks.length ? `<h3 class="sub-h">Tareas con esta fecha</h3><div class="stack">${a.tasks.map(x => taskRow(x)).join('')}</div>` : ''}`
     : empty('No hay nada programado este día.', `<button class="btn" data-a="new-event" data-date="${esc(st.sel)}">Agregar evento</button>`, 'calendar');
 
   return `
@@ -766,8 +773,9 @@ export function notasList(ui) {
       : empty('Escribe tu primera nota: ideas, apuntes o recordatorios.', `<button class="btn" data-a="new-note">Nueva nota</button><button class="link" data-a="keep">Importar de Google Keep</button>`, 'notebook');
   }
   return `<div class="stack">${list.map(n => `
-    <button class="card note" data-a="note" data-id="${esc(n.id)}">
+    <button class="card note${n.sharedItemId ? ' shared-in' : ''}" data-a="note" data-id="${esc(n.id)}">
       <span class="n-top"><strong>${esc(n.title || 'Sin título')}</strong>${n.pinned ? ic('bookmark', 'pin') : ''}</span>
+      ${n.sharedItemId ? `<span class="acct-tag shared-in">👥 Compartida por ${esc(String(n.fromName).split(' ')[0])}</span>` : ''}
       ${n.body ? `<span class="n-body">${esc(n.body)}</span>` : ''}
       <span class="n-foot">${n.tag ? `<span class="chip static">${esc(n.tag)}</span>` : ''}<span class="when">${M.noteDate(n) ? fmtShort(M.noteDate(n)) : ''}</span></span>
     </button>`).join('')}</div>`;

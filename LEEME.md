@@ -99,6 +99,10 @@ y la versión del pie.
 | `js/sheets.js` | Formularios y hojas que suben desde abajo, ficha de persona, ajustes |
 | `js/app.js` | Arranque, inicio de sesión, navegación y toques |
 | `sw.js` | Funcionamiento sin internet |
+| `js/respaldo.js` + `js/respaldo-script.js` | 💾 Respaldo completo y cifrado de todas las cuentas en el Google Drive del administrador (lo hace `avisos/run.js`; se configura en `config/respaldo`) |
+| `js/adminhub.js` | 🛡 Mi administración (cuentas, uso, novedades, compartido) y 📰 Novedades en Ajustes |
+| `js/compartido.js` | 👥 Congregación compartida con otro anciano (solo lectura, siempre al día) y notas o tareas compartidas con comentarios. Los datos: `congres/{uid}` y `sharedItems/{id}` en Firestore (ver `firestore.rules`) |
+| `modulos/matrimonio/` | 💑 Módulo aparte; se activa con una línea en `index.html` y se quita borrando esa línea y la carpeta |
 
 Ejemplos de cambios sencillos:
 

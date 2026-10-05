@@ -9,3 +9,11 @@ calendario-*.json
 mi-agenda-app-855f1-*.json
 *.key.json
 functions/
+# Archivos de trabajo con nombres reales: solo en esta carpeta (nunca al repositorio ni a la web)
+MEJORAS.md
+RESUMEN-CHAT.md
+Claude outputs/
+programa-*.txt
+asignaciones-*.json
+# Script para pasarle el proyecto a Claude: solo en esta carpeta
+empaquetar-para-claude.*

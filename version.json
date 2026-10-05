@@ -1,8 +1,8 @@
 {
-  "version": "10.3.0",
+  "version": "10.3.3",
   "notes": [
-    "📰 Ajustes → Novedades: lo nuevo de la app, sin avisos",
-    "🛡 Mi administración (solo el administrador): cuentas por aprobar, quién usa la app y con qué versión, novedades y lo compartido",
-    "👥 Comparte tu congregación, notas y tareas con otro anciano"
+    "✓ Las tareas que te comparten las puedes marcar hechas: a quien te la compartió le llega y se marca también en la suya",
+    "👥 Las tareas y notas compartidas salen en Hoy y en tus listas, marcadas «Compartida por …»",
+    "💾 Respaldo completo y cifrado de todas las cuentas en el Google Drive del administrador"
   ]
 }

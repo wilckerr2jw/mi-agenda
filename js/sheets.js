@@ -19,7 +19,7 @@ import * as N from './notify.js';
 import * as Nat from './native.js';
 import { saveFixMonth } from './corregir.js';
 import { updateBanner } from './pwa.js';
-import { shareBlock } from './compartido.js';
+import { shareBlock, itemSheet as sharedItemSheet } from './compartido.js';
 import { newsHtml } from './adminhub.js';
 
 // Permite que app.js reaccione a lo guardado (p. ej. saltar a esa fecha en el calendario)
@@ -599,6 +599,7 @@ function refreshPersonSelects(form, selectPersonId) {
 export function taskSheet(id, preset = {}, back) {
   const t = id ? store.get('tasks', id) : null;
   if (t?.assignedFrom) return assignedSheet(id, back);
+  if (t?.sharedItemId) return sharedItemSheet(t.sharedItemId, back || null);   // 👥 compartida por otra cuenta: se ve y se comenta
   const v = t || { title: preset.title || '', kind: preset.kind || 'visita', personId: preset.personId || '', companionId: '', due: preset.due || '', dueTime: '', status: 'pendiente', notes: preset.notes || '', log: [], meetingId: preset.meetingId || '', fromAgreement: preset.fromAgreement || '', responsibles: preset.responsibles || [], responsibleIds: preset.responsibleIds || [], mine: preset.mine !== false, repeat: preset.repeat || '', deptId: preset.deptId || '' };
   const meeting = v.meetingId ? store.get('meetings', v.meetingId) : null;
   const meetings = [...data.meetings].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -1633,6 +1634,7 @@ export function groupDetail(id, back = null) {
 
 export function noteSheet(id, back) {
   const n = id ? store.get('notes', id) : null;
+  if (n?.sharedItemId) return sharedItemSheet(n.sharedItemId, back || null);   // 👥 compartida por otra cuenta
   // Fecha por defecto: la que ya tenga la nota, o si es una nota vieja sin fecha, cuándo se creó; para una nota nueva, hoy.
   const date = n ? (n.date || (n.createdAt ? dateOf(n.createdAt) : today())) : today();
   const v = { title: '', body: '', tag: '', pinned: false, meetingId: '', personId: '', ...n, date };

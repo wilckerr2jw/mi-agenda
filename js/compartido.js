@@ -134,7 +134,8 @@ function shareBlockInner(col, item) {
   const names = Object.values(item.shareNames || {}).map(first).join(', ');
   if (d) markSeen(d);
   return `<h3 class="sub-h">👥 Compartida con ${esc(names || 'otras cuentas')} <button type="button" class="link" data-a="sh-share" data-v="${col}" data-id="${esc(item.id)}">Cambiar</button></h3>
-    <p class="hint">La ven siempre al día y pueden comentar. Solo tú cambias el contenido.</p>
+    <p class="hint">La ven siempre al día y pueden comentar${col === 'tasks' ? ' y marcarla hecha (a ti te llega y se marca aquí también)' : ''}. Solo tú cambias el contenido.</p>
+    ${col === 'tasks' && d?.status === 'hecha' && d.doneBy && d.doneBy !== me() ? `<p class="hint ok">✓ ${esc(first(d.doneByName))} la marcó hecha${d.doneAt ? ` el ${esc(fmtShort(d.doneAt))}` : ''}.</p>` : ''}
     ${commentsHtml(d, item.shareId)}`;
 }
 function commentsHtml(d, id) {
@@ -197,19 +198,22 @@ export function inboxSheet() {
     }).join('')}</div>` : '<p class="hint pad">Nadie te ha compartido notas ni tareas todavía.</p>',
   });
 }
-export function itemSheet(id) {
+export function itemSheet(id, back = inboxSheet) {
   const d = store.shared.doc(id);
   if (!d) return toast('Ya no está compartida contigo');
   markSeen(d);
   const t = d.kind === 'task';
   open({
-    title: t ? '📋 Tarea compartida' : '📝 Nota compartida', back: inboxSheet,
+    title: t ? '📋 Tarea compartida' : '📝 Nota compartida', back,
     body: `<div id="sh-item"><p class="shared-note">👥 Te la compartió <b>${esc(d.ownerName || 'otra cuenta')}</b>. Solo esa cuenta cambia el contenido; tú puedes comentar.</p>
       <h3 class="sh-title">${esc(d.title || 'Sin título')}</h3>
       <p class="meta">${t ? `${esc(STATUS[d.status] || '')}${d.due ? ` · vence el ${esc(fmtShort(d.due))}${d.dueTime ? ` ${esc(fmtTime(d.dueTime))}` : ''}` : ''}${d.priority === 'alta' ? ' · 🔴 Alta' : ''}` : `${d.date ? esc(fmtShort(d.date)) : ''}${d.tag ? ` · ${esc(d.tag)}` : ''}`}${d.about ? ` · ${esc(d.about)}` : ''}</p>
       ${t && (d.responsibles || []).length ? `<p class="hint">Responsables: ${esc(d.responsibles.join(', '))}</p>` : ''}
       ${d.body ? `<div class="sh-body">${esc(d.body).replace(/\n/g, '<br>')}</div>` : ''}
       ${t && (d.log || []).length ? `<h3 class="sub-h">Seguimiento</h3><ul class="sh-log">${[...d.log].reverse().map(l => `<li><span class="hint">${esc(l.d ? fmtShort(l.d) : '')}</span> ${esc(l.t)}</li>`).join('')}</ul>` : ''}
+      ${t ? (d.status === 'hecha'
+        ? `<p class="hint ok">✓ Hecha${d.doneByName ? ` por ${esc(d.doneBy === me() ? 'ti' : first(d.doneByName))}` : ''}${d.doneAt ? ` el ${esc(fmtShort(d.doneAt))}` : ''}.</p><button type="button" class="btn ghost" data-a="sh-done" data-id="${esc(id)}" data-v="0">↩ Volver a pendiente</button>`
+        : `<button type="button" class="btn primary" data-a="sh-done" data-id="${esc(id)}" data-v="1">✓ Ya la hice</button><p class="hint">A ${esc(first(d.ownerName))} le llega y se marca hecha en su app.</p>`) : ''}
       <h3 class="sub-h">💬 Comentarios</h3><div class="sh-cwrap">${commentsHtml(d, id)}</div></div>`,
   });
 }
@@ -226,6 +230,12 @@ export function hoyNotices() {
     const one = rec.length === 1 ? rec[0] : null;
     out.push(`<button class="log-now" data-a="${one ? 'sh-item' : 'sh-inbox'}" data-id="${esc(one?.d.id || '')}">👥 <span><b>${one ? (one.u.isNew ? `${esc(first(one.d.ownerName))} te compartió «${esc(one.d.title)}»` : one.u.comments.length ? `Comentarios nuevos en «${esc(one.d.title)}»` : `${esc(first(one.d.ownerName))} actualizó «${esc(one.d.title)}»`) : `${rec.length} notas o tareas compartidas con novedades`}</b><small>Toca para verlas.</small></span></button>`);
   }
+  // Tareas que compartiste y la otra persona marcó hechas
+  const doneSeen = (() => { try { return JSON.parse(localStorage.getItem('miagenda.compartidoHecha') || '{}'); } catch { return {}; } })();
+  store.shared.all().filter(d => d.owner === me() && d.kind === 'task' && d.status === 'hecha' && d.doneBy && d.doneBy !== me() && doneSeen[d.id] !== d.doneAt).forEach(d => {
+    const own = data.tasks.find(x => x.shareId === d.id) || data.tasks.find(x => x.title === d.title && x.status === 'hecha');
+    out.push(`<button class="log-now" data-a="sh-done-seen" data-id="${esc(d.id)}" data-v="${esc(own?.id || '')}">✓ <span><b>${esc(first(d.doneByName))} marcó hecha «${esc(d.title)}»</b><small>${d.doneAt ? `El ${esc(fmtShort(d.doneAt))}. ` : ''}Ya quedó marcada en tus tareas. Toca para verla.</small></span></button>`);
+  });
   // Comentarios que te hicieron en lo que tú compartiste
   store.shared.all().filter(d => d.owner === me()).forEach(d => {
     const u = unseen(d);
@@ -243,4 +253,19 @@ export function inboxButton(kind) {
   if (!list.length) return '';
   const news = list.filter(d => { const u = unseen(d); return u.isNew || u.comments.length || u.changed; }).length;
   return `<button class="btn small sh-inbox-btn" data-a="sh-inbox">👥 Compartido conmigo (${list.length})${news ? ` · <b>${news} con novedades</b>` : ''}</button>`;
+}
+
+// Quien la recibe: «✓ Ya la hice» o «↩ Volver a pendiente»
+export async function setDone(id, done) {
+  const ok = await store.shared.setDone(id, done);
+  if (!ok) return;
+  const d = store.shared.doc(id);
+  toast(done ? `✓ ¡Hecha! ${first(d?.ownerName)} lo verá` : 'Vuelve a estar pendiente');
+  if (document.getElementById('sh-item')) itemSheet(id, null);
+}
+// Quien la compartió: ya vio que la otra persona la marcó hecha
+export function doneSeen(id, taskId) {
+  const d = store.shared.doc(id);
+  try { const m = JSON.parse(localStorage.getItem('miagenda.compartidoHecha') || '{}'); m[id] = d?.doneAt || ''; localStorage.setItem('miagenda.compartidoHecha', JSON.stringify(m)); } catch { /* sin almacenamiento */ }
+  if (taskId && store.get('tasks', taskId)) taskSheet(taskId); else store.refresh();
 }

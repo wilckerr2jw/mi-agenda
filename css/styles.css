@@ -1553,3 +1553,11 @@ body.cg-ro .sheet:has(form[data-form="dept"], form[data-form="group"]) .sheet-f 
 .ah-notes { margin: 6px 0 4px 18px; display: grid; gap: 4px; }
 .ah-news-form { display: grid; gap: 4px; margin-bottom: 8px; }
 .ah-news .sub-h { margin-top: 14px; }
+.ah-seg { grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (min-width: 560px) { .ah-seg { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+/* 👥 Lo que te compartió otra cuenta: borde de otro color y etiqueta «Compartida por …» */
+.row.task.shared-in, .tcard.shared-in, .card.note.shared-in { border-left: 4px solid var(--c-pastoreo); }
+.acct-tag.shared-in { background: color-mix(in srgb, var(--c-pastoreo) 16%, var(--surface)); color: var(--ink); }
+.card.note .acct-tag.shared-in { justify-self: start; margin-top: 2px; }
+.sh-chk { display: grid; place-items: center; width: 44px; height: 44px; font-size: 20px; cursor: default; }
+.acct-tag.shared-in { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; }
