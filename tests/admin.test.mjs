@@ -25,8 +25,14 @@ test('las plantillas por defecto reproducen los tipos de siempre', () => {
   assert.equal(P.effectivePerms(D.precursor, {}).goal, true);
   const anc = P.effectivePerms(D.anciano, {});
   assert.equal(anc.modules.size, P.MODULE_IDS.length);
-  assert.equal(anc.features.size, P.FEATURE_IDS.length);
+  assert.equal(anc.features.size, P.FEATURE_LIST.filter(f => !f.off).length);
   assert.deepEqual(anc.hideModules, []);
+});
+
+test('💑 Matrimonio viene apagado en todas las plantillas y se activa solo a quien se le da', () => {
+  Object.values(D).forEach(t => assert.equal(P.effectivePerms(t, {}).features.has('general.matrimonio'), false));
+  assert.equal(P.effectivePerms(D.publicador, { allow: ['general.matrimonio'] }).features.has('general.matrimonio'), true);
+  assert.equal(P.effectivePerms(null, {}, { all: true }).features.has('general.matrimonio'), true);   // el administrador lo ve
 });
 
 test('sin plantilla o con all se ve todo', () => {

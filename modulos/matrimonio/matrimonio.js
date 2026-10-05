@@ -13,7 +13,9 @@
 //  · Entra por «Más», por una tarjeta en Hoy y, en la computadora, por el menú de la izquierda.
 
 import * as store from '../../js/store.js';
-import { data, isCloud } from '../../js/store.js';
+import { data, isCloud, session } from '../../js/store.js';
+// Solo para las cuentas a las que el administrador se lo activó (función «💑 Matrimonio»); el administrador lo ve siempre
+const allowed = () => M.featureOn('general.matrimonio');
 import * as M from '../../js/model.js';
 import * as S from '../../js/sheets.js';
 import { myMecas } from '../../js/mecas.js';
@@ -261,6 +263,7 @@ const segBtn = (k, t) => `<button type="button" data-mx="tab" data-v="${k}" aria
 const card = (inner, cls = '') => `<div class="card mx-card ${cls}">${inner}</div>`;
 
 export function openMain(t = tab) {
+  if (!allowed()) return;
   tab = t;
   const c = cfg();
   const body = `<div class="mx">
@@ -495,12 +498,25 @@ function settingsSheet() {
     sel.innerHTML = `<option value="">No tiene cuenta / no compartir</option>${l.map(m => `<option value="${esc(m.uid)}" ${m.uid === cur ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}`;
   }).catch(() => { members = []; });
 }
+// Si el administrador elige la cuenta de su cónyuge, se le activa el módulo a esa cuenta (en sus funciones)
+async function allowSpouse(uid, name) {
+  if (!session.isAdmin) return;
+  try {
+    const u = (await store.admin.listUsers()).find(x => x.uid === uid);
+    if (!u?.type) return;
+    const allow = [...new Set([...(u.allow || []), 'general.matrimonio'])], deny = (u.deny || []).filter(x => x !== 'general.matrimonio');
+    if ((u.allow || []).includes('general.matrimonio') && !(u.deny || []).includes('general.matrimonio')) return;
+    await store.admin.setAccess(uid, { type: u.type, allow, deny });
+    toast(`💑 Activado también para ${String(name).split(' ')[0]}`);
+  } catch (e) { console.warn('No se pudo activar el módulo a la otra cuenta', e); }
+}
 function settingsSave() {
   const v = id => document.getElementById(id);
   const su = v('mx-su')?.value ?? cfg().spouseUid;
   const m = (members || []).find(x => x.uid === su);
   const name = v('mx-sn').value.trim() || m?.name?.split(/\s+/)[0] || '';
   const prevCheck = [cfg().checkDay, cfg().checkTime].join();
+  if (su && su !== cfg().spouseUid) allowSpouse(su, m?.name || name);
   save({ spouseName: name, spouseUid: su, share: v('mx-shr') ? v('mx-shr').checked : cfg().share, wkFrom: v('mx-wk').value || DEF.wkFrom, weFrom: v('mx-we').value || DEF.weFrom, until: v('mx-un').value || DEF.until,
     checkDay: Number(v('mx-cd').value), checkTime: v('mx-ct').value || DEF.checkTime, showHoy: v("mx-showhoy").checked, hidden: v('mx-hide').checked });
   // Si cambió el día u hora de la conversación y el evento es tuyo, se mueve
@@ -591,7 +607,7 @@ const ICON = '<svg class="ic" aria-hidden="true"><use href="#i-heart"/></svg>';
 
 // 1) En la hoja «Más»
 function injectMore() {
-  if (cfg().hidden) return;
+  if (cfg().hidden || !allowed()) return;
   const list = document.querySelector('#sheet-root .more-list');
   if (!list || list.querySelector('[data-mx="open"]')) return;
   const b = document.createElement('button');
@@ -605,7 +621,7 @@ function injectSide() {
   const tabs = document.getElementById('tabs');
   if (!tabs) return;
   let b = tabs.querySelector('.mx-tab');
-  if (cfg().hidden) { b?.remove(); return; }
+  if (cfg().hidden || !allowed()) { b?.remove(); return; }
   if (b) return;
   b = document.createElement('button');
   b.type = 'button'; b.className = 'tab mx-tab'; b.dataset.mx = 'open';
@@ -628,7 +644,7 @@ function hoyCard() {
 }
 function injectHoy() {
   const view = document.getElementById('view');
-  if (!view || !cfg().showHoy) return;
+  if (!view || !cfg().showHoy || !allowed()) return;
   if (!cfg().spouseName && !cfg().spouseUid) return;   // la tarjeta sale cuando configuras el módulo (así no aparece a quien no lo usa)
   const isHoy = !location.hash || /^#\/?hoy$/.test(location.hash);
   if (!isHoy || !view.querySelector('.hero') || view.querySelector('#mx-hoy')) return;

@@ -1,8 +1,7 @@
 {
-  "version": "10.3.3",
+  "version": "10.3.4",
   "notes": [
-    "✓ Las tareas que te comparten las puedes marcar hechas: a quien te la compartió le llega y se marca también en la suya",
-    "👥 Las tareas y notas compartidas salen en Hoy y en tus listas, marcadas «Compartida por …»",
-    "💾 Respaldo completo y cifrado de todas las cuentas en el Google Drive del administrador"
+    "💑 Matrimonio ahora sale solo para ti y tu cónyuge: a los demás usuarios ya no les aparece",
+    "Para activárselo a tu cónyuge, elige su cuenta en ⚙️ Ajustes del módulo (o en Mi administración → Funciones)"
   ]
 }

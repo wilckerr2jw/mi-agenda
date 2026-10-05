@@ -27,6 +27,8 @@ export const FEATURES = {
   general: [
     { id: 'general.dictado', n: 'Dictado por voz', d: 'Botón 🎤 Dictar en notas, tareas y reuniones', a: ['dictate'], sel: ['.mic-row'] },
     { id: 'general.buscar', n: 'Buscar en todo', d: 'Lupa para buscar en eventos, tareas, personas y notas', a: ['search'], q: ['search'] },
+    // off = no viene encendida en ninguna plantilla: el administrador la activa solo a quien quiera
+    { id: 'general.matrimonio', n: '💑 Matrimonio', d: 'Planear actividades con su cónyuge (solo a quien se la actives)', a: [], off: true },
   ],
   agenda: [
     { id: 'agenda.compartir', n: 'Compartir eventos con otras cuentas', d: '«Compartir con» en el evento y compartir varios a la vez', a: ['ev-bulk-share', 'bulk-share-go'] },
@@ -85,7 +87,7 @@ export function defaultTemplates(types) {
 export function templateFromType(t) {
   const hideM = t.hideModules || [], hideS = t.hideServCats || [];
   const modules = MODULE_IDS.filter(m => !hideM.includes(m));
-  const features = FEATURE_LIST.filter(f => (f.s === 'general' || modules.includes(f.s)) && !(f.shep && hideS.includes('pastoreo'))).map(f => f.id);
+  const features = FEATURE_LIST.filter(f => !f.off && (f.s === 'general' || modules.includes(f.s)) && !(f.shep && hideS.includes('pastoreo'))).map(f => f.id);
   return { n: t.n, modules, features, hideEventCats: [...(t.hideEventCats || [])], hideServCats: [...hideS], goal: !!t.goal };
 }
 
