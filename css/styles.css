@@ -1512,3 +1512,25 @@ button.card:active, .tile:active, .btn:active, .chip:active, .log-now:active { t
 .adm-f input { flex: none; margin-top: 1px; }
 .adm-f input:disabled + span { opacity: .55; }
 .adm-chg { color: var(--warn); font-size: 12px; font-weight: 700; white-space: nowrap; }
+
+/* ───────────── 👥 Congregación compartida y notas o tareas compartidas ───────────── */
+.cg-banner { border-left: 4px solid var(--primary); }
+.cg-banner .link { font-size: 14px; }
+/* Viendo la congregación de otra cuenta: sin botones para cambiarla (solo lectura) */
+body.cg-ro :is([data-a="dept-new"], [data-a="dept-move"], [data-a="dept-assign"], [data-a="dept-suggest"], [data-a="org-pick"], [data-a="org-sort"],
+  [data-a="org-paste"], [data-a="org-del"], [data-a="meca-import"], [data-a="meca-paste"], [data-a="meca-save"], [data-a="meca-mv"], [data-a="meca-bapt"],
+  [data-a="meca-add-all"], [data-a="meca-add-person"], [data-a="meca-add-unknown"], [data-a="visita-new"], [data-a="visita-create"], [data-a="visita-check"],
+  [data-a="visita-na"], [data-a="congre-edit"]) { display: none !important; }
+body.cg-ro .sheet:has(form[data-form="dept"], form[data-form="group"]) .sheet-f { display: none; }
+.sh-box { margin-top: 18px; padding-top: 6px; border-top: 1px solid var(--line); }
+.sh-box .sub-h { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.sh-comments { display: grid; gap: 8px; margin: 8px 0 10px; }
+.sh-c { padding: 8px 12px; border-radius: 12px; background: var(--surface-2); }
+.sh-c.mine { background: var(--primary-soft); }
+.sh-c p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.sh-row { display: grid; gap: 4px; text-align: left; }
+.sh-title { font: 600 22px/1.2 var(--serif); margin: 10px 0 4px; }
+.sh-body { margin: 12px 0; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); line-height: 1.45; overflow-wrap: anywhere; }
+.sh-log { margin: 6px 0 0 18px; display: grid; gap: 4px; }
+.sh-inbox-btn { margin: 0 0 12px; }
+.cg-status { margin-top: 4px; }

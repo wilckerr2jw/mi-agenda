@@ -629,6 +629,7 @@ function hoyCard() {
 function injectHoy() {
   const view = document.getElementById('view');
   if (!view || !cfg().showHoy) return;
+  if (!cfg().spouseName && !cfg().spouseUid) return;   // la tarjeta sale cuando configuras el módulo (así no aparece a quien no lo usa)
   const isHoy = !location.hash || /^#\/?hoy$/.test(location.hash);
   if (!isHoy || !view.querySelector('.hero') || view.querySelector('#mx-hoy')) return;
   const anchor = view.querySelector('.tiles') || view.querySelector('.hero');

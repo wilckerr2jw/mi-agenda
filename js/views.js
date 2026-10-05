@@ -12,6 +12,7 @@ import { updateBanner } from './pwa.js';
 import { esc, ic, today, parseISO, fmtLong, fmtShort, fmtMonth, fmtTime, timeParts, relDays, norm, initials, pad, MESES, DIAS, cap, avatarHtml, diffDays } from './util.js';
 import * as M from './model.js';
 import { resolved } from './theme.js';
+import * as Cp from './compartido.js';
 
 // Botones de arriba a la derecha: buscar, cambiar tema claro/oscuro y ajustes
 const actions = () => {
@@ -270,6 +271,7 @@ export function hoy() {
     Nat.isNative && Nat.state.exact && Nat.state.exact !== 'granted' ? `<button class="log-now" data-a="nat-exact-hoy">🔔 <span><b>Permite los avisos exactos</b><small>Sin este permiso, Android puede atrasar los avisos de tus eventos y tareas. Toca para activarlo.</small></span></button>` : '',
     Nat.isNative && Nat.state.health?.channelsOff?.length ? `<button class="log-now" data-a="phone-set" data-v="channel" data-ch="${esc(Nat.state.health.channelsOffIds[0])}">🔕 <span><b>Tienes apagados unos avisos en el teléfono</b><small>${esc(Nat.state.health.channelsOff.join(', '))}: por eso no te llegan. Toca para encenderlos.</small></span></button>` : '',
     (() => { const vn = M.isModuleVisible('congregacion') && M.featureOn('congregacion.visita') ? visitNotice() : null; return vn ? `<button class="log-now visit-now" data-a="visita-open" data-id="${esc(vn.v.id)}">🧳 <span><b>Visita del superintendente de circuito ${vn.days > 1 ? `en ${vn.days} días` : vn.days === 1 ? 'mañana' : vn.days === 0 ? 'hoy' : 'esta semana'}</b><small>${vn.pend ? `Faltan ${vn.pend} cosas por tener listas` : '✓ Todo listo'}${vn.next ? ` · ${esc(vn.next.it.t.split(' (')[0])} ${vn.next.date < today() ? 'venció el' : 'antes del'} ${esc(fmtShort(vn.next.date))}` : ''}</small></span></button>` : ''; })(),
+    ...Cp.hoyNotices(),
     (() => { let last = ''; try { last = localStorage.getItem('miagenda.ultimoRespaldo') || ''; } catch { return ''; } const old = !last || (Date.parse(t) - Date.parse(last)) / 864e5 >= 14; return old && d.getDay() === 0 ? `<button class="log-now" data-a="backup-drive">☁️ <span><b>Guarda tu respaldo en Google Drive</b><small>${last ? `El último fue el ${esc(fmtShort(last))}.` : 'Todavía no has guardado uno desde este teléfono.'} Toca para guardarlo.</small></span></button>` : ''; })()
   ])}
   ${logToday ? `<button class="log-now" data-a="qa" data-v="time">📝 <span><b>Registra tu actividad de hoy</b><small>Aún no guardaste horas ni cursos. Toca aquí para anotarlos.</small></span></button>` : ''}
@@ -536,6 +538,7 @@ export function tareas(ui) {
   const remLate = rem.reduce((n, b) => n + b.late, 0);
   return `${head('Tareas', actions())}
   ${assignedNotice()}
+  ${Cp.inboxButton('task')}
   ${rem.length ? `<button class="log-now remind-now" data-a="remind-tasks" data-v="3">💬 <span><b>Recordar por WhatsApp</b><small>${rem.length} ${rem.length === 1 ? 'hermano tiene' : 'hermanos tienen'} ${remLate ? `${remLate} ${remLate === 1 ? 'tarea atrasada' : 'tareas atrasadas'}` : 'tareas que vencen pronto'}. Toca para mandarle a cada uno su recordatorio.</small></span></button>` : ''}
   <div class="chips">${chips}</div>
   ${personFilter}
@@ -722,8 +725,11 @@ export function congregacion(ui) {
     ${gsel ? (without.length ? `<h3 class="sub-h">⚠️ Sin departamento (${without.length})</h3><div class="chips wrap">${without.map(x => `<button class="chip warn-chip" data-a="person" data-id="${esc(x.p.id)}">${esc(x.p.name)}</button>`).join('')}</div>` : '<p class="hint pad">✓ Todos los de este grupo tienen al menos un departamento.</p>')
       : `<p class="hint pad">${groups.length ? 'Elige un grupo (por ejemplo, tus ancianos y siervos) para ver quién no tiene ningún departamento.' : 'Crea un grupo en Personas (por ejemplo, «Varones» o «Ancianos y siervos») para ver quién no tiene departamento.'}</p>`}
   </section>` : '';
+  const ro = Cp.readOnly();
+  document.body.classList.toggle('cg-ro', ro);   // 👥 congregación de otra cuenta: sin botones de editar
   return `${head('Congregación', actions())}
-  ${congreCard}
+  ${ro ? '' : congreCard}
+  ${Cp.congreBanner()}
   ${M.featureOn('congregacion.comite') ? foldable('comite', comiteSection()) : ''}
   ${M.featureOn('congregacion.visita') ? foldable('visita', visitaSection()) : ''}
   ${M.featureOn('congregacion.nombramientos') ? foldable('nombramientos', rosterHtml) : ''}
@@ -794,6 +800,7 @@ export function notas(ui) {
   const chips = tags.length
     ? `<div class="chips"><button class="chip" data-a="tag" data-v="" aria-pressed="${!st.tag}">Todas</button>${tags.map(t => `<button class="chip" data-a="tag" data-v="${esc(t)}" aria-pressed="${st.tag === t}">${esc(t)}</button>`).join('')}</div>` : '';
   return `${head('Notas', actions())}${seg}
+  ${Cp.inboxButton('note')}
   <div class="search">${ic('search')}<input id="q" type="search" placeholder="Buscar en tus notas" value="${esc(st.q)}" autocomplete="off" aria-label="Buscar notas"></div>
   ${chips}
   <div id="results">${notasList(ui)}</div>`;

@@ -151,6 +151,66 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.owner == request.auth.uid;
     }
 
+    // Congregación compartida: el dueño (su uid es el id) comparte su organigrama, grupos, mecánicas, visita y publicadores.
+    // Las cuentas en «members» lo leen (solo lectura); solo el dueño lo escribe o lo borra.
+    match /congres/{cid} {
+      function okHead(d) {
+        return d.keys().hasOnly(['owner', 'ownerName', 'members', 'memberNames', 'name', 'updatedAt'])
+          && d.owner == request.auth.uid && cid == request.auth.uid
+          && d.members is list && d.members.size() >= 1 && d.members.size() <= 30
+          && !(request.auth.uid in d.members)
+          && (!('memberNames' in d) || d.memberNames is map)
+          && (!('name' in d) || (d.name is string && d.name.size() <= 80));
+      }
+      allow read: if signedIn() && (request.auth.uid == resource.data.owner || request.auth.uid in resource.data.members);
+      allow create: if signedIn() && (approved(request.auth.uid) || isAdmin()) && okHead(request.resource.data);
+      allow update: if signedIn() && resource.data.owner == request.auth.uid && okHead(request.resource.data);
+      allow delete: if signedIn() && resource.data.owner == request.auth.uid;
+
+      match /parts/{part} {
+        function head() { return get(/databases/$(database)/documents/congres/$(cid)).data; }
+        allow read: if signedIn() && (request.auth.uid == cid || request.auth.uid in head().members);
+        allow create, update: if signedIn() && request.auth.uid == cid
+          && part in ['depts', 'groups', 'mecas', 'visitas', 'people', 'congre']
+          && request.resource.data.keys().hasOnly(['json', 'n', 'updatedAt'])
+          && request.resource.data.json is string && request.resource.data.json.size() < 900000;
+        allow delete: if signedIn() && request.auth.uid == cid;
+      }
+    }
+
+    // Notas y tareas compartidas: las ven quienes están en «members». Solo quien la compartió (owner) cambia el
+    // contenido, con quién se comparte o la borra; los demás solo agregan comentarios (no se borran ni se cambian).
+    match /sharedItems/{id} {
+      function member() { return signedIn() && request.auth.uid in resource.data.members; }
+      function okItem(d) {
+        return d.keys().hasOnly(['owner', 'ownerName', 'members', 'memberNames', 'kind', 'title', 'body', 'tag', 'date', 'about',
+            'due', 'dueTime', 'status', 'priority', 'responsibles', 'log', 'comments', 'createdAt', 'updatedAt', 'updatedBy'])
+          && d.members is list && d.members.size() >= 2 && d.members.size() <= 30 && d.owner in d.members
+          && d.kind in ['note', 'task'] && d.title is string && d.title.size() <= 140
+          && (!('body' in d) || (d.body is string && d.body.size() <= 20000))
+          && (!('comments' in d) || (d.comments is list && d.comments.size() <= 500))
+          && (!('log' in d) || (d.log is list && d.log.size() <= 100));
+      }
+      function oneMoreComment() {
+        let before = resource.data.get('comments', []);
+        let after = request.resource.data.comments;
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments', 'updatedAt', 'updatedBy'])
+          && request.resource.data.updatedBy == request.auth.uid
+          && after.size() == before.size() + 1
+          && after[0:before.size()] == before
+          && after[before.size()].by == request.auth.uid
+          && after[before.size()].t is string && after[before.size()].t.size() <= 1000;
+      }
+      allow read: if member();
+      allow create: if signedIn() && (approved(request.auth.uid) || isAdmin())
+        && id.matches('^[A-Za-z0-9_-]{1,40}$')
+        && request.resource.data.owner == request.auth.uid && okItem(request.resource.data);
+      allow update: if member() && okItem(request.resource.data)
+        && request.resource.data.owner == resource.data.owner
+        && (request.auth.uid == resource.data.owner || oneMoreComment());
+      allow delete: if signedIn() && request.auth.uid == resource.data.owner;
+    }
+
     // Directorio: cada usuario se anota con su correo (y nombre) para que el administrador lo encuentre
     match /directory/{uid} {
       allow read: if isSelf(uid) || isAdmin();

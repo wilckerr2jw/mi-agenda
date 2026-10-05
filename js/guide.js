@@ -102,6 +102,10 @@ const TOPICS = [
 
   { g: 'Congregación', t: 'Enlace para los ancianos', when: c => c.on('congregacion') && c.elder,
     b: () => `En Congregación → ${k('📋 Para el Cuerpo de ancianos')} → ${k('🔗 Enlace para los ancianos')}: eliges qué ven (agenda de la próxima reunión, organigrama, acuerdos y tareas, visita del superintendente, mecánicas) y mandas el enlace y, aparte, la clave de 6 números. No necesitan la app; va cifrado y se actualiza solo. Puedes cambiar la clave o apagarlo cuando quieras.` },
+  { g: 'Congregación', t: 'Compartir la congregación con otro anciano', when: c => c.cloud && c.on('congregacion') && c.elder,
+    b: () => `En Congregación toca ${k('👥 Compartir la congregación con otro anciano')} y marca su cuenta. Él ve en su app tu organigrama, grupos, mecánicas, visita y publicadores, siempre al día y solo lectura. Si a ti te la comparten, en Hoy te sale para tocar ${k('Usar esta congregación')}.` },
+  { g: 'Personas y notas', t: 'Compartir una nota o una tarea', when: c => c.cloud && c.elder,
+    b: () => `Abre la nota o la tarea y toca ${k('👥 Compartir con otro anciano…')}. Él la ve al día en ${k('👥 Compartido conmigo')} y los dos pueden comentar; solo tú cambias el contenido.` },
   { g: 'Congregación', t: 'Programa de asignaciones mecánicas', when: c => c.on('congregacion') && c.elder,
     b: () => `En Congregación → ${k('🎛 Asignaciones mecánicas')} → ${k('📥 Importar programa')}: foto, PDF, archivo de texto o pegado (sirve «Audio: Nombre» con la fecha arriba). Lo ves en tarjetas por fecha o ${k('👤 Hermanos')}, lo mandas con ${k('🖼 Compartir imagen')}, lo imprimes en hoja carta y con ${k('💬 Avisar a los hermanos')} le mandas a cada uno lo suyo.` },
   { g: 'Agenda y tareas', t: 'Recordar tareas atrasadas por WhatsApp', when: c => c.on('tareas'),

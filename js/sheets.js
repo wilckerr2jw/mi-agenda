@@ -19,6 +19,7 @@ import * as N from './notify.js';
 import * as Nat from './native.js';
 import { saveFixMonth } from './corregir.js';
 import { updateBanner } from './pwa.js';
+import { shareBlock } from './compartido.js';
 
 // Permite que app.js reaccione a lo guardado (p. ej. saltar a esa fecha en el calendario)
 export const hooks = { eventSaved: null, deptsChanged: null };
@@ -636,7 +637,7 @@ export function taskSheet(id, preset = {}, back) {
       ${fld('Notas', `<textarea id="notes" name="notes" rows="3">${esc(v.notes || '')}</textarea>${micButton('notes')}`, 'notes')}
       ${meetings.length ? fld('Viene de la reunión…', meetingSelect, 'meetingId') : ''}
       ${v.fromAgreement && meeting ? `<p class="hint">Sale de un acuerdo de «${esc(meeting.title)}».</p>` : ''}
-    </form>${log}`,
+    </form>${log}${t ? shareBlock('tasks', t) : ''}`,
     actions: foot('tasks', t?.id),
   });
   // Al marcar responsables, se actualiza a quién se le puede enviar
@@ -1649,7 +1650,8 @@ export function noteSheet(id, back) {
       ${data.meetings.length ? fld('Vincular a una reunión', meetingsSelect, 'meetingId') : ''}
       ${fld('Vincular a una persona', peopleSelect('personId', v.personId, 'Nadie'), 'personId')}
     </form>
-    ${n && isCloud && session.isAdmin ? `<button type="button" class="btn ghost pad-top" data-a="send-note" data-id="${esc(n.id)}">📤 Enviar esta nota a otra cuenta</button>` : ''}`,
+    ${n ? shareBlock('notes', n) : ''}
+    ${n && isCloud && session.isAdmin ? `<button type="button" class="btn ghost pad-top" data-a="send-note" data-id="${esc(n.id)}">📤 Enviar una copia a otra cuenta</button>` : ''}`,
     actions: foot('notes', n?.id),
   });
 }

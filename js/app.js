@@ -20,6 +20,7 @@ import * as Gc from './gcal.js';
 import * as Fx from './corregir.js';
 import * as Pwa from './pwa.js';
 import * as Mv from './mover.js';
+import * as Cp from './compartido.js';
 import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays, uid, fmtShort } from './util.js';
 
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
@@ -353,6 +354,19 @@ document.addEventListener('click', e => {
     case 'remind-tasks': return import('./recordar.js').then(R => R.sheet(v === undefined || v === '' ? 3 : Number(v)));
     case 'remind-send': return import('./recordar.js').then(R => R.send(v, el.dataset.k));
     case 'remind-copy': return import('./recordar.js').then(R => R.copy(v, el.dataset.k));
+    // 👥 Congregación compartida y notas o tareas compartidas (compartido.js)
+    case 'cg-share': return Cp.congreShareSheet();
+    case 'cg-share-save': return Cp.congreShareSave();
+    case 'cg-share-stop': return Cp.congreShareStop();
+    case 'cg-offer': return Cp.offerSheet(id);
+    case 'cg-follow': return Cp.follow(id);
+    case 'cg-decline': return Cp.decline(id);
+    case 'cg-unfollow': return Cp.unfollow();
+    case 'sh-share': return Cp.itemShareSheet(v, id);
+    case 'sh-share-save': return Cp.itemShareSave(v, id, !!el.dataset.stop);
+    case 'sh-comment': return Cp.comment(id);
+    case 'sh-inbox': return Cp.inboxSheet();
+    case 'sh-item': return Cp.itemSheet(id);
     case 'meca-add-unknown': return Mc.addUnknown();
     case 'meca-add-all': Mc.addAll(id); return render();
     case 'meca-mv': ui.congre.mv = v; return render();
@@ -544,6 +558,7 @@ document.addEventListener('keydown', e => {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.id === 'log-text') { e.preventDefault(); $('[data-a="log-add"]')?.click(); }
+  if (e.key === 'Enter' && e.target.id === 'sh-text') { e.preventDefault(); $('[data-a="sh-comment"]')?.click(); }
   if (e.key === 'Enter' && e.target.id === 'study-name') { e.preventDefault(); $('[data-a="study-add"]')?.click(); }
   if (e.key === 'Enter' && e.target.id === 'priv-new') { e.preventDefault(); $('[data-a="priv-add"]')?.click(); }
   if (e.key === 'Enter' && e.target.id === 'ag-t') { e.preventDefault(); $('[data-a="ag-add"]')?.click(); }

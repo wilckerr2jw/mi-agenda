@@ -37,7 +37,7 @@ export const get = (col, id) => data[col].find(x => x.id === id);
 // La memoria se actualiza al instante (así la pantalla nunca va por detrás) y luego
 // se guarda en el teléfono o se envía a Firestore.
 // Datos del perfil que nunca se borran «sin querer»: solo se vacían desde Editar mi perfil (explicit)
-const PROTECT = ['photo', 'role', 'roles', 'myName', 'goalEnabled', 'goalMonthly', 'goalAnnual', 'congre', 'notif', 'customCats', 'infoFields', 'share', 'gcal'];
+const PROTECT = ['photo', 'role', 'roles', 'myName', 'goalEnabled', 'goalMonthly', 'goalAnnual', 'congre', 'notif', 'customCats', 'infoFields', 'share', 'gcal', 'congreShare'];
 const isEmpty = v => v === undefined || v === null || v === '' || v === false || (Array.isArray(v) && !v.length);
 function protectProfile(item) {
   const cur = data.profile.find(p => p.id === item.id);
@@ -66,10 +66,13 @@ function write(col, item, opts = {}) {
   if (col === 'profile' && isCloud && !profileLoaded) { console.warn('Perfil aún no cargado: no se guarda'); return; }
   if (col === 'profile' && !opts.explicit) item = protectProfile(item);
   if (col === 'people' && !opts.explicit) item = protectMe(item);
+  if (cgBlocked(col, item.id)) return;
   const i = data[col].findIndex(x => x.id === item.id);
   const before = i >= 0 ? data[col][i] : null;
   if (i >= 0) data[col][i] = item; else data[col].push(item);
+  cgMirror(col, item);
   notify();
+  if ((col === 'notes' || col === 'tasks') && item.shareId && !opts.fromRemote && !opts.noShare) shItemPush(col, item);
   if (isCloud) {
     // Solo se envían los campos que cambiaron (así un teléfono que estuvo sin internet no pisa lo más nuevo de otro):
     // opts.fields = rutas pedidas (p. ej. [['doneLog', '2026-10-01']]); en el perfil se calcula solo.
@@ -109,9 +112,13 @@ export function upsert(col, item, opts = {}) {
 export function remove(col, id) {
   if (col === 'events' && String(id).startsWith(SH)) return sharedRemove(id);
   if (col === 'tasks' && String(id).startsWith(AS)) return assignedRespond(id.slice(AS.length), false);
+  if (cgBlocked(col, id)) return;
   const gone = col === 'tasks' ? data.tasks.find(x => x.id === id) : null;
+  const was = col === 'notes' || col === 'tasks' ? data[col].find(x => x.id === id) : null;
+  if (was?.shareId) shItemDelete(was.shareId);
   if (gone?.assignedId && fb && account.user) fb.fs.deleteDoc(fb.fs.doc(fb.db, 'assigned', gone.assignedId)).catch(() => {});
   data[col] = data[col].filter(x => x.id !== id);
+  cgMirror(col, null, id);
   notify();
   if (isCloud) cloud.remove(col, id); else local.persist();
 }
@@ -121,7 +128,7 @@ export const restore = (col, item) => write(col, item);
 
 // ---------- Respaldo ----------
 export function exportAll() {
-  const own = { ...data, events: data.events.filter(e => !e.sharedId), tasks: data.tasks.filter(t => !t.assignedFrom) };   // los compartidos y las tareas recibidas son de otra colección
+  const own = { ...data, events: data.events.filter(e => !e.sharedId), tasks: data.tasks.filter(t => !t.assignedFrom), ...cgOwnData() };   // los compartidos y las tareas recibidas son de otra colección
   return JSON.stringify({ app: 'mi-agenda-teocrática', version: 1.3, exportedAt: new Date().toISOString(), data: own }, null, 2);
 }
 
@@ -132,7 +139,7 @@ export const isDuplicatePerson = it => !get('people', it.id) && data.people.some
 // Nunca se importan los ajustes de este teléfono o de esta cuenta (enlace, Google Calendar, avisos) ni la marca «soy yo».
 const ID_RE = /^[\w-]{1,60}$/;
 const COLOR_RE = /^(#[0-9a-f]{3,8}|var\(--[\w-]+\))$/i;
-const IMPORT_SKIP_PROFILE = ['share', 'gcal', 'notif', 'nativeSched', 'nativeAppSeen'];
+const IMPORT_SKIP_PROFILE = ['share', 'gcal', 'notif', 'nativeSched', 'nativeAppSeen', 'congreShare', 'congreFollow'];
 const ARR_KEYS = ['days', 'skipDates', 'responsibles', 'log', 'privileges', 'studyNames', 'customCats', 'infoFields', 'hiddenModules', 'sharedHidden', 'noActivityDays', 'deptSkipped', 'history'];
 const OBJ_KEYS = ['doneLog', 'congre'];
 const STR_KEYS = ['title', 'name', 'date', 'time', 'endTime', 'due', 'dueTime', 'category'];
@@ -292,11 +299,16 @@ export function startSync(uid) {
         const list = snap.docs.map(d => ({ ...d.data(), id: d.id }));
         if (c === 'events') { ownEvents = list; composeEvents(); }
         else if (c === 'tasks') { ownTasks = list; composeTasks(); }
+        else if (CG_COLS.includes(c) || c === 'people') { cgOwn[c] = list; composeCg(); }
         else { data[c] = list; if (c === 'profile') { if (list.length || !snap.metadata.fromCache) profileArrived(); composeEvents(); if (myName() !== lastMemberName) touchMember(); } }
+        if (c === 'profile') cgFollowSync();
         notify();
+        cgPublishSoon();
       },
       err => { seenCols.add(c); onError(err); }));
   });
+  cgWatchOffers(uid);
+  shItemsWatch(uid);
   // Eventos que otros te compartieron (o que tú compartiste)
   const q = fb.fs.query(fb.fs.collection(fb.db, 'shared'), fb.fs.where('members', 'array-contains', uid));
   unsubs.push(fb.fs.onSnapshot(q,
@@ -542,6 +554,7 @@ export function stopSync() {
   seenCols.clear(); syncStart = 0;
   COLS.forEach(c => { data[c] = []; });
   ownEvents = []; sharedDocs = []; ownTasks = []; assignedIn = []; assignedOut = []; membersCache = null;
+  cgReset(); shItems = []; shReady = false;
   notify();
 }
 
@@ -689,4 +702,260 @@ export const inbox = {
     try { const snap = await fb.fs.getDocs(fb.fs.collection(fb.db, 'inbox', account.user.uid, 'items')); return snap.docs.map(d => ({ id: d.id, ...d.data() })); } catch { return []; }
   },
   remove(id) { return fb.fs.deleteDoc(fb.fs.doc(fb.db, 'inbox', account.user.uid, 'items', id)); },
+};
+
+// ═════════════════════════════ CONGREGACIÓN COMPARTIDA ═════════════════════════════
+// Quien la administra (dueño) comparte su organigrama, grupos, mecánicas, visita del superintendente y la lista de
+// publicadores con otras cuentas (por ejemplo, otro anciano). Ellas la ven siempre al día y SOLO LECTURA.
+//   congres/{uid del dueño}              → { owner, ownerName, members: [uid], memberNames: {uid: nombre}, name, updatedAt }
+//   congres/{uid del dueño}/parts/{parte} → { json, n, updatedAt }   parte = depts | groups | mecas | visitas | people | congre
+// En la app de quien la recibe (y decide usarla: profile.congreFollow = uid del dueño) esas colecciones se muestran
+// con lo del dueño; lo suyo se guarda intacto y vuelve si deja de usarla. Las personas del dueño que ya están en
+// sus Personas (mismo nombre, o la cuenta vinculada a su ficha «soy yo») se reconocen como la misma persona.
+const CG_COLS = ['depts', 'groups', 'mecas', 'visitas'];
+const CG_PARTS = [...CG_COLS, 'people', 'congre'];
+const CG_PERSON = ['id', 'name', 'role', 'privileges', 'groupIds', 'groupLeftAt', 'aliases', 'accountUid', 'accountName'];
+const CG_PRIVATE_ROLES = /^(estudiante b[ií]blico|interesad[oa]|familiar)$/i;
+const cgOwn = { depts: [], groups: [], mecas: [], visitas: [], people: [] };
+let cgOffersList = [], cgHead = null, cgParts = {}, cgFollowId = '', cgUnsubs = [], cgActive = false, cgMap = {}, cgExtra = new Set(), cgWarned = 0;
+const cgTok = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/[\s,.]+/).filter(w => w && !['de', 'del', 'la', 'las', 'los', 'y'].includes(w));
+function cgSameName(a, b) {
+  const x = cgTok(a), y = cgTok(b);
+  if (!x.length || !y.length || x[0] !== y[0]) return false;
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  return short.every(w => long.includes(w));
+}
+// Cambia los ids de personas del dueño por los tuyos (en valores y en claves, a cualquier profundidad)
+export function remapIds(v, map) {
+  if (typeof v === 'string') return map[v] || v;
+  if (Array.isArray(v)) return v.map(x => remapIds(x, map));
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [map[k] || k, remapIds(x, map)]));
+  return v;
+}
+// ¿Qué persona tuya es esta del dueño? Por la cuenta vinculada (tú) o por el nombre (también los alias)
+export function matchPeople(shared, own, myUid = '') {
+  const map = {};
+  const me = own.find(p => p.isMe);
+  const used = new Set();
+  shared.forEach(sp => {
+    let o = null;
+    if (me && myUid && sp.accountUid === myUid) o = me;
+    if (!o) o = own.find(p => !used.has(p.id) && (cgSameName(p.name, sp.name) || String(p.aliases || '').split(',').some(a => a.trim() && cgSameName(a, sp.name))
+      || String(sp.aliases || '').split(',').some(a => a.trim() && cgSameName(p.name, a))));
+    if (o) { map[sp.id] = o.id; used.add(o.id); }
+  });
+  return map;
+}
+function composeCg() {
+  cgActive = !!(cgFollowId && cgHead && cgHead.owner === cgFollowId && cgParts.depts);
+  if (!cgActive) {
+    CG_COLS.forEach(c => { data[c] = cgOwn[c]; });
+    data.people = cgOwn.people;
+    cgMap = {}; cgExtra = new Set();
+    return;
+  }
+  const sh = cgParts.people || [];
+  cgMap = matchPeople(sh, cgOwn.people, uidOf());
+  const tag = x => ({ ...remapIds(x, cgMap), cgFrom: cgHead.owner });
+  CG_COLS.forEach(c => { data[c] = (cgParts[c] || []).map(tag); });
+  const byOwn = Object.fromEntries(Object.entries(cgMap).map(([s, o]) => [o, sh.find(p => p.id === s)]));
+  const extra = sh.filter(p => !cgMap[p.id]).map(tag);
+  cgExtra = new Set(extra.map(p => p.id));
+  // Tus fichas que también están en la congregación: el grupo y los privilegios salen de lo del dueño (solo para verlos)
+  data.people = [...cgOwn.people.map(p => {
+    const sp = byOwn[p.id];
+    if (!sp) return p;
+    return { ...p, groupIds: remapIds(sp.groupIds || [], cgMap), groupLeftAt: sp.groupLeftAt || p.groupLeftAt, privileges: [...new Set([...(p.privileges || []), ...(sp.privileges || [])])], cgLinked: true };
+  }), ...extra];
+}
+// Tus datos (sin lo del dueño) para el respaldo
+function cgOwnData() { return cgActive ? { depts: cgOwn.depts, groups: cgOwn.groups, mecas: cgOwn.mecas, visitas: cgOwn.visitas, people: cgOwn.people } : {}; }
+// Lo que llega de la congregación de otro no se cambia aquí
+function cgBlocked(col, id) {
+  if (!cgActive) return false;
+  if (!CG_COLS.includes(col) && !(col === 'people' && cgExtra.has(id))) return false;
+  if (Date.now() - cgWarned > 4000) { cgWarned = Date.now(); onError({ friendly: `Esto es de la congregación que comparte ${cgHead?.ownerName || 'otra cuenta'}: solo esa cuenta lo puede cambiar.` }); }
+  return true;
+}
+// Al guardar o borrar tus Personas mientras ves una congregación compartida, se actualiza también tu lista propia
+function cgMirror(col, item, removedId) {
+  if (!cgActive) { if (col in cgOwn) cgOwn[col] = data[col]; return; }
+  if (col !== 'people') return;
+  if (removedId) { cgOwn.people = cgOwn.people.filter(x => x.id !== removedId); return; }
+  const { cgLinked, ...clean } = item;
+  const own = cgOwn.people.find(x => x.id === item.id);
+  // el grupo y los privilegios que se ven son del dueño: en tu ficha se guardan los tuyos
+  const keep = cgLinked && own ? { groupIds: own.groupIds || [], groupLeftAt: own.groupLeftAt, privileges: item.privileges } : {};
+  const next = { ...clean, ...keep };
+  const i = cgOwn.people.findIndex(x => x.id === item.id);
+  if (i >= 0) cgOwn.people[i] = next; else cgOwn.people.push(next);
+}
+function cgReset() {
+  cgUnsubs.forEach(u => u()); cgUnsubs = [];
+  CG_COLS.forEach(c => { cgOwn[c] = []; }); cgOwn.people = [];
+  cgOffersList = []; cgHead = null; cgParts = {}; cgFollowId = ''; cgActive = false; cgMap = {}; cgExtra = new Set();
+  cgPushed = {}; clearTimeout(cgTimer);
+  composeCg();
+}
+
+// ── Quien recibe ──
+function cgWatchOffers(uid) {
+  const q = fb.fs.query(fb.fs.collection(fb.db, 'congres'), fb.fs.where('members', 'array-contains', uid));
+  unsubs.push(fb.fs.onSnapshot(q, snap => {
+    cgOffersList = snap.docs.map(d => ({ ...d.data(), id: d.id })).filter(d => d.owner !== uid);
+    if (cgFollowId) { cgHead = cgOffersList.find(d => d.id === cgFollowId) || null; if (!cgHead) { cgParts = {}; cgStopParts(); } }
+    cgFollowSync(); composeCg(); notify();
+  }, err => console.warn('Congregaciones compartidas no disponibles', err)));
+}
+function cgStopParts() { cgUnsubs.forEach(u => u()); cgUnsubs = []; cgPartsOf = ''; }
+let cgPartsOf = '';
+function cgFollowSync() {
+  if (!fb || !account.user) return;
+  const want = (data.profile.find(p => p.id === 'me') || {}).congreFollow || '';
+  cgFollowId = want;
+  const ok = want && cgOffersList.some(d => d.id === want);
+  if (!ok) { if (cgPartsOf) { cgStopParts(); cgParts = {}; composeCg(); } return; }
+  cgHead = cgOffersList.find(d => d.id === want);
+  if (cgPartsOf === want) return;
+  cgStopParts(); cgParts = {}; cgPartsOf = want;
+  cgUnsubs.push(fb.fs.onSnapshot(fb.fs.collection(fb.db, 'congres', want, 'parts'), snap => {
+    const parts = {};
+    snap.docs.forEach(d => { try { parts[d.id] = JSON.parse(d.data().json || 'null'); } catch { /* parte dañada: se ignora */ } });
+    if (parts.depts && !Array.isArray(parts.depts)) delete parts.depts;
+    cgParts = parts; composeCg(); notify();
+  }, err => { console.warn('No se pudo leer la congregación compartida', err); cgParts = {}; composeCg(); notify(); }));
+}
+
+// ── Quien la comparte ──
+let cgPushed = {}, cgTimer = 0;
+function cgPublishSoon() { clearTimeout(cgTimer); cgTimer = setTimeout(cgPublish, 3000); }
+function cgCfg() { return (data.profile.find(p => p.id === 'me') || {}).congreShare || null; }
+function cgPartsData() {
+  const used = new Set();
+  const add = v => { if (typeof v === 'string') used.add(v); else if (Array.isArray(v)) v.forEach(add); else if (v && typeof v === 'object') { Object.keys(v).forEach(k => used.add(k)); Object.values(v).forEach(add); } };
+  [...cgOwn.depts, ...cgOwn.mecas, ...cgOwn.visitas].forEach(add);
+  const people = cgOwn.people.filter(p => used.has(p.id) || (p.groupIds || []).length || (p.privileges || []).length || !CG_PRIVATE_ROLES.test(String(p.role || '').trim()))
+    .map(p => Object.fromEntries(CG_PERSON.filter(k => p[k] !== undefined && p[k] !== '').map(k => [k, p[k]])));
+  const c = myProfile().congre || {};
+  const congre = Object.fromEntries(['name', 'number', 'circuit', 'address', 'midweek', 'weekend', 'midweekDay', 'midweekTime', 'weekendDay', 'weekendTime'].filter(k => c[k] !== undefined).map(k => [k, c[k]]));
+  return { depts: cgOwn.depts, groups: cgOwn.groups, mecas: cgOwn.mecas, visitas: cgOwn.visitas, people, congre };
+}
+async function cgPublish() {
+  const sh = cgCfg();
+  if (!fb || !account.user || !sh?.on || !(sh.members || []).length) return;
+  if (!['profile', 'people', ...CG_COLS].every(c => seenCols.has(c))) return cgPublishSoon();   // espera a tener todo
+  const me = uidOf(), now = new Date().toISOString();
+  // La primera vez en esta sesión se lee lo que ya está publicado, para no volver a subir lo que no cambió
+  if (!cgPushed.loaded) {
+    try { (await fb.fs.getDocs(fb.fs.collection(fb.db, 'congres', me, 'parts'))).docs.forEach(d => { cgPushed[d.id] = d.data().json; }); } catch { /* aún no hay nada publicado */ }
+    cgPushed.loaded = true;
+  }
+  const parts = cgPartsData();
+  const changed = CG_PARTS.filter(k => { const j = JSON.stringify(parts[k] ?? null); return cgPushed[k] !== j; });
+  const headKey = JSON.stringify([sh.members, sh.names, myName(), parts.congre?.name || '']);
+  if (!changed.length && cgPushed.head === headKey) return;
+  try {
+    await fb.fs.setDoc(fb.fs.doc(fb.db, 'congres', me), { owner: me, ownerName: myName(), members: sh.members.slice(0, 30), memberNames: sh.names || {}, name: String(parts.congre?.name || '').slice(0, 80), updatedAt: now });
+    cgPushed.head = headKey;
+    for (const k of changed) {
+      const json = JSON.stringify(parts[k] ?? null);
+      if (json.length > 900000) { onError({ friendly: `La parte «${k}» de la congregación es muy grande para compartirla.` }); continue; }
+      await fb.fs.setDoc(fb.fs.doc(fb.db, 'congres', me, 'parts', k), { json, n: Array.isArray(parts[k]) ? parts[k].length : 1, updatedAt: now });
+      cgPushed[k] = json;
+    }
+  } catch (e) { onError(e); }
+}
+async function cgUnpublish() {
+  if (!fb || !account.user) return;
+  const me = uidOf();
+  try {
+    for (const k of CG_PARTS) await fb.fs.deleteDoc(fb.fs.doc(fb.db, 'congres', me, 'parts', k)).catch(() => {});
+    await fb.fs.deleteDoc(fb.fs.doc(fb.db, 'congres', me));
+  } catch (e) { onError(e); }
+  cgPushed = {};
+}
+
+export const congre = {
+  offers: () => cgOffersList,
+  following: () => (cgActive ? { owner: cgHead.owner, ownerName: cgHead.ownerName || '', name: cgHead.name || '', updatedAt: cgHead.updatedAt || '', congre: cgParts.congre || {} } : null),
+  followId: () => cgFollowId,
+  isShared: x => !!x?.cgFrom,
+  sharing: () => cgCfg(),
+  share(members, names) { patchProfile({ congreShare: { on: true, members, names } }); cgPushed.head = ''; setTimeout(cgPublish, 300); },
+  stop() { patchProfile({ congreShare: { on: false, members: [], names: {} } }); return cgUnpublish(); },
+  follow(owner) { patchProfile({ congreFollow: owner }); },
+  unfollow() { patchProfile({ congreFollow: '' }); },
+  decline(owner) { patchProfile(v => ({ congreDeclined: [...new Set([...(v.congreDeclined || []), owner])] })); },
+  publishNow: () => cgPublish(),
+};
+
+// ═════════════════════════════ NOTAS Y TAREAS COMPARTIDAS ═════════════════════════════
+// sharedItems/{id} → { owner, ownerName, members: [uid], memberNames, kind: 'note' | 'task', title, body, tag, date,
+//                      due, dueTime, status, priority, about, responsibles, log, comments: [{ by, byName, t, at }], ... }
+// Quien la comparte cambia el contenido; los demás la ven siempre al día y solo agregan comentarios.
+// Tu nota o tarea guarda shareId, shareWith [uid] y shareNames {uid: nombre}.
+let shItems = [], shReady = false;
+const SH_LOG = l => ({ d: String(l?.d || ''), t: String(l?.t || '').slice(0, 500), ...(l?.byName ? { byName: String(l.byName).slice(0, 80) } : {}) });
+function shPayload(col, item) {
+  const about = item.personId ? (data.people.find(p => p.id === item.personId)?.name || '') : '';
+  if (col === 'notes') return { kind: 'note', title: String(item.title || '').slice(0, 140), body: String(item.body || '').slice(0, 20000), tag: String(item.tag || '').slice(0, 60), date: String(item.date || ''), about };
+  return { kind: 'task', title: String(item.title || '').slice(0, 140), body: String(item.notes || '').slice(0, 20000), due: String(item.due || ''), dueTime: String(item.dueTime || ''),
+    status: String(item.status || 'pendiente'), priority: String(item.priority || 'normal'), about, responsibles: (item.responsibles || []).map(String).slice(0, 20), log: (item.log || []).slice(-100).map(SH_LOG) };
+}
+function shItemsWatch(uid) {
+  const q = fb.fs.query(fb.fs.collection(fb.db, 'sharedItems'), fb.fs.where('members', 'array-contains', uid));
+  unsubs.push(fb.fs.onSnapshot(q, snap => { shItems = snap.docs.map(d => ({ ...d.data(), id: d.id })); shReady = true; notify(); },
+    err => { shReady = true; console.warn('Notas compartidas no disponibles', err); }));
+}
+function shItemPush(col, item) {
+  if (!fb || !account.user) return;
+  const doc = shItems.find(d => d.id === item.shareId);
+  const p = shPayload(col, item);
+  const members = [uidOf(), ...(item.shareWith || []).filter(u => u !== uidOf())];
+  const now = new Date().toISOString();
+  const ref = fb.fs.doc(fb.db, 'sharedItems', item.shareId);
+  if (doc) {
+    const cur = { ...shPayload(col, {}), ...Object.fromEntries(Object.keys(p).map(k => [k, doc[k]])) };
+    if (JSON.stringify(cur) === JSON.stringify(p) && JSON.stringify(doc.members) === JSON.stringify(members)) return;
+    fb.fs.updateDoc(ref, JSON.parse(JSON.stringify({ ...p, members, memberNames: { [uidOf()]: myName(), ...(item.shareNames || {}) }, updatedAt: now, updatedBy: uidOf() }))).catch(e => { if (e?.code !== 'not-found') onError(e); });
+  } else {
+    // merge: si todavía no llegaron las compartidas, no se pisan los comentarios que ya tenga
+    const first = shReady ? { comments: [], createdAt: now } : {};
+    fb.fs.setDoc(ref, JSON.parse(JSON.stringify({ ...p, owner: uidOf(), ownerName: myName(), members, memberNames: { [uidOf()]: myName(), ...(item.shareNames || {}) },
+      ...first, updatedAt: now, updatedBy: uidOf() })), { merge: true }).catch(onError);
+  }
+}
+function shItemDelete(id) { if (fb && account.user) fb.fs.deleteDoc(fb.fs.doc(fb.db, 'sharedItems', id)).catch(() => {}); }
+
+export const shared = {
+  ready: () => shReady,
+  all: () => shItems,
+  received: () => shItems.filter(d => d.owner !== uidOf()),
+  doc: id => shItems.find(d => d.id === id) || null,
+  // Comparte (o cambia con quién) una nota o tarea tuya. uids vacío = dejar de compartirla.
+  set(col, id, uids, names = {}) {
+    const item = data[col].find(x => x.id === id);
+    if (!item || !fb || !account.user) return null;
+    if (!uids.length) {
+      if (item.shareId) shItemDelete(item.shareId);
+      const { shareId, shareWith, shareNames, ...rest } = item;
+      write(col, { ...rest, updatedAt: new Date().toISOString() }, { explicit: true });
+      return null;
+    }
+    const shareId = item.shareId || fb.fs.doc(fb.fs.collection(fb.db, 'sharedItems')).id;
+    const next = { ...item, shareId, shareWith: uids, shareNames: names, updatedAt: new Date().toISOString() };
+    write(col, next, { noShare: true });
+    shItemPush(col, next);
+    return next;
+  },
+  // Agrega un comentario (lo puede hacer quien la comparte y quienes la reciben)
+  comment(id, text) {
+    const d = shItems.find(x => x.id === id);
+    const t = String(text || '').trim().slice(0, 1000);
+    if (!d || !t || !fb || !account.user) return Promise.resolve(false);
+    const c = { by: uidOf(), byName: myName(), t, at: new Date().toISOString() };
+    const comments = [...(d.comments || []), c];
+    d.comments = comments; notify();
+    return fb.fs.updateDoc(fb.fs.doc(fb.db, 'sharedItems', id), { comments, updatedAt: c.at, updatedBy: uidOf() }).then(() => true).catch(e => { onError(e); return false; });
+  },
 };
