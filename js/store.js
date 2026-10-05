@@ -309,6 +309,7 @@ export function startSync(uid) {
   });
   cgWatchOffers(uid);
   shItemsWatch(uid);
+  newsWatch();
   // Eventos que otros te compartieron (o que tú compartiste)
   const q = fb.fs.query(fb.fs.collection(fb.db, 'shared'), fb.fs.where('members', 'array-contains', uid));
   unsubs.push(fb.fs.onSnapshot(q,
@@ -554,7 +555,7 @@ export function stopSync() {
   seenCols.clear(); syncStart = 0;
   COLS.forEach(c => { data[c] = []; });
   ownEvents = []; sharedDocs = []; ownTasks = []; assignedIn = []; assignedOut = []; membersCache = null;
-  cgReset(); shItems = []; shReady = false;
+  cgReset(); shItems = []; shReady = false; newsItems = [];
   notify();
 }
 
@@ -959,3 +960,33 @@ export const shared = {
     return fb.fs.updateDoc(fb.fs.doc(fb.db, 'sharedItems', id), { comments, updatedAt: c.at, updatedBy: uidOf() }).then(() => true).catch(e => { onError(e); return false; });
   },
 };
+
+// ═════════════════════════════ NOVEDADES Y USO DE LA APP ═════════════════════════════
+// config/novedades → { items: [{ v, date, notes: [texto], avisar }], updatedAt, by }  lo escribe solo el administrador;
+// lo leen todas las cuentas aprobadas (Ajustes → 📰 Novedades). «avisar» = versión importante: sale «Actualizar» y el aviso.
+let newsItems = [];
+function newsWatch() {
+  unsubs.push(fb.fs.onSnapshot(fb.fs.doc(fb.db, 'config', 'novedades'),
+    snap => { newsItems = snap.exists() && Array.isArray(snap.data().items) ? snap.data().items : []; notify(); },
+    () => { newsItems = []; }));
+}
+export const news = {
+  items: () => [...newsItems].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.v || '').localeCompare(String(a.v || ''), undefined, { numeric: true })),
+  save(items) {
+    if (!fb || !account.user) return Promise.reject(new Error('sin sesión'));
+    const clean = items.slice(0, 60).map(x => ({ v: String(x.v || '').slice(0, 20), date: String(x.date || '').slice(0, 10), notes: (x.notes || []).map(t => String(t).slice(0, 300)).filter(Boolean).slice(0, 12), avisar: !!x.avisar }));
+    newsItems = clean; notify();
+    return fb.fs.setDoc(fb.fs.doc(fb.db, 'config', 'novedades'), { items: clean, updatedAt: new Date().toISOString(), by: account.user.uid });
+  },
+};
+// Cada teléfono anota qué versión usa y desde dónde (solo lo ve el administrador en «Quién usa la app»)
+let reported = '';
+export function reportClient(ver, dev) {
+  if (!fb || !account.user || !hasAccess()) return;
+  const k = `${account.user.uid}|${ver}|${dev}`;
+  if (reported === k) return;
+  reported = k;
+  fb.fs.setDoc(fb.fs.doc(fb.db, 'directory', account.user.uid), { email: account.user.email || '', lastSeen: new Date().toISOString(), ver: String(ver).slice(0, 20), dev: String(dev).slice(0, 40) }, { merge: true }).catch(() => {});
+}
+// Repintar la pantalla cuando algo de fuera de los datos cambió (por ejemplo, llegó el número de cuentas pendientes)
+export const refresh = () => notify();

@@ -2,7 +2,7 @@
 // así el proyecto de Firebase se queda en el plan gratuito (Spark): enviar avisos con FCM es gratis.
 //
 // En cada ejecución:
-//  1. Versión nueva: si cambió version.json del sitio, avisa una vez a todos.
+//  1. Versión nueva: si cambió version.json del sitio y trae "avisar": true, avisa una vez a todos.
 //  2. Eventos compartidos: avisa a los demás cuando alguien comparte o cambia uno (desde la ejecución anterior).
 //  3. Aviso de prueba: si alguien tocó «Enviar un aviso de prueba» (users/{uid}/meta/test), se lo manda.
 //  4. Aviso diario: a cada usuario, a la hora que eligió (Ajustes → Avisos), con lo pendiente del día.
@@ -238,10 +238,15 @@ async function checkNewVersion() {
   } catch { return; }
   const v = String(info.version || '');
   if (!v) return;
+  // Solo se avisa cuando la versión lo pide: "avisar": true en version.json, o marcada ⭐ importante en
+  // 🛡 Mi administración → Novedades (config/novedades). Las demás se instalan solas, sin aviso.
+  let nov = null;
+  try { nov = ((await db.doc('config/novedades').get()).data()?.items || []).find(x => x.v === v) || null; } catch { /* sin novedades */ }
+  if (info.avisar !== true && !nov?.avisar) return;
   const ref = db.doc('meta/app');
   if ((await ref.get()).data()?.notifiedVersion === v) return;
   await ref.set({ notifiedVersion: v, at: new Date().toISOString() }, { merge: true });
-  const body = (info.notes || []).slice(0, 3).join(' · ') || 'Ábrela y toca «Actualizar».';
+  const body = (nov?.notes?.length ? nov.notes : info.notes || []).slice(0, 3).join(' · ') || 'Ábrela y toca «Actualizar».';
   const users = await db.collection('directory').get();
   let sent = 0;
   for (const u of users.docs) {

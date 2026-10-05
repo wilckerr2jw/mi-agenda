@@ -21,6 +21,7 @@ import * as Fx from './corregir.js';
 import * as Pwa from './pwa.js';
 import * as Mv from './mover.js';
 import * as Cp from './compartido.js';
+import * as Ah from './adminhub.js';
 import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays, uid, fmtShort } from './util.js';
 
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
@@ -76,6 +77,7 @@ function render() {
   }
   view.innerHTML = V[ui.route](ui);
   const { bar, more } = barSplit();
+  { const adm = $('#tabs .tab-admin'); if (adm) { adm.hidden = !(store.session.isAdmin && store.isCloud); const n = Ah.pendingCount(); adm.querySelector('.ah-badge')?.remove(); if (n) adm.lastElementChild.insertAdjacentHTML('beforeend', ` <b class="ah-badge">${n}</b>`); } }
   $$('#tabs .tab[data-a="nav"]').forEach(b => {
     b.hidden = b.dataset.v !== 'hoy' && !M.isModuleVisible(b.dataset.v);
     b.setAttribute('aria-current', b.dataset.v === ui.route ? 'page' : 'false');
@@ -111,6 +113,7 @@ function moreSheet() {
   const icon = v => $(`#tabs .tab[data-v="${v}"] .pill`)?.innerHTML || '';
   S.open({ title: 'Más', body: `<div class="more-list">
     ${more.map(v => `<button type="button" class="more-item" data-a="more-go" data-v="${v}" ${ui.route === v ? 'aria-current="page"' : ''}><span class="pill">${icon(v)}</span><span>${esc(ROUTE_NAMES[v])}</span></button>`).join('')}
+    ${store.session.isAdmin && store.isCloud ? `<button type="button" class="more-item" data-a="adm-hub" data-v="cuentas"><span class="pill">${ic('shield')}</span><span>Mi administración${Ah.pendingCount() ? ` <b class="ah-badge">${Ah.pendingCount()}</b>` : ''}</span></button>` : ''}
     <button type="button" class="more-item" data-a="search"><span class="pill">${ic('search')}</span><span>Buscar</span></button>
     <button type="button" class="more-item" data-a="settings"><span class="pill">${ic('more')}</span><span>Ajustes</span></button>
   </div>` });
@@ -367,6 +370,15 @@ document.addEventListener('click', e => {
     case 'sh-comment': return Cp.comment(id);
     case 'sh-inbox': return Cp.inboxSheet();
     case 'sh-item': return Cp.itemSheet(id);
+    // 🛡 Mi administración y 📰 Novedades (adminhub.js)
+    case 'adm-hub': return Ah.hub(v);
+    case 'adm-approve': return Ah.approve(id, el.dataset.name);
+    case 'adm-full': return Ah.full(v);
+    case 'news-save': return Ah.newsSave();
+    case 'news-edit': return Ah.newsEdit(v);
+    case 'news-del': return Ah.newsDel(v);
+    case 'news-cancel': return Ah.newsCancel();
+    case 'news-fill': return Ah.newsFill();
     case 'meca-add-unknown': return Mc.addUnknown();
     case 'meca-add-all': Mc.addAll(id); return render();
     case 'meca-mv': ui.congre.mv = v; return render();

@@ -1,8 +1,8 @@
 {
-  "version": "10.2.0",
+  "version": "10.3.0",
   "notes": [
-    "👥 Comparte tu congregación con otro anciano: ve tu organigrama, grupos, mecánicas, visita y publicadores en su app, siempre al día (solo lectura)",
-    "👥 Comparte una nota o una tarea con quien elijas: la ve al día y pueden comentar los dos",
-    "💑 La tarjeta de Matrimonio en Hoy sale solo cuando configuras el módulo"
+    "📰 Ajustes → Novedades: lo nuevo de la app, sin avisos",
+    "🛡 Mi administración (solo el administrador): cuentas por aprobar, quién usa la app y con qué versión, novedades y lo compartido",
+    "👥 Comparte tu congregación, notas y tareas con otro anciano"
   ]
 }

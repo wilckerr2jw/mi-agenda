@@ -1534,3 +1534,22 @@ body.cg-ro .sheet:has(form[data-form="dept"], form[data-form="group"]) .sheet-f 
 .sh-log { margin: 6px 0 0 18px; display: grid; gap: 4px; }
 .sh-inbox-btn { margin: 0 0 12px; }
 .cg-status { margin-top: 4px; }
+.app-up-mini { display: block; margin: 0 0 12px; font-size: 14px; text-align: left; }
+
+/* ───────────── 🛡 Mi administración y 📰 Novedades ───────────── */
+.tab-admin { display: none !important; }
+@media (min-width: 1024px) { .tab-admin:not([hidden]) { display: flex !important; } }
+.ah-badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 4px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 12px; font-weight: 700; }
+.ah-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 4px 0 14px; }
+.ah-kpis > div { display: grid; gap: 2px; padding: 10px 8px; text-align: center; background: var(--surface-2); border-radius: 12px; }
+.ah-kpis b { font: 600 22px/1 var(--serif); color: var(--primary); }
+.ah-kpis .warn b { color: var(--warn); }
+.ah-kpis small { font-size: 12px; color: var(--ink-2); }
+.ah-pend { display: grid; gap: 6px; }
+.ah-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ah-row select { flex: 1; min-width: 150px; }
+.ah-user { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.ah-user small { display: block; font-size: 13px; color: var(--ink-2); }
+.ah-notes { margin: 6px 0 4px 18px; display: grid; gap: 4px; }
+.ah-news-form { display: grid; gap: 4px; margin-bottom: 8px; }
+.ah-news .sub-h { margin-top: 14px; }

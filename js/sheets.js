@@ -20,6 +20,7 @@ import * as Nat from './native.js';
 import { saveFixMonth } from './corregir.js';
 import { updateBanner } from './pwa.js';
 import { shareBlock } from './compartido.js';
+import { newsHtml } from './adminhub.js';
 
 // Permite que app.js reaccione a lo guardado (p. ej. saltar a esa fecha en el calendario)
 export const hooks = { eventSaved: null, deptsChanged: null };
@@ -2857,6 +2858,7 @@ const SETTINGS_SECS = [
   { id: 'privacidad', ic: '🔒', n: 'Privacidad', d: 'PIN y huella', k: 'pin huella bloqueo privacidad cara' },
   { id: 'medida', ic: '🧩', n: 'La app a mi medida', d: 'Secciones, accesos rápidos y tipos propios', k: 'secciones accesos rápidos tipos ocultar módulos compartidos' },
   { id: 'datos', ic: '💾', n: 'Mis datos', d: 'Respaldo, restaurar e importar', k: 'respaldo restaurar importar keep exportar datos cerrar sesión' },
+  { id: 'novedades', ic: '📰', n: 'Novedades', d: 'Lo nuevo de la app (se actualiza sola, sin avisos)', k: 'novedades versión cambios nuevo actualización actualizar' },
   { id: 'ayuda', ic: '❓', n: 'Ayuda', d: 'Guía, recorrido e instalar en el teléfono', k: 'ayuda guía recorrido instalar' },
   { id: 'admin', ic: '🛡️', n: 'Administración', d: 'Aprobar cuentas, sus funciones y plantillas', k: 'administrar usuarios cuentas aprobar funciones permisos plantillas', admin: true },
 ];
@@ -2867,7 +2869,7 @@ export function settings(sec) {
   const list = SETTINGS_SECS.filter(x => !x.admin || session.isAdmin);
   open({
     title: 'Ajustes',
-    body: `${updateBanner()}<input id="set-q" class="set-search" type="search" placeholder="¿Qué quieres cambiar? (ej. avisos, color, PIN)" aria-label="Buscar en ajustes" autocomplete="off">
+    body: `${updateBanner(true)}<input id="set-q" class="set-search" type="search" placeholder="¿Qué quieres cambiar? (ej. avisos, color, PIN)" aria-label="Buscar en ajustes" autocomplete="off">
       <div class="set-menu">${list.map(x => `<button type="button" class="set-item" data-a="set-sec" data-v="${esc(x.id)}" data-k="${esc(norm(x.n + ' ' + x.d + ' ' + x.k))}">
         <span class="set-ic" aria-hidden="true">${x.ic}</span><span class="grow"><strong>${esc(x.n)}</strong><span class="meta">${esc(x.d)}</span></span>${ic('right', 'sm')}</button>`).join('')}</div>
       <p class="hint set-none" hidden>No encontré ese ajuste. Prueba con otra palabra.</p>
@@ -2942,7 +2944,9 @@ function settingsSection(id) {
       <h3 class="sub-h">Instalar en el teléfono</h3>
       <p class="hint">Android (Chrome): menú ⋮ y «Instalar app». iPhone (Safari): botón Compartir y «Añadir a pantalla de inicio».</p>
       <p class="hint pad">Versión ${M.APP_VERSION}</p>`,
-    admin: () => `<p class="hint">Las cuentas nuevas aparecen como «Pendiente»: elige su tipo y se les abre la app. No ves los datos de nadie.</p>
+    novedades: () => newsHtml(),
+    admin: () => `<div class="stack"><button class="btn primary" data-a="adm-hub" data-v="cuentas">🛡 Mi administración</button></div>
+      <p class="hint pad-top">Las cuentas nuevas aparecen como «Pendiente»: elige su tipo y se les abre la app. No ves los datos de nadie.</p>
       <p class="hint">En <b>Administración</b> eliges, por cuenta, qué secciones y funciones puede usar, y editas las <b>plantillas</b> de cada tipo de perfil.</p><div class="stack pad"><button class="btn primary" data-a="admin">${ic('shield', 'sm')} Abrir Administración</button></div>`,
   }[id];
   open({ title: `${sec.ic} ${sec.n}`, back: settingsMenu, body: body() });

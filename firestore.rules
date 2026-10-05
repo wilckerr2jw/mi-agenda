@@ -43,6 +43,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Novedades de la app (Ajustes → 📰 Novedades): las leen las cuentas aprobadas; solo el administrador las escribe.
+    match /config/novedades {
+      allow read: if signedIn() && (approved(request.auth.uid) || isAdmin());
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['items', 'updatedAt', 'by'])
+        && request.resource.data.items is list && request.resource.data.items.size() <= 60
+        && request.resource.data.by == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
     // Cuentas a las que se puede compartir: solo el nombre. Lo escribe cada uno; lo leen los aprobados.
     match /members/{uid} {
       allow read: if signedIn() && (approved(request.auth.uid) || isAdmin());
@@ -215,7 +225,9 @@ service cloud.firestore {
     match /directory/{uid} {
       allow read: if isSelf(uid) || isAdmin();
       allow create, update: if isSelf(uid)
-        && request.resource.data.keys().hasOnly(['email', 'name', 'lastSeen'])
+        && request.resource.data.keys().hasOnly(['email', 'name', 'lastSeen', 'ver', 'dev'])
+        && (!('ver' in request.resource.data) || (request.resource.data.ver is string && request.resource.data.ver.size() <= 20))
+        && (!('dev' in request.resource.data) || (request.resource.data.dev is string && request.resource.data.dev.size() <= 40))
         && request.resource.data.email == request.auth.token.email
         && (!('name' in request.resource.data) || (request.resource.data.name is string && request.resource.data.name.size() <= 80));
       allow delete: if isAdmin();

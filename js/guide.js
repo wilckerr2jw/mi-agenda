@@ -102,6 +102,10 @@ const TOPICS = [
 
   { g: 'Congregación', t: 'Enlace para los ancianos', when: c => c.on('congregacion') && c.elder,
     b: () => `En Congregación → ${k('📋 Para el Cuerpo de ancianos')} → ${k('🔗 Enlace para los ancianos')}: eliges qué ven (agenda de la próxima reunión, organigrama, acuerdos y tareas, visita del superintendente, mecánicas) y mandas el enlace y, aparte, la clave de 6 números. No necesitan la app; va cifrado y se actualiza solo. Puedes cambiar la clave o apagarlo cuando quieras.` },
+  { g: 'Tus datos', t: 'Novedades de la app', when: () => true,
+    b: () => `La app se actualiza sola, sin avisos. Para ver qué cambió: Ajustes → ${k('📰 Novedades')}.` },
+  { g: 'Tus datos', t: 'Mi administración', when: c => c.admin,
+    b: () => `En ${k('Más → 🛡 Mi administración')} tienes las cuentas que esperan aprobación (con el número en rojo), quién usa la app y con qué versión, las novedades que ven todos (y marcar una versión como importante para que les avise) y todo lo que compartes.` },
   { g: 'Congregación', t: 'Compartir la congregación con otro anciano', when: c => c.cloud && c.on('congregacion') && c.elder,
     b: () => `En Congregación toca ${k('👥 Compartir la congregación con otro anciano')} y marca su cuenta. Él ve en su app tu organigrama, grupos, mecánicas, visita y publicadores, siempre al día y solo lectura. Si a ti te la comparten, en Hoy te sale para tocar ${k('Usar esta congregación')}.` },
   { g: 'Personas y notas', t: 'Compartir una nota o una tarea', when: c => c.cloud && c.elder,
