@@ -27,7 +27,7 @@ const NAME = 'Matrimonio';
 const DEF = {
   spouseUid: '', spouseName: '', share: true, showHoy: true, hidden: false,
   wkFrom: '18:00', weFrom: '09:00', until: '21:30',
-  anniversary: '', spouseBday: '', myBday: '', dates: [],       // dates: [{ id, t, d }]
+  anniversary: '', dates: [],       // dates: [{ id, t, d }]
   dateTasks: {},                                                // { clave: [ids de tareas creadas] }
   checkDay: 0, checkTime: '19:30', checkEventId: '',
   checkins: [],                                                 // [{ id, d, h (1-5), good, better, plan }]
@@ -228,8 +228,6 @@ function theoIdeas() {
 function specialDates() {
   const c = cfg(), out = [];
   if (c.anniversary) out.push({ key: 'aniv', t: 'Aniversario de bodas', ic: '💍', d: c.anniversary, years: true });
-  if (c.spouseBday) out.push({ key: 'bday', t: `Cumpleaños de ${spouse()}`, ic: '🎂', d: c.spouseBday });
-  if (c.myBday) out.push({ key: 'mybday', t: 'Mi cumpleaños', ic: '🎈', d: c.myBday });
   (c.dates || []).forEach(x => out.push({ key: x.id, t: x.t, ic: '📌', d: x.d, custom: true }));
   const t = today();
   return out.filter(x => x.d).map(x => {
@@ -346,14 +344,12 @@ function viewEspiritual() {
 function viewFechas() {
   const sd = specialDates(), c = cfg();
   return `<p class="hint">Cada fecha crea un recordatorio que se repite cada año: uno una semana antes (para planear algo) y otro el mismo día. Están en Tareas.</p>
-    ${sd.length ? `<div class="mx-list">${sd.map(x => `<div class="mx-habit"><span class="mx-hic">${x.ic}</span><span class="mx-what"><b>${esc(x.t)}</b><small>${esc(fmtLong(x.next))} · ${inDaysTxt(x.inDays)}${x.years && x.n > 0 ? ` · cumplen ${x.n} ${x.n === 1 ? 'año' : 'años'}` : ''}</small><small>${(c.dateTasks[x.key] || []).some(id => store.get('tasks', id)) ? '🔔 Con recordatorio' : '<span class="warn-t">Sin recordatorio</span>'}</small></span>
+    ${sd.length ? `<div class="mx-list">${sd.map(x => `<div class="mx-habit"><span class="mx-hic">${x.ic}</span><span class="mx-what"><b>${esc(x.t)}</b><small>${esc(fmtLong(x.next))} · ${inDaysTxt(x.inDays)}${x.years && x.n > 0 ? ` · llevan ${x.n} ${x.n === 1 ? "año" : "años"} de casados` : ''}</small><small>${(c.dateTasks[x.key] || []).some(id => store.get('tasks', id)) ? '🔔 Con recordatorio' : '<span class="warn-t">Sin recordatorio</span>'}</small></span>
       ${(c.dateTasks[x.key] || []).some(id => store.get('tasks', id)) ? '' : `<button type="button" class="btn sm" data-mx="date-remind" data-k="${esc(x.key)}">🔔 Avisarme</button>`}
       ${x.custom ? `<button type="button" class="icon-btn mx-x" data-mx="date-del" data-id="${esc(x.key)}" aria-label="Quitar">×</button>` : ''}</div>`).join('')}</div>` : ''}
-    <h3 class="sub-h">Fechas</h3>
+    <h3 class="sub-h">Su fecha</h3>
     <div class="f"><label for="mx-aniv">💍 Aniversario de bodas</label><input id="mx-aniv" type="date" value="${esc(c.anniversary)}"></div>
-    <div class="f"><label for="mx-sbday">🎂 Cumpleaños de ${esc(spouse())}</label><input id="mx-sbday" type="date" value="${esc(c.spouseBday)}"></div>
-    <div class="f"><label for="mx-mybday">🎈 Mi cumpleaños <span class="hint">(opcional)</span></label><input id="mx-mybday" type="date" value="${esc(c.myBday)}"></div>
-    <button type="button" class="btn primary" data-mx="dates-save">Guardar fechas</button>
+    <button type="button" class="btn primary" data-mx="dates-save">Guardar fecha</button>
     <h3 class="sub-h">Otra fecha especial</h3>
     <div class="two"><div class="f"><label for="mx-dt">Nombre</label><input id="mx-dt" maxlength="60" placeholder="Ej. El día que nos conocimos"></div>
     <div class="f"><label for="mx-dd">Fecha</label><input id="mx-dd" type="date"></div></div>
@@ -525,7 +521,7 @@ function helpSheet() {
       <p><b>Inicio:</b> lo que viene juntos, las fechas cercanas y los días que tienen libres. Los días libres salen de tu Agenda: se saltan las reuniones (con el camino), la predicación, el pastoreo, el cuerpo de ancianos, tus asignaciones y las mecánicas, y se marca la semana de la visita del superintendente o si estás preparando una asignación.</p>
       <p><b>Planear:</b> elige una idea (o escribe la tuya), ponle día y hora. Te avisa si choca con algo. Queda en la Agenda con «💑» en el título${isCloud ? ' y, si elegiste la cuenta de tu cónyuge, compartida: a los dos les llega el aviso y los dos marcan ✓' : ''}. Los <b>detalles</b> son sorpresas: quedan como tarea solo tuya.</p>
       <p><b>Espiritual:</b> cómo van esta semana con la Adoración en familia, predicar juntos y leer o preparar juntos, cuántas semanas seguidas llevan, e ideas que salen de tu agenda teocrática (ensayar una asignación, preparar las reuniones, salir juntos a predicar).</p>
-      <p><b>Fechas:</b> aniversario y cumpleaños con recordatorio cada año (una semana antes y ese día), en Tareas.</p>
+      <p><b>Fechas:</b> aniversario de bodas y otras fechas especiales de ustedes con recordatorio cada año (una semana antes y ese día), en Tareas.</p>
       <p><b>Conversación de la semana:</b> unas preguntas para hablar con calma, cómo estuvo la semana y lo que acuerdan. Se guarda solo en tu cuenta.</p>
       <p class="hint">Para cambiar o borrar algo planeado, ábrelo desde aquí o desde la Agenda como cualquier evento.</p>
     </div>`,
@@ -568,8 +564,8 @@ document.addEventListener('click', e => {
     case 'ideas-reset': save({ hiddenIdeas: [] }); return setTimeout(() => openMain('planear'), 50);
     case 'habit': save(c => ({ habits: c.habits.includes(v) ? c.habits.filter(x => x !== v) : [...c.habits, v] })); return setTimeout(() => openMain('espiritual'), 50);
     case 'dates-save': {
-      save({ anniversary: document.getElementById('mx-aniv').value, spouseBday: document.getElementById('mx-sbday').value, myBday: document.getElementById('mx-mybday').value });
-      toast('Fechas guardadas. Toca «🔔 Avisarme» para el recordatorio de cada año');
+      save({ anniversary: document.getElementById('mx-aniv').value });
+      toast('Fecha guardada. Toca «🔔 Avisarme» para el recordatorio de cada año');
       return setTimeout(() => openMain('fechas'), 50);
     }
     case 'date-add': {
