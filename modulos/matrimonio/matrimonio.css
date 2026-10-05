@@ -1,0 +1,85 @@
+/* 💑 Matrimonio · estilos del módulo (solo clases mx-…, usa los colores de la app) */
+.mx { --mx: #C2507F; }
+:root[data-theme="dark"] .mx, :root[data-theme="dark"] .mx-hoy { --mx: #F08DB5; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .mx, :root:not([data-theme="light"]) .mx-hoy { --mx: #F08DB5; } }
+
+.mx-seg { position: sticky; top: 0; z-index: 2; }
+.mx .sub-h { margin-top: 18px; }
+.mx .sec-h.tight { margin-top: 18px; }
+.mx .sec-h.tight .sub-h { margin: 0; }
+.mx .btn.sm, .mx-hoy + .btn.sm { padding: 7px 12px; font-size: 14px; min-height: 0; }
+.mx-foot { margin-top: 22px; text-align: center; font-size: 14px; color: var(--ink-2); }
+
+.mx-hoy { --mx: #C2507F; background: color-mix(in srgb, var(--mx) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--mx) 35%, var(--line)); }
+.mx-hoy > .ic, .mx-tab .ic, .more-item[data-mx] .ic { color: #C2507F; }
+.mx-hoy > .ic { width: 26px; height: 26px; flex: none; }
+
+/* Tarjetas de números */
+.mx-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 4px 0 14px; }
+.mx-kpis > div { display: grid; gap: 2px; padding: 10px 8px; text-align: center; background: var(--surface-2); border-radius: 12px; }
+.mx-kpis b { font: 600 22px/1 var(--serif); color: var(--mx); }
+.mx-kpis small { font-size: 12px; line-height: 1.2; color: var(--ink-2); }
+@media (max-width: 380px) { .mx-kpis { grid-template-columns: repeat(2, 1fr); } }
+
+/* Fechas cercanas */
+.mx-date { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 10px; font-size: 22px; border-radius: 14px; background: var(--surface-2); }
+.mx-date.soon { background: color-mix(in srgb, var(--mx) 16%, var(--surface)); }
+.mx-date > span { flex: 1; min-width: 0; }
+.mx-date b { display: block; font-size: 15px; color: var(--ink); }
+.mx-date small { display: block; font-size: 13px; color: var(--ink-2); }
+
+/* Listas */
+.mx-list { display: grid; gap: 8px; }
+.mx-row, .mx-habit { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.mx-row:hover { border-color: var(--mx); }
+.mx-when { display: grid; justify-items: center; min-width: 46px; padding: 4px 6px; border-radius: 10px; background: color-mix(in srgb, var(--mx) 14%, var(--surface)); }
+.mx-when b { font-size: 14px; }
+.mx-when small { font-size: 12px; color: var(--ink-2); }
+.mx-what { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.mx-what b { font-weight: 650; overflow-wrap: anywhere; }
+.mx-what small { font-size: 13px; color: var(--ink-2); }
+.mx-tag { white-space: nowrap; }
+.mx-chk { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border-radius: 50%; font-weight: 700; color: var(--ink-2); box-shadow: inset 0 0 0 2px var(--line); cursor: pointer; }
+.mx-chk.on { background: var(--primary); color: var(--on-primary); box-shadow: none; }
+.mx-hic { font-size: 22px; flex: none; width: 28px; text-align: center; }
+.mx-habit.hecho { border-color: color-mix(in srgb, var(--primary) 45%, var(--line)); }
+.mx-empty { padding: 16px; }
+
+/* Días libres */
+.mx-days { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+.mx-days.mini { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
+.mx-days.mini:empty { display: none; }
+.mx-day { display: grid; gap: 3px; padding: 10px 12px; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.mx-day:hover { border-color: var(--mx); }
+.mx-day b { font-size: 15px; }
+.mx-day small { font-size: 13px; color: var(--ink-2); }
+.mx-theo { font-size: 12px !important; }
+.mx-theo.ok { color: var(--primary) !important; }
+
+/* Ideas */
+.mx-ideas { display: flex; flex-wrap: wrap; gap: 8px; }
+.mx-idea { display: inline-flex; align-items: center; border-radius: 999px; background: var(--surface-2); font-size: 14px; font-weight: 600; }
+.mx-idea > button:first-child { padding: 8px 4px 8px 14px; text-align: left; }
+.mx-idea.add { padding: 8px 14px; color: var(--mx); background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
+.mx-x { padding: 6px 10px 6px 6px; color: var(--ink-2); font-size: 16px; line-height: 1; }
+.mx-habit .mx-x { padding: 4px 6px; }
+
+.mx-warn { padding: 10px 12px; margin-bottom: 10px; border-radius: 12px; font-size: 14px; }
+
+/* Conversación */
+.mx-q { margin: 6px 0 16px 20px; display: grid; gap: 6px; font-size: 15px; }
+.mx-hearts { display: flex; gap: 8px; }
+.mx-hearts label { display: grid; justify-items: center; gap: 2px; cursor: pointer; }
+.mx-hearts input { position: absolute; opacity: 0; pointer-events: none; }
+.mx-hearts span { display: grid; place-items: center; width: 46px; height: 46px; font-size: 24px; border-radius: 50%; background: var(--surface-2); }
+.mx-hearts input:checked + span { box-shadow: 0 0 0 3px var(--mx); background: color-mix(in srgb, var(--mx) 16%, var(--surface)); }
+.mx-hearts input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }
+.mx-hearts em { font-style: normal; font-size: 12px; color: var(--ink-2); }
+.mx-hist details { padding: 8px 12px; margin-bottom: 6px; background: var(--surface-2); border-radius: 12px; }
+.mx-hist summary { cursor: pointer; }
+.mx-hist p { margin: 6px 0 0; font-size: 14px; }
+.mx.prose p { margin: 0 0 12px; line-height: 1.45; }
+
+/* Botón del menú de la izquierda: solo en la computadora */
+.mx-tab { display: none !important; }
+@media (min-width: 1024px) { .mx-tab { display: flex !important; } }

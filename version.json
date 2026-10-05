@@ -1,8 +1,8 @@
 {
-  "version": "10.0.1",
+  "version": "10.1.0",
   "notes": [
-    "🏢 Tareas por departamento: agrupa tus tareas por el departamento que las ejecuta, con cuántas tiene y cuántas están atrasadas",
-    "⠿ Arrastra una tarea de un departamento a otro (o tócala y elige a cuál), con «Deshacer»",
-    "🏢 En cada tarea eliges el departamento; si el responsable atiende un solo departamento, se pone solo"
+    "💑 Matrimonio (en Más): planea citas y actividades con tu cónyuge, compartidas y con aviso para los dos",
+    "📖 Días libres según tu agenda teocrática, aviso si algo choca e ideas espirituales en pareja",
+    "💍 Aniversario y cumpleaños con recordatorio cada año, y la conversación de la semana"
   ]
 }
