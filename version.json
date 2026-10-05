@@ -1,8 +1,8 @@
 {
-  "version": "10.1.1",
+  "version": "10.1.2",
   "notes": [
-    "💑 Matrimonio (en Más): planea citas y actividades con tu cónyuge, compartidas y con aviso para los dos",
-    "📖 Días libres según tu agenda teocrática, aviso si algo choca e ideas espirituales en pareja",
-    "💍 Aniversario de bodas con recordatorio cada año, y la conversación de la semana"
+    "📋 En la computadora, los mensajes se copian para pegarlos en WhatsApp Web (Ctrl+V) en vez de abrir la ventana de Compartir de Windows",
+    "📋 Botón «Copiar» en Recordar por WhatsApp, para cada responsable",
+    "💑 Matrimonio: citas y actividades con tu cónyuge, días libres según tu agenda teocrática, aniversario de bodas y la conversación de la semana"
   ]
 }

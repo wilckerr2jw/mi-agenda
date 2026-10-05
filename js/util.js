@@ -142,3 +142,27 @@ export function toast(msg, actionLabel, action, ms = 6000) {
 }
 // Al abrir o cerrar una hoja, los avisos visibles se acomodan (encima de sus botones o encima de la barra)
 export function toastPlace() { const el = document.getElementById('toast'); if (el && toastShown.length) placeToasts(el); }
+
+// ───── Compartir o copiar un texto ─────
+// En el teléfono se abre «Compartir» (WhatsApp, correo…). En la computadora se copia (Ctrl+V en WhatsApp Web),
+// porque la ventana de compartir de Windows no trae WhatsApp.
+export const isPhone = () => /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || '') || (navigator.maxTouchPoints > 1 && /macintosh/i.test(navigator.userAgent || ''));
+export async function copyText(text, msg = '📋 Copiado. Pégalo en WhatsApp con Ctrl+V') {
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch { /* sin permiso: se usa el método antiguo */ }
+  if (!ok) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.append(ta); ta.select(); ok = document.execCommand('copy'); ta.remove();
+    } catch { ok = false; }
+  }
+  toast(ok ? msg : 'No se pudo copiar el mensaje');
+  return ok;
+}
+export async function shareText(text, { title = '', copied } = {}) {
+  if (isPhone() && navigator.share) {
+    try { await navigator.share(title ? { title, text } : { text }); return true; } catch (e) { if (e?.name === 'AbortError') return false; }
+  }
+  return copyText(text, copied);
+}

@@ -39,7 +39,7 @@ export const FEATURES = {
   tareas: [
     { id: 'tareas.asignar', n: 'Enviar tareas a otra cuenta', d: 'Mandar una tarea a la app de su responsable para que la acepte', a: [] },
     { id: 'tareas.supervision', n: 'Supervisión', d: 'Tareas de otros sin novedades y su resumen', a: ['supervision', 'sup-task', 'sup-share'], q: ['supervise'] },
-    { id: 'tareas.recordar', n: 'Recordar por WhatsApp', d: 'Mensaje a cada responsable con sus tareas pendientes', a: ['remind-tasks', 'remind-send'] },
+    { id: 'tareas.recordar', n: 'Recordar por WhatsApp', d: 'Mensaje a cada responsable con sus tareas pendientes', a: ['remind-tasks', 'remind-send', 'remind-copy'] },
     { id: 'tareas.sugeridas', n: 'Tareas sugeridas por departamento', d: 'Crear de una vez las tareas típicas de cada departamento', a: ['dept-suggest-tasks', 'dept-suggest-save'] },
   ],
   personas: [

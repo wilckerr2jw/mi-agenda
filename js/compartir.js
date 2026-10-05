@@ -7,7 +7,7 @@
 import { data } from './store.js';
 import * as store from './store.js';
 import * as M from './model.js';
-import { esc, today, toast, fmtShort, addDays, dateOf } from './util.js';
+import { esc, today, toast, fmtShort, addDays, dateOf, shareText, isPhone } from './util.js';
 import * as V from './visita.js';
 import { mecaStats, rowPerson, programOf } from './mecas.js';
 import * as A from './agenda.js';
@@ -280,6 +280,7 @@ export async function send(what) {
   const c = cfg(); if (!c) return;
   const text = what === 'code' ? `Clave para abrir el enlace: ${c.code}`
     : `📋 Para el cuerpo de ancianos${M.profile().congre?.name ? ` de ${M.profile().congre.name}` : ''}: ${SECTIONS.filter(([k]) => sectionsOf(c).includes(k)).map(x => x[1].replace(/^\S+\s/, '').toLowerCase()).join(', ')}. Se actualiza solo.\n${linkOf(c)}\nLa clave te la mando aparte.`;
+  if (!isPhone()) return shareText(text, { copied: what === 'code' ? '📋 Clave copiada. Pégala en WhatsApp con Ctrl+V' : '📋 Enlace copiado. Pégalo en WhatsApp con Ctrl+V' });
   try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e?.name === 'AbortError') return; }
   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 }

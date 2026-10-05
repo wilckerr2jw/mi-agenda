@@ -352,6 +352,7 @@ document.addEventListener('click', e => {
     case 'meca-add-person': return Mc.addPerson(el.dataset.name);
     case 'remind-tasks': return import('./recordar.js').then(R => R.sheet(v === undefined || v === '' ? 3 : Number(v)));
     case 'remind-send': return import('./recordar.js').then(R => R.send(v, el.dataset.k));
+    case 'remind-copy': return import('./recordar.js').then(R => R.copy(v, el.dataset.k));
     case 'meca-add-unknown': return Mc.addUnknown();
     case 'meca-add-all': Mc.addAll(id); return render();
     case 'meca-mv': ui.congre.mv = v; return render();

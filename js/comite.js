@@ -2,7 +2,7 @@
 // (acuerdos de la última reunión, tareas que supervisas, capacitaciones por revisar, pastoreo de tu grupo y asignaciones mecánicas).
 import { data } from './store.js';
 import * as M from './model.js';
-import { esc, today, fmtShort, toast } from './util.js';
+import { esc, today, fmtShort, toast, shareText } from './util.js';
 import { mecaStats } from './mecas.js';
 
 export function comiteData(t = today()) {
@@ -62,6 +62,5 @@ export async function shareSummary() {
   if (c.reviews.length) { lines.push('*Capacitaciones por revisar*'); c.reviews.forEach(d => lines.push(`• ${d.name} (${fmtShort(d.reviewAt)})`)); lines.push(''); }
   if (c.mec?.notUsed.length) lines.push(`*Sin asignación mecánica:* ${c.mec.notUsed.map(p => p.name).join(', ')}`);
   const text = lines.join('\n').trim();
-  try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e?.name === 'AbortError') return; }
-  try { await navigator.clipboard.writeText(text); toast('Resumen copiado: pégalo en WhatsApp'); } catch { toast('No se pudo compartir'); }
+  await shareText(text, { copied: '📋 Resumen copiado. Pégalo en WhatsApp con Ctrl+V' });
 }

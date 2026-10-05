@@ -2,7 +2,7 @@
 
 import * as store from './store.js';
 import { data, isCloud, account, session } from './store.js';
-import { esc, ic, uid, today, toast, toastPlace, fmtTime, fmtShort, fmtMonth, relDays, initials, telLink, waLink, norm, dateOf, avatarHtml, addDays } from './util.js';
+import { esc, ic, uid, today, toast, toastPlace, fmtTime, fmtShort, fmtMonth, relDays, initials, telLink, waLink, norm, dateOf, avatarHtml, addDays, shareText } from './util.js';
 import * as M from './model.js';
 import * as Theme from './theme.js';
 import { readKeep } from './keep.js';
@@ -2047,11 +2047,7 @@ export function shareMonth(mid, withCredit) {
     ...(M.extrasText(M.monthExtras(mid)) ? ['', ...M.extrasText(M.monthExtras(mid), true).split('\n')] : []),
   ].filter((x, i, a) => x || (i > 0 && a[i - 1]));
   const text = lines.join('\n');
-  if (navigator.share) {
-    navigator.share({ title, text }).catch(() => {});
-  } else {
-    location.href = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(text)}`;
-  }
+  shareText(text, { title, copied: '📋 Informe copiado. Pégalo en WhatsApp o en un correo con Ctrl+V' });
 }
 
 // ───────────── Mi semana: plan de horas por día y objetivos ─────────────
@@ -2508,9 +2504,7 @@ function meetingFromForm() {
 }
 // Comparte un texto (WhatsApp, correo…); si el teléfono no puede, lo copia o abre un correo
 function shareOut(title, text) {
-  if (navigator.share) navigator.share({ title, text }).catch(() => {});
-  else if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast('Copiado: pégalo en WhatsApp')).catch(() => { location.href = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(text)}`; });
-  else location.href = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(text)}`;
+  shareText(text, { title });
 }
 // Guarda la reunión (con lo que esté escrito) y abre el modo junta a pantalla completa
 export function juntaStart(id) {

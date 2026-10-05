@@ -4,7 +4,7 @@
 import * as store from './store.js';
 import { data } from './store.js';
 import * as M from './model.js';
-import { esc, uid, today, toast, fmtShort, fmtLong, addDays, diffDays, waLink } from './util.js';
+import { esc, uid, today, toast, fmtShort, fmtLong, addDays, diffDays, waLink, shareText } from './util.js';
 
 // who: coord | secre | serv | sc (lo llena el superintendente de circuito)   q: 2 = Sí/No, 3 = Sí/No/N/A
 export const VISIT_ITEMS = [
@@ -179,8 +179,7 @@ export async function ask(id, g) {
   const text = [`Hola${h ? `, ${h.name.split(' ')[0]}` : ''}. Para la visita del superintendente de circuito (semana del ${fmtLong(v.start)}), ¿me ayudas a tener listo esto a más tardar el martes?`,
     '', ...pend.map(it => `• ${it.t}`), '', '¡Gracias!'].join('\n');
   if (h?.phone) { window.open(`${waLink(h.phone)}?text=${encodeURIComponent(text)}`, '_blank'); return; }
-  try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e?.name === 'AbortError') return; }
-  try { await navigator.clipboard.writeText(text); toast('Mensaje copiado: pégalo en WhatsApp'); } catch { toast('No se pudo compartir'); }
+  await shareText(text);
 }
 
 // Para Hoy y el resumen de la mañana

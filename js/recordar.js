@@ -2,7 +2,7 @@
 // Arma un mensaje para cada responsable con sus tareas y lo abre en WhatsApp con su número, listo para enviar.
 import { data } from './store.js';
 import * as M from './model.js';
-import { esc, today, addDays, fmtShort, toast, waLink, norm, diffDays } from './util.js';
+import { esc, today, addDays, fmtShort, toast, waLink, norm, diffDays, shareText, copyText, isPhone } from './util.js';
 
 const S = () => import('./sheets.js');
 const nn = t => norm(t).replace(/\s+/g, ' ').trim();
@@ -48,12 +48,12 @@ export async function sheet(soon = 3) {
   const chip = (v, n) => `<button class="chip" data-a="remind-tasks" data-v="${v}" aria-pressed="${soon === v}">${n}</button>`;
   open({
     title: '💬 Recordar por WhatsApp',
-    body: `<p class="hint">Un mensaje para cada responsable con sus tareas atrasadas y las que vencen pronto. Toca «Enviar»: se abre WhatsApp con su número y el mensaje listo.</p>
+    body: `<p class="hint">Un mensaje para cada responsable con sus tareas atrasadas y las que vencen pronto. Toca «Enviar»: se abre WhatsApp con su número y el mensaje listo. Con «📋 Copiar» lo pegas donde quieras (en la computadora, Ctrl+V en WhatsApp Web).</p>
       <div class="chips">${chip(0, 'Solo atrasadas')}${chip(3, '+ vencen en 3 días')}${chip(7, '+ vencen esta semana')}</div>
       ${list.length ? `<div class="stack">${list.map(b => `<div class="card mini rm-card">
         <div class="rm-h"><strong>${esc(b.name)}</strong>${b.late ? `<span class="rm-late">${b.late} ${b.late === 1 ? 'atrasada' : 'atrasadas'}</span>` : ''}</div>
         <ul class="rm-list">${b.tasks.map(({ t: x, late }) => `<li class="${late ? 'late' : ''}">${esc(x.title)} <span class="hint">· ${late ? 'venció' : 'vence'} el ${esc(fmtShort(x.due))}</span></li>`).join('')}</ul>
-        <div class="rm-f">${b.p?.phone ? '' : '<span class="hint warn-t">Sin teléfono en Personas: se comparte el mensaje</span>'}<button class="btn small primary" data-a="remind-send" data-v="${soon}" data-k="${esc(b.key)}">💬 Enviar</button></div>
+        <div class="rm-f">${b.p?.phone ? '' : `<span class="hint warn-t">Sin teléfono en Personas: ${isPhone() ? 'se comparte' : 'se copia'} el mensaje</span>`}<button class="btn small ghost" data-a="remind-copy" data-v="${soon}" data-k="${esc(b.key)}">📋 Copiar</button><button class="btn small primary" data-a="remind-send" data-v="${soon}" data-k="${esc(b.key)}">💬 Enviar</button></div>
       </div>`).join('')}</div>` : `<div class="empty-mini">✓ Nadie tiene tareas ${soon ? 'atrasadas ni por vencer' : 'atrasadas'}.</div>`}`,
   });
 }
@@ -63,6 +63,12 @@ export async function send(soon, key) {
   if (!b) return toast('Ya no tiene tareas pendientes');
   const text = messageFor(b);
   if (b.p?.phone) { window.open(`${waLink(b.p.phone)}?text=${encodeURIComponent(text)}`, '_blank'); return; }
-  try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e?.name === 'AbortError') return; }
-  try { await navigator.clipboard.writeText(text); toast('Mensaje copiado: pégalo en WhatsApp'); } catch { toast('No se pudo compartir'); }
+  await shareText(text);
+}
+
+// Copia el mensaje de un responsable (para pegarlo en WhatsApp Web, correo, etc.)
+export async function copy(soon, key) {
+  const b = remindList(Number(soon) || 0).find(x => x.key === key);
+  if (!b) return toast('Ya no tiene tareas pendientes');
+  await copyText(messageFor(b), `📋 Mensaje para ${String(b.name).split(' ')[0]} copiado. Pégalo con Ctrl+V`);
 }

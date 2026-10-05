@@ -4,7 +4,7 @@
 import * as store from './store.js';
 import { data } from './store.js';
 import * as M from './model.js';
-import { esc, uid, today, toast, fmtShort, norm, addDays, waLink } from './util.js';
+import { esc, uid, today, toast, fmtShort, norm, addDays, waLink, shareText } from './util.js';
 
 // Las bibliotecas vienen con la app (carpeta vendor/): no se descarga nada de otros sitios
 const base = new URL('../vendor/', import.meta.url).href;
@@ -498,8 +498,7 @@ export async function suggest(months = 3) {
     s.heavy.length ? `Y estos se repiten bastante: ${s.heavy.map(b => `${b.p.name} (${b.n})`).join(', ')}.` : '',
     '¿Podrías tomar en cuenta a los primeros en el próximo arreglo? Así más hermanos participan y nadie se recarga. ¡Gracias por tu buen trabajo!'].filter((x, i, a) => x !== '' || a[i - 1] !== '').join('\n');
   if (h?.phone) { window.open(`${waLink(h.phone)}?text=${encodeURIComponent(text)}`, '_blank'); return; }
-  try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e?.name === 'AbortError') return; }
-  try { await navigator.clipboard.writeText(text); toast('Mensaje copiado: pégalo en WhatsApp'); } catch { toast('No se pudo compartir'); }
+  await shareText(text);
 }
 
 // ═════════ Programa de asignaciones (el «organigrama» de las mecánicas) ═════════
@@ -706,7 +705,6 @@ export async function remindSend(id, span, key) {
   const byD = rows.reduce((o, r) => { (o[r.d] = o[r.d] || []).push(r.r); return o; }, {});
   const text = [`Hola, ${first}. Te recuerdo tus asignaciones:`, '', ...Object.entries(byD).map(([d, rs]) => `• ${fmtLongD(d).charAt(0).toUpperCase() + fmtLongD(d).slice(1)}: ${rs.join(' y ')}`), '', '¡Gracias por tu apoyo!'].join('\n');
   if (p?.phone) { window.open(`${waLink(p.phone)}?text=${encodeURIComponent(text)}`, '_blank'); return; }
-  try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e?.name === 'AbortError') return; }
-  try { await navigator.clipboard.writeText(text); toast('Mensaje copiado: pégalo en WhatsApp'); } catch { toast('No se pudo compartir'); }
+  await shareText(text);
 }
 const fmtLongD = iso => { const d = pISO(iso); return `${['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][d.getDay()]} ${d.getDate()} de ${['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][d.getMonth()]}`; };
