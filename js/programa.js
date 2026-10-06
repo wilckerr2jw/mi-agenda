@@ -10,6 +10,8 @@ import * as store from './store.js';
 import { data } from './store.js';
 import * as M from './model.js';
 import { ic, esc, uid, today, toast, fmtShort, fmtLong, norm, addDays, shareText } from './util.js';
+import { leerPrograma, SECCIONES } from './programa-s140.js';
+import { printDoc } from './imprimir.js';
 
 // Las partes de siempre. Sirven de punto de partida: cada semana se puede cambiar, quitar o añadir.
 export const PARTES = {
@@ -68,7 +70,8 @@ export function misPartes(t = today(), dias = 21) {
 }
 
 // Partes sin nadie, para no llegar a la reunión con un hueco
-export const huecos = s => (s.parts || []).filter(p => !esTexto(p.k) && !String(p.by || '').trim()).length;
+export const huecos = s => (s.parts || [])
+  .filter(p => p.asig !== false && !esTexto(p.k) && !String(p.by || '').trim()).length;
 
 // ───────────── Pantalla ─────────────
 function tarjetaSemana(s, t) {
@@ -93,7 +96,9 @@ export function programaSection() {
     <div class="org-tools">
       <button class="btn small ${prox.length ? 'ghost' : 'primary'}" data-a="pg-new" data-v="semana">${ic('plus', 'sm')} Entre semana</button>
       <button class="btn small ${prox.length ? 'ghost' : 'primary'}" data-a="pg-new" data-v="finde">${ic('plus', 'sm')} Fin de semana</button>
-      ${prox.length ? `<button class="btn small ghost" data-a="pg-share" data-id="${esc(prox[0].id)}">${ic('chat', 'sm')} Compartir la próxima</button>` : ''}
+      <button class="btn small ghost" data-a="pg-import">${ic('clip', 'sm')} Subir un PDF</button>
+      ${prox.length ? `<button class="btn small ghost" data-a="pg-print">🖨 Imprimir</button>
+        <button class="btn small ghost" data-a="pg-share" data-id="${esc(prox[0].id)}">${ic('chat', 'sm')} Compartir la próxima</button>` : ''}
     </div>
   </section>`;
 }
@@ -124,7 +129,7 @@ export function sheet(open, id = '', kind = 'semana') {
       <datalist id="pg-gente">${gente.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>
       <fieldset class="f"><legend>Partes</legend>
         ${partes.map((p, i) => `<label class="f pg-part">
-          <span>${esc(p.t)}</span>
+          <span>${p.time ? `<i class="pg-h">${esc(p.time)}</i> ` : ''}${esc(p.t)}</span>
           <input name="by_${i}" maxlength="120" value="${esc(p.by || '')}" placeholder="${esTexto(p.k) ? 'Tema del discurso' : 'Nombre'}" ${esTexto(p.k) ? '' : 'list="pg-gente"'}>
           <input type="hidden" name="k_${i}" value="${esc(p.k)}">
           <input type="hidden" name="t_${i}" value="${esc(p.t)}">
@@ -145,7 +150,8 @@ export function save(form, close) {
   const kind = f.kind === 'finde' ? 'finde' : 'semana';
   const parts = [];
   for (let i = 0; `k_${i}` in f; i++) {
-    parts.push({ k: String(f[`k_${i}`]), t: String(f[`t_${i}`]).slice(0, 60), by: String(f[`by_${i}`] || '').trim().slice(0, 120) });
+    const prev = (store.get('programa', String(f.id || ''))?.parts || [])[i] || {};
+    parts.push({ ...prev, k: String(f[`k_${i}`]), t: String(f[`t_${i}`]).slice(0, 80), by: String(f[`by_${i}`] || '').trim().slice(0, 120) });
   }
   // Una sola entrada por reunión: si ya existe la de ese día y tipo, se actualiza
   const previa = lista().find(x => x.date === date && x.kind === kind && x.id !== f.id);
@@ -177,3 +183,101 @@ export function texto(id) {
 }
 
 export const compartir = id => shareText(texto(id), { title: 'Programa de la reunión', copied: 'Programa copiado' });
+
+// ───────────── Subir el programa impreso (PDF o foto) ─────────────
+// El PDF se lee en el propio telefono con el lector que ya trae la app (js/mecas.js):
+// no se envia a ningun servicio. Se guardan los DATOS, no el archivo.
+let leido = null;   // lo que se acaba de leer, a la espera de confirmar
+
+export async function importSheet(open) {
+  leido = null;
+  open({
+    title: 'Subir el programa',
+    body: `<p class="hint">Elige el PDF del programa (S-140) o una foto clara. Se lee aquí mismo, en tu teléfono.</p>
+      <label class="btn primary block" for="pg-file">📄 Elegir PDF o foto</label>
+      <input id="pg-file" type="file" accept="application/pdf,.pdf,image/*" hidden>
+      <label class="f"><span>Es el programa de</span><select id="pg-kind">${TIPOS.map(t => `<option value="${t.k}">${t.n}</option>`).join('')}</select></label>
+      <p class="hint" id="pg-step"></p>
+      <div id="pg-review"></div>`,
+  });
+}
+
+const paso = t => { const el = document.getElementById('pg-step'); if (el) el.textContent = t; };
+
+export async function fileChosen(input) {
+  const f = input.files?.[0];
+  if (!f) return;
+  const kind = document.getElementById('pg-kind')?.value === 'finde' ? 'finde' : 'semana';
+  paso('Leyendo el archivo…');
+  try {
+    const { readFile } = await import('./mecas.js');
+    const { lines, how } = await readFile(f, paso);
+    if (!lines?.length) { paso('No encontré texto. Prueba con el PDF, o con una foto más clara y derecha.'); return; }
+    const semanas = leerPrograma(lines, kind);
+    if (!semanas.length) { paso('Leí el archivo, pero no encontré ninguna semana con su fecha. ¿Es el programa de la reunión?'); return; }
+    leido = semanas;
+    paso(how === 'pdf' ? `Listo: encontré ${semanas.length} ${semanas.length === 1 ? 'semana' : 'semanas'}.` : `Leí la foto: encontré ${semanas.length} ${semanas.length === 1 ? 'semana' : 'semanas'}. Revisa que los nombres estén bien.`);
+    revisar();
+  } catch (e) {
+    console.warn(e);
+    paso('No se pudo leer el archivo. Si es una foto, prueba con el PDF.');
+  }
+}
+
+// Vista previa: se ve lo que se leyó y se puede dejar fuera lo que no se quiera guardar
+function revisar() {
+  const box = document.getElementById('pg-review');
+  if (!box || !leido) return;
+  box.innerHTML = `<h3 class="sub-h">Lo que leí</h3>
+    <p class="hint">Quita la marca de lo que no quieras guardar. Después de guardar puedes corregir cualquier nombre.</p>
+    ${leido.map((s, i) => `<details class="pg-prev" open>
+      <summary><label class="pchip"><input type="checkbox" name="pg-w" value="${i}" checked><span>${esc(nombreTipo(s.kind))} · ${esc(fmtLong(s.date))}</span></label>
+        <span class="hint">${s.parts.filter(p => p.by).length} con nombre de ${s.parts.filter(p => p.asig !== false).length}</span></summary>
+      <ul class="load-list">${s.parts.map(p => `<li>${p.time ? `<span class="hint">${esc(p.time)}</span> ` : ''}${esc(p.t)}${p.by ? ` — <b>${esc(p.by)}</b>` : ''}</li>`).join('')}</ul>
+    </details>`).join('')}
+    <button type="button" class="btn primary block" data-a="pg-import-save">Guardar lo marcado</button>`;
+}
+
+export function guardarImportado(close) {
+  if (!leido) return;
+  const marcadas = [...document.querySelectorAll('input[name="pg-w"]:checked')].map(x => Number(x.value));
+  const elegidas = leido.filter((_, i) => marcadas.includes(i));
+  if (!elegidas.length) return toast('No marcaste ninguna semana');
+  elegidas.forEach(s => {
+    const previa = lista().find(x => x.date === s.date && x.kind === s.kind);
+    store.upsert('programa', {
+      ...(previa || {}), id: previa?.id || uid(),
+      date: s.date, kind: s.kind, lectura: s.lectura || '', parts: s.parts,
+    });
+  });
+  leido = null;
+  close();
+  toast(`${elegidas.length} ${elegidas.length === 1 ? 'semana guardada' : 'semanas guardadas'}`);
+}
+
+// ───────────── Imprimir o guardar como PDF ─────────────
+// Sale parecido al programa impreso: bandas de colores, horas a la izquierda y nombres a la derecha.
+const claseSec = k => SECCIONES.find(x => x.k === k)?.clase || '';
+const nombreSec = k => SECCIONES.find(x => x.k === k)?.n || '';
+
+function hojaSemana(s) {
+  let sec = '';
+  const filas = (s.parts || []).map(p => {
+    let banda = '';
+    if (p.sec && p.sec !== sec) { sec = p.sec; banda = `<div class="pr-sec ${claseSec(sec)}">${esc(nombreSec(sec))}</div>`; }
+    return `${banda}<div class="pr-fila">
+      <span class="t">${esc(p.time || '')}</span>
+      <span class="q">${esc(p.t)}</span>
+      <span class="n">${p.label ? `<span class="et">${esc(p.label)}</span>` : ''}${esc(p.by || '')}</span>
+    </div>`;
+  }).join('');
+  return `<section class="pr-sem"><h2><span>${esc(fmtLong(s.date))}${s.lectura ? ` | ${esc(s.lectura)}` : ''}</span><span>${esc(nombreTipo(s.kind))}</span></h2>${filas}</section>`;
+}
+
+export function imprimir(id = '') {
+  const t = today();
+  const semanas = id ? [store.get('programa', id)].filter(Boolean) : proximas(t, 8);
+  if (!semanas.length) return toast('Todavía no hay programa que imprimir');
+  printDoc(semanas[0].kind === 'finde' ? 'Programa para la reunión del fin de semana' : 'Programa para la reunión de entre semana',
+    semanas.map(hojaSemana).join(''));
+}

@@ -61,15 +61,32 @@ test('limpieza: sin grupos o sin fecha no reparte nada', () => {
   assert.deepEqual(Lp.repartir({ desde: '', grupos: ['g1'] }), []);
 });
 
-test('limpieza: una revisión vence a los meses que le toquen', () => {
-  const m = { title: 'Extintores', every: 12, last: '2025-10-01' };
-  assert.equal(Lp.vence(m, '2026-09-30').tarde, false);
-  assert.equal(Lp.vence(m, '2026-10-02').tarde, true);
-  assert.equal(Lp.vence(m, '2026-10-02').next, '2026-10-01');
+test('limpieza: los turnos llevan su clase (semanal, después de la reunión o a fondo)', () => {
+  const t = Lp.repartir({ desde: '2026-10-05', cadaDias: 7, veces: 2, grupos: ['g1'], tipo: 'anual' });
+  assert.ok(t.every(x => x.tipo === 'anual'));
+  assert.equal(Lp.nombreTipo('ligera'), 'Después de la reunión');
+  assert.equal(Lp.nombreTipo('anual'), 'A fondo');
+  assert.equal(Lp.nombreTipo(''), 'Semanal');   // lo de antes, sin clase, es la semanal
 });
 
-test('limpieza: una revisión que nunca se hizo queda pendiente', () => {
-  assert.equal(Lp.vence({ title: 'Botiquín', every: 6, last: '' }, '2026-10-06').tarde, true);
+test('limpieza: al leer un PDF empareja el grupo por su nombre, sin acentos ni mayúsculas', () => {
+  limpiar();
+  try {
+    data.groups.push({ id: 'g1', name: 'Grupo 1' }, { id: 'g2', name: 'Grupo 2' });
+    const linea = t => ({ segs: [{ t, x: 0, end: 100 }] });
+    const r = Lp.leerTurnos([
+      linea('08-10-2026   GRUPO 2'),
+      linea('15/10/2026 - grupo 1'),
+      linea('22-10-2026   Grupo que no existe'),
+      linea('Esto no tiene fecha'),
+    ]);
+    assert.equal(r.length, 3, 'solo los renglones con fecha');
+    assert.equal(r[0].date, '2026-10-08');
+    assert.equal(r[0].groupId, 'g2');
+    assert.equal(r[1].date, '2026-10-15');
+    assert.equal(r[1].groupId, 'g1');
+    assert.equal(r[2].groupId, '', 'si no reconoce el grupo, lo deja en blanco');
+  } finally { limpiar(); }
 });
 
 // ───────────── Programa ─────────────

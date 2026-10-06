@@ -1,10 +1,11 @@
 {
-  "version": "10.5.0",
+  "version": "10.6.0",
   "notes": [
-    "📌 Tablero de anuncios: ten a mano lo que está puesto en el tablero y mira cuál toca cambiar",
-    "🧹 Limpieza del Salón: reparte los turnos entre los grupos de una sola vez",
-    "🔧 Mantenimiento preventivo: filtros, extintores, botiquín… la app avisa cuando toca",
-    "🎤 Programa de las reuniones: quién tiene cada parte entre semana y el fin de semana",
-    "👉 Si te toca una parte, te sale un aviso en Hoy unos días antes"
+    "📄 Sube el PDF del programa de la reunión (S-140) y la app lee sola las semanas, las partes y a quién le toca",
+    "🖨 Imprimir o guardar como PDF el programa, la limpieza, la asistencia y el tablero, con el formato de siempre",
+    "📄 La limpieza también se puede subir desde un PDF: reconoce las fechas y los grupos",
+    "🧹 Limpieza del Salón: ahora distingue la de después de la reunión, la semanal y la de a fondo",
+    "📌 Tablero de anuncios: «Quitar varios» para limpiar de una vez lo que ya no va",
+    "🔧 Se quitó el mantenimiento preventivo: la sección es solo de limpieza"
   ]
 }

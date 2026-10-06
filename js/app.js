@@ -404,6 +404,16 @@ document.addEventListener('click', e => {
     case 'pg-new': return S.programaSheet(id || '', v || 'semana');
     case 'pg-del': return S.programaDel(id);
     case 'pg-share': return import('./programa.js').then(P => P.compartir(id));
+    case 'pg-import': return S.programaImport();
+    case 'pg-import-save': return S.programaImportSave();
+    case 'pg-print': return import('./programa.js').then(P => P.imprimir(id || ''));
+    case 'lp-import': return S.lpImport();
+    case 'lp-import-save': return S.lpImportSave();
+    case 'lp-print': return import('./limpieza.js').then(L => L.imprimir());
+    case 'as-print': return import('./asistencia.js').then(A => A.imprimir(v));
+    case 'tb-print': return import('./tablero.js').then(T => T.imprimir());
+    case 'tb-pick': ui.congre = { ...ui.congre, tbPick: !ui.congre.tbPick }; return render();
+    case 'tb-quitar': return import('./tablero.js').then(T => { if (T.quitarMarcados()) { ui.congre = { ...ui.congre, tbPick: false }; render(); } });
     // Resumen del año de servicio listo para enviar (reports.js se pide solo al tocarlo)
     case 'inf-share': return import('./reports.js')
       .then(R => shareText(R.informeAnualText(Number(v)), { title: 'Informe del año de servicio', copied: 'Resumen copiado' }));
@@ -735,6 +745,8 @@ document.addEventListener('change', e => {
     }).catch(() => toast('No se pudo usar esa foto'));
     return;
   }
+  if (t.id === 'pg-file') return import('./programa.js').then(P => P.fileChosen(t));
+  if (t.id === 'lp-file') return import('./limpieza.js').then(L => L.fileChosen(t));
   if (t.id === 'keep-file') { const files = [...(t.files || [])]; if (files.length) S.keepFiles(files); return; }
   if (t.id !== 'import-file') return;
   const file = t.files?.[0];

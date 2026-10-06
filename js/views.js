@@ -770,7 +770,7 @@ export function congregacion(ui) {
   ${M.featureOn('congregacion.programa') ? foldable('programa', Pg.programaSection()) : ''}
   ${M.featureOn('congregacion.asistencia') ? foldable('asistencia', asistenciaSection(st)) : ''}
   ${M.featureOn('congregacion.limpieza') ? foldable('limpieza', Lp.limpiezaSection()) : ''}
-  ${M.featureOn('congregacion.tablero') ? foldable('tablero', Tb.tableroSection()) : ''}
+  ${M.featureOn('congregacion.tablero') ? foldable('tablero', Tb.tableroSection(st)) : ''}
   ${!M.featureOn('congregacion.organigrama') ? '' : foldable('organigrama', `<section><div class="sec-h"><h2>${ic('building')}Organigrama</h2>${empty_ ? '' : `<span class="hint">${all.length} departamentos${noHead ? ` · ${noHead} sin responsable` : ''}</span>`}</div>
   ${empty_ ? empty('Arma el organigrama de tu congregación: quién atiende cada departamento y quiénes le ayudan.', `<div class="stack"><button class="btn primary" data-a="dept-suggest">Cargar departamentos sugeridos</button><button class="btn" data-a="dept-new">Empezar desde cero</button></div>`, 'users')
     : pick ? `<div class="org-tools pick-bar"><span class="grow"><b>${pick.size}</b> elegidos</span><button class="btn small ghost" data-a="org-pick-all">Todos</button><button class="btn small ghost" data-a="org-pick">Cancelar</button><button class="btn small danger" data-a="org-del" ${pick.size ? '' : 'disabled'}>Eliminar</button></div>

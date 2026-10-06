@@ -8,7 +8,8 @@
 import * as store from './store.js';
 import { data } from './store.js';
 import * as M from './model.js';
-import { ic, esc, uid, today, toast, fmtShort, diffDays, shareText } from './util.js';
+import { ic, esc, uid, today, toast, fmtShort, fmtLong, diffDays, shareText } from './util.js';
+import { printDoc } from './imprimir.js';
 
 // Los de siempre, en el orden en que suelen estar en el tablero. «every» = meses que duran.
 export const SUGERIDOS = [
@@ -43,8 +44,12 @@ export function estado(d, t = today()) {
 export const vencidos = (t = today()) => lista().filter(d => estado(d, t).vencido);
 
 // ───────────── Pantalla ─────────────
-function fila(d, t) {
+function fila(d, t, quitando = false) {
   const e = estado(d, t);
+  if (quitando) {
+    return `<label class="card mini tb-pick"><input type="checkbox" name="tb-q" value="${esc(d.id)}">
+      <span><strong>${esc(d.title)}</strong>${d.date ? `<span class="meta">puesto el ${esc(fmtShort(d.date))}</span>` : ''}</span></label>`;
+  }
   const sub = [
     d.date ? `${e.vencido ? 'desde' : 'puesto el'} ${fmtShort(d.date)}` : '',
     e.vencido ? `<b class="late">toca cambiarlo</b>` : e.vence ? `se renueva el ${fmtShort(e.vence)}` : '',
@@ -59,15 +64,21 @@ function fila(d, t) {
   </div>`;
 }
 
-export function tableroSection() {
+export function tableroSection(st = {}) {
   const t = today();
   const docs = lista();
   const mal = docs.filter(d => estado(d, t).vencido).length;
+  const quitando = !!st.tbPick;
   return `<section><div class="sec-h"><h2>${ic('clip')}Tablero de anuncios</h2>${docs.length ? `<span class="hint">${mal ? `${mal} por cambiar` : `${docs.length} al día`}</span>` : ''}</div>
-    ${docs.length ? `<div class="stack tb-list">${docs.map(d => fila(d, t)).join('')}</div>
-      <div class="org-tools"><button class="btn small" data-a="tb-new">${ic('plus', 'sm')} Agregar</button>
-        <button class="btn small ghost" data-a="tb-share">${ic('chat', 'sm')} Compartir la lista</button></div>
-      <p class="hint pad">Toca uno para poner su enlace o apuntar cuándo lo cambiaste. Los que se renuevan cada mes se marcan solos cuando les toca.</p>`
+    ${docs.length ? `${quitando ? `<div class="org-tools pick-bar"><span class="grow">Marca lo que quieras quitar del tablero</span>
+        <button class="btn small ghost" data-a="tb-pick">Cancelar</button>
+        <button class="btn small danger" data-a="tb-quitar">Quitar</button></div>` : ''}
+      <div class="stack tb-list">${docs.map(d => fila(d, t, quitando)).join('')}</div>
+      ${quitando ? '' : `<div class="org-tools"><button class="btn small" data-a="tb-new">${ic('plus', 'sm')} Agregar</button>
+        <button class="btn small ghost" data-a="tb-print">🖨 Imprimir</button>
+        <button class="btn small ghost" data-a="tb-share">${ic('chat', 'sm')} Compartir la lista</button>
+        <button class="btn small ghost" data-a="tb-pick">Quitar varios</button></div>
+      <p class="hint pad">Toca uno para poner su enlace o apuntar cuándo lo cambiaste. Los que se renuevan cada mes se marcan solos cuando les toca.</p>`}`
     : `<p class="hint pad">Ten a mano lo que está puesto en el tablero: su enlace y cuándo se cambió por última vez.</p>
       <div class="stack"><button class="btn primary" data-a="tb-sugeridos">Cargar los del tablero</button>
         <button class="btn" data-a="tb-new">Empezar desde cero</button></div>`}
@@ -156,3 +167,25 @@ export function texto() {
 }
 
 export const compartir = () => shareText(texto(), { title: 'Tablero de anuncios', copied: 'Lista copiada' });
+
+// Quitar de una vez los que estén marcados
+export function quitarMarcados() {
+  const ids = [...document.querySelectorAll('input[name="tb-q"]:checked')].map(x => x.value);
+  if (!ids.length) return toast('No marcaste ninguno');
+  ids.forEach(id => store.remove('tablero', id));
+  toast(`${ids.length} ${ids.length === 1 ? 'quitado' : 'quitados'} del tablero`);
+  return ids.length;
+}
+
+// Hoja para poner en el propio tablero: qué está puesto y cuándo toca cambiarlo
+export function imprimir() {
+  const t = today();
+  const docs = lista();
+  if (!docs.length) return toast('El tablero está vacío');
+  const filas = docs.map(d => {
+    const e = estado(d, t);
+    return `<tr><td class="g">${esc(d.title)}</td><td class="d">${d.date ? esc(fmtLong(d.date)) : '—'}</td><td class="d">${e.vence ? esc(fmtLong(e.vence)) : 'No caduca'}</td><td>${e.vencido ? 'Toca cambiarlo' : ''}${d.notes ? ` ${esc(d.notes)}` : ''}</td></tr>`;
+  }).join('');
+  printDoc('Tablero de anuncios', `
+    <table class="pr-tabla"><thead><tr><th>Documento</th><th>Puesto el</th><th>Se renueva</th><th></th></tr></thead><tbody>${filas}</tbody></table>`);
+}

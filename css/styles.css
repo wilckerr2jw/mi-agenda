@@ -1318,6 +1318,16 @@ fieldset.ro input, fieldset.ro select, fieldset.ro textarea { opacity: .75; }
 .pg-mine strong { display: flex; align-items: center; gap: 6px; }
 /* Cada parte del programa: el nombre a la izquierda y quién la tiene a la derecha */
 .pg-part { display: grid; grid-template-columns: 1fr; gap: 4px; }
+.pg-h { font-style: normal; color: var(--ink-2); font-size: .86em; margin-right: 4px; }
+/* Tablero y limpieza: fila con casilla para quitar varios o revisar lo leído de un PDF */
+.tb-pick { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.tb-pick > span { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.tb-pick input { flex: none; width: 20px; height: 20px; accent-color: var(--primary); }
+/* Vista previa de lo leído en el PDF */
+.pg-prev { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 10px 12px; margin-bottom: 8px; }
+.pg-prev > summary { display: flex; justify-content: space-between; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
+.pg-prev > summary::-webkit-details-marker { display: none; }
+.pg-prev .load-list { margin: 8px 0 0; }
 @media (min-width: 420px) { .pg-part { grid-template-columns: 1fr 1.3fr; align-items: center; } }
 
 /* ───────────── 9.8 · Pulido visual ───────────── */

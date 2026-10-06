@@ -104,8 +104,10 @@ y la versión del pie.
 | `js/compartido.js` | 👥 Congregación compartida con otro anciano (solo lectura, siempre al día) y notas o tareas compartidas con comentarios. Los datos: `congres/{uid}` y `sharedItems/{id}` en Firestore (ver `firestore.rules`) |
 | `js/asistencia.js` | 📊 Asistencia a las reuniones: en el Salón y por videoconferencia, con el promedio del mes y del año |
 | `js/tablero.js` | 📌 Tablero de anuncios: los papeles del tablero, su enlace y cuándo toca cambiarlos |
-| `js/limpieza.js` | 🧹 Turnos de limpieza repartidos entre los grupos y mantenimiento preventivo del Salón |
+| `js/limpieza.js` | 🧹 Turnos de limpieza del Salón (después de la reunión, semanal y a fondo), repartidos entre los grupos |
 | `js/programa.js` | 🎤 Programa de las reuniones: quién tiene cada parte (complementa `js/mecas.js`, que son las mecánicas) |
+| `js/programa-s140.js` | Lee el programa impreso (S-140) de un PDF o una foto: separa las dos columnas y saca fechas, partes y nombres |
+| `js/imprimir.js` | Hoja para imprimir o guardar como PDF, compartida por las secciones de Congregación |
 | `modulos/matrimonio/` | 💑 Módulo aparte; se activa con una línea en `index.html` y se quita borrando esa línea y la carpeta |
 
 Ejemplos de cambios sencillos:
@@ -117,7 +119,7 @@ Ejemplos de cambios sencillos:
 - **Tipos de tarea y sugerencias de "Relación":** `KINDS` y `ROLES` en `js/model.js`.
 - **Partes del programa de las reuniones:** `PARTES` en `js/programa.js`.
 - **Qué lleva el tablero de anuncios:** `SUGERIDOS` en `js/tablero.js`.
-- **Revisiones de mantenimiento sugeridas:** `MANT_SUGERIDO` en `js/limpieza.js`.
+- **Clases de limpieza del Salón:** `TIPOS` en `js/limpieza.js`.
 - **Semana que empieza en domingo:** en `js/views.js`, función `agenda`, cambia `(getDay() + 6) % 7` por `getDay()` y ajusta las letras de los días.
 - **Colores:** variables `--primary`, `--bg`, etc. al inicio de `css/styles.css`. Cada color se escribe
   **una sola vez** con `light-dark(claro, oscuro)`; no hay un bloque aparte para el tema oscuro, así que
@@ -165,6 +167,23 @@ cargar todo el mundo. El trato es este:
 - **Sus estilos usan solo clases propias** con prefijo (`.mx-…`) y los colores de la app.
 - **Se puede apagar por cuenta** desde Mi administración, con una función en `model.js`
   (`general.matrimonio`) que el módulo consulta con `M.featureOn(...)`.
+
+## Subir un PDF e imprimir
+
+**Leer un PDF o una foto.** El lector vive en `js/mecas.js` (`readFile`), usa `vendor/` (pdf.js y el
+OCR) y **se hace todo en el propio teléfono**: nada se envía a ningún servicio. Devuelve los
+renglones con la posición X de cada trozo, que es lo que permite separar las dos columnas del
+programa impreso. `js/programa-s140.js` se apoya en eso para saber qué es el nombre de una parte y
+qué es el nombre de un hermano (en el S-140 los nombres van en MAYÚSCULAS).
+
+**Se guardan los datos, no el archivo.** El proyecto no usa Firebase Storage y un PDF no cabe en
+Firestore, así que al subir un archivo se extrae la información y se guarda esa. Si algún día hace
+falta conservar el archivo, habría que activar Storage y añadir sus reglas.
+
+**Imprimir.** `js/imprimir.js` arma una hoja pensada para el papel y la imprime desde un marco
+oculto dentro de la propia página (no una ventana nueva), así funciona aunque el navegador bloquee
+las ventanas emergentes; si tampoco deja, abre una pestaña aparte. Desde la ventana de impresión
+del navegador se guarda como PDF.
 
 ## Rendimiento del arranque
 

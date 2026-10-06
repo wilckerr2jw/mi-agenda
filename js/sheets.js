@@ -2841,6 +2841,10 @@ export const lpGenSheet = () => Lp.generarSheet(open);
 export const lpMantSheet = (id = '') => Lp.mantSheet(open, id);
 export const lpDel = id => Lp.del(id, close);
 export const programaSheet = (id = '', kind = 'semana') => Pg.sheet(open, id, kind);
+export const programaImport = () => Pg.importSheet(open);
+export const programaImportSave = () => Pg.guardarImportado(close);
+export const lpImport = () => Lp.importSheet(open);
+export const lpImportSave = () => Lp.guardarImportado(close);
 export const programaDel = id => Pg.del(id, close);
 
 export function searchSheet() {

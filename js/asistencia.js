@@ -7,6 +7,7 @@ import * as store from './store.js';
 import { data } from './store.js';
 import * as M from './model.js';
 import { ic, esc, uid, today, toast, fmtShort, fmtMonth, shareText } from './util.js';
+import { printDoc } from './imprimir.js';
 
 export const TIPOS = [
   { k: 'semana', n: 'Entre semana', ic: 'calendar' },
@@ -86,7 +87,8 @@ export function asistenciaSection(st = {}) {
     <div class="as-grid">${TIPOS.map(t => tarjetaTipo(ym, t)).join('')}</div>
     ${anio ? `<p class="hint pad">Año de servicio ${M.serviceYearStart()}–${M.serviceYearStart() + 1}: ${anio.reuniones} reuniones · promedio ${anio.mTotal} (Salón ${anio.mPresencial} · videoconferencia ${anio.mOnline}).</p>` : ''}
     <div class="org-tools"><button class="btn small primary" data-a="as-new">${ic('plus', 'sm')} Anotar asistencia</button>
-      ${delMesOrdenadas.length ? `<button class="btn small ghost" data-a="as-share" data-v="${esc(ym)}">${ic('chat', 'sm')} Enviar el promedio</button>` : ''}</div>
+      ${delMesOrdenadas.length ? `<button class="btn small ghost" data-a="as-print" data-v="${esc(ym)}">🖨 Imprimir</button>
+        <button class="btn small ghost" data-a="as-share" data-v="${esc(ym)}">${ic('chat', 'sm')} Enviar el promedio</button>` : ''}</div>
     ${delMesOrdenadas.length ? `<div class="stack">${delMesOrdenadas.map(fila).join('')}</div>`
     : `<p class="hint pad">Anota cuántos asistieron a cada reunión de ${esc(fmtMonth(y, m))}. La app saca el promedio sola.</p>`}
   </section>`;
@@ -141,3 +143,19 @@ export function del(id, close) {
 }
 
 export const compartirMes = ym => shareText(textoMes(ym), { title: 'Asistencia', copied: 'Promedio copiado' });
+
+// Hoja para el tablero: el informe de asistencia del mes
+export function imprimir(ym) {
+  const [y, m] = String(ym).split('-').map(Number);
+  const reg = delMes(ym).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  if (!reg.length) return toast('Ese mes no tiene asistencia anotada');
+  const filas = reg.map(r => `<tr><td class="d">${esc(fmtShort(r.date))}</td><td>${esc(nombreTipo(r.kind))}</td><td class="g">${(Number(r.presencial) || 0) + (Number(r.online) || 0)}</td><td>${Number(r.presencial) || 0}</td><td>${Number(r.online) || 0}</td></tr>`).join('');
+  const prom = TIPOS.map(t => {
+    const p = promedioMes(ym, t.k);
+    return p ? `<tr><td class="g">${esc(t.n)}</td><td>${p.reuniones}</td><td class="g">${p.mTotal}</td><td>${p.mPresencial}</td><td>${p.mOnline}</td></tr>` : '';
+  }).join('');
+  printDoc(`Informe de asistencia · ${fmtMonth(y, m)}`, `
+    <table class="pr-tabla"><thead><tr><th>Promedio</th><th>Reuniones</th><th>Total</th><th>En el Salón</th><th>Videoconferencia</th></tr></thead><tbody>${prom}</tbody></table>
+    <h2 style="font:700 12px/1.3 system-ui;margin:16px 0 4px">Reunión por reunión</h2>
+    <table class="pr-tabla"><thead><tr><th>Fecha</th><th>Reunión</th><th>Total</th><th>En el Salón</th><th>Videoconferencia</th></tr></thead><tbody>${filas}</tbody></table>`);
+}
