@@ -12,6 +12,7 @@ import * as M from './model.js';
 import { ic, esc, uid, today, toast, fmtShort, fmtLong, norm, addDays, shareText } from './util.js';
 import { leerPrograma, SECCIONES } from './programa-s140.js';
 import { printDoc } from './imprimir.js';
+import { guardarArchivoHtml, guardarArchivoLuego, borrar as borrarArchivo } from './archivos.js';
 
 // Las partes de siempre. Sirven de punto de partida: cada semana se puede cambiar, quitar o añadir.
 export const PARTES = {
@@ -84,6 +85,10 @@ function tarjetaSemana(s, t) {
   </button>`;
 }
 
+// El PDF que se subio para estas semanas (el mas reciente), para poder volver a abrirlo
+const conArchivo = lista => lista.map(x => x.file).filter(f => f?.url)
+  .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')))[0]?.url || '';
+
 export function programaSection() {
   const t = today();
   const prox = proximas(t);
@@ -97,6 +102,7 @@ export function programaSection() {
       <button class="btn small ${prox.length ? 'ghost' : 'primary'}" data-a="pg-new" data-v="semana">${ic('plus', 'sm')} Entre semana</button>
       <button class="btn small ${prox.length ? 'ghost' : 'primary'}" data-a="pg-new" data-v="finde">${ic('plus', 'sm')} Fin de semana</button>
       <button class="btn small ghost" data-a="pg-import">${ic('clip', 'sm')} Subir un PDF</button>
+      ${conArchivo(prox) ? `<a class="btn small ghost" href="${esc(conArchivo(prox))}" target="_blank" rel="noopener">📄 Ver el PDF</a>` : ''}
       ${prox.length ? `<button class="btn small ghost" data-a="pg-print">🖨 Imprimir</button>
         <button class="btn small ghost" data-a="pg-share" data-id="${esc(prox[0].id)}">${ic('chat', 'sm')} Compartir la próxima</button>` : ''}
     </div>
@@ -162,7 +168,9 @@ export function save(form, close) {
 }
 
 export function del(id, close) {
-  if (!store.get('programa', id)) return;
+  const d = store.get('programa', id);
+  if (!d) return;
+  if (d.file?.ruta) borrarArchivo(d.file, id);
   store.remove('programa', id);
   close();
   toast('Programa eliminado');
@@ -186,11 +194,14 @@ export const compartir = id => shareText(texto(id), { title: 'Programa de la reu
 
 // ───────────── Subir el programa impreso (PDF o foto) ─────────────
 // El PDF se lee en el propio telefono con el lector que ya trae la app (js/mecas.js):
-// no se envia a ningun servicio. Se guardan los DATOS, no el archivo.
+// no se envia a ningun servicio. Se guardan los DATOS y, si quieres, tambien el archivo
+// original en tu cuenta (js/archivos.js), para poder volver a abrirlo tal cual.
 let leido = null;   // lo que se acaba de leer, a la espera de confirmar
+let archivo = null; // el PDF o la foto que se eligó, por si se quiere guardar también
 
 export async function importSheet(open) {
   leido = null;
+  archivo = null;
   open({
     title: 'Subir el programa',
     body: `<p class="hint">Elige el PDF del programa (S-140) o una foto clara. Se lee aquí mismo, en tu teléfono.</p>
@@ -208,6 +219,7 @@ export async function fileChosen(input) {
   const f = input.files?.[0];
   if (!f) return;
   const kind = document.getElementById('pg-kind')?.value === 'finde' ? 'finde' : 'semana';
+  archivo = f;
   paso('Leyendo el archivo…');
   try {
     const { readFile } = await import('./mecas.js');
@@ -235,6 +247,7 @@ function revisar() {
         <span class="hint">${s.parts.filter(p => p.by).length} con nombre de ${s.parts.filter(p => p.asig !== false).length}</span></summary>
       <ul class="load-list">${s.parts.map(p => `<li>${p.time ? `<span class="hint">${esc(p.time)}</span> ` : ''}${esc(p.t)}${p.by ? ` — <b>${esc(p.by)}</b>` : ''}</li>`).join('')}</ul>
     </details>`).join('')}
+    ${guardarArchivoHtml('pg')}
     <button type="button" class="btn primary block" data-a="pg-import-save">Guardar lo marcado</button>`;
 }
 
@@ -243,14 +256,18 @@ export function guardarImportado(close) {
   const marcadas = [...document.querySelectorAll('input[name="pg-w"]:checked')].map(x => Number(x.value));
   const elegidas = leido.filter((_, i) => marcadas.includes(i));
   if (!elegidas.length) return toast('No marcaste ninguna semana');
-  elegidas.forEach(s => {
-    const previa = lista().find(x => x.date === s.date && x.kind === s.kind);
+  const ids = elegidas.map(s => lista().find(x => x.date === s.date && x.kind === s.kind)?.id || uid());
+  elegidas.forEach((s, i) => {
+    const previa = store.get('programa', ids[i]);
     store.upsert('programa', {
-      ...(previa || {}), id: previa?.id || uid(),
+      ...(previa || {}), id: ids[i],
       date: s.date, kind: s.kind, lectura: s.lectura || '', parts: s.parts,
     });
   });
+  // El archivo va detrás, sin hacer esperar: una sola copia para todas las semanas que salieron de él
+  guardarArchivoLuego('pg', 'programa', ids, archivo);
   leido = null;
+  archivo = null;
   close();
   toast(`${elegidas.length} ${elegidas.length === 1 ? 'semana guardada' : 'semanas guardadas'}`);
 }

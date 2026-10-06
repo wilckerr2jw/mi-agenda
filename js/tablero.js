@@ -10,6 +10,7 @@ import { data } from './store.js';
 import * as M from './model.js';
 import { ic, esc, uid, today, toast, fmtShort, fmtLong, diffDays, shareText } from './util.js';
 import { printDoc } from './imprimir.js';
+import * as A from './archivos.js';
 
 // Los de siempre, en el orden en que suelen estar en el tablero. «every» = meses que duran.
 export const SUGERIDOS = [
@@ -60,9 +61,12 @@ function fila(d, t, quitando = false) {
       <strong>${ic('clip', 'sm')} ${esc(d.title)}</strong>
       ${sub ? `<span class="meta">${sub}</span>` : ''}
     </button>
-    ${d.url ? `<a class="wa-side" href="${esc(d.url)}" target="_blank" rel="noopener" aria-label="Abrir ${esc(d.title)}" title="Abrir">${ic('eye')}</a>` : ''}
+    ${abrible(d) ? `<a class="wa-side" href="${esc(abrible(d))}" target="_blank" rel="noopener" aria-label="Abrir ${esc(d.title)}" title="Abrir">${ic('eye')}</a>` : ''}
   </div>`;
 }
+
+// Lo que se abre al tocar el ojo: el archivo que subiste manda sobre el enlace escrito
+export const abrible = d => d?.file?.url || d?.url || '';
 
 export function tableroSection(st = {}) {
   const t = today();
@@ -106,9 +110,53 @@ export function cargarSugeridos() {
   toast(n ? `Listo: ${n} ${n === 1 ? 'documento' : 'documentos'}` : 'Ya los tenías todos');
 }
 
+// El archivo de la hoja abierta: undefined = sin cambios, null = lo quitó, ficha = subió uno nuevo
+let subido;
+let hojaId = '';
+
+function fichaHtml(f) {
+  if (!f?.url) return `<label class="btn ghost block" for="tb-file">📄 Subir un PDF o una foto</label>
+    <p class="hint" id="tb-step">Se guarda en tu cuenta y solo lo ves tú.</p>`;
+  return `<div class="ar-tiene"><span>📄 <b>${esc(f.nombre || 'Archivo')}</b><small>${esc(A.resumen(f))}</small></span>
+      <a class="btn small ghost" href="${esc(f.url)}" target="_blank" rel="noopener">Abrir</a>
+      <button type="button" class="btn small ghost danger" data-a="tb-file-quitar">Quitar</button></div>
+    <p class="hint" id="tb-step"></p>`;
+}
+
+const pintaFicha = f => { const el = document.getElementById('tb-arch'); if (el) el.innerHTML = fichaHtml(f); };
+const paso = t => { const el = document.getElementById('tb-step'); if (el) el.textContent = t; };
+
+// Al elegir el archivo se sube ya: así, si algo falla, se ve antes de guardar
+export async function fileChosen(input) {
+  const f = input.files?.[0];
+  input.value = '';
+  if (!f) return;
+  const motivo = A.valida(f);
+  if (motivo) return paso(motivo);
+  paso('Guardando el archivo…');
+  try {
+    subido = await A.subir('tablero', hojaId, f, paso);
+    pintaFicha(subido);
+    toast('Archivo guardado');
+  } catch (e) {
+    paso(e?.message === 'sin-almacen'
+      ? 'No se pudo guardar el archivo: revisa la conexión o que el Almacenamiento esté activado.'
+      : 'No se pudo guardar el archivo. Inténtalo otra vez.');
+    console.warn(e);
+  }
+}
+
+export function quitarArchivo() {
+  subido = null;
+  pintaFicha(null);
+  paso('Se quitará al guardar.');
+}
+
 export function sheet(open, id = '') {
   const d = id ? store.get('tablero', id) : null;
   const meses = [0, 1, 2, 3, 6, 12];
+  subido = undefined;                       // undefined = no se tocó el archivo en esta hoja
+  hojaId = d?.id || uid();
   open({
     title: d ? 'Documento del tablero' : 'Agregar al tablero',
     body: `<form id="f" data-form="tablero">
@@ -118,6 +166,8 @@ export function sheet(open, id = '') {
       <label class="f"><span>Puesto o cambiado el</span><input type="date" name="date" value="${esc(d?.date || today())}"></label>
       <label class="f"><span>Se renueva</span><select name="every">${meses.map(m => `<option value="${m}" ${Number(d?.every || 0) === m ? 'selected' : ''}>${m === 0 ? 'No caduca' : m === 1 ? 'Cada mes' : `Cada ${m} meses`}</option>`).join('')}</select></label>
       <label class="f"><span>Nota (opcional)</span><input name="notes" maxlength="100" value="${esc(d?.notes || '')}" placeholder="Ej. lo imprime el hermano encargado"></label>
+      ${A.disponible() ? `<div class="ar-box" id="tb-arch">${fichaHtml(d?.file)}</div>
+        <input id="tb-file" type="file" accept="application/pdf,.pdf,image/*" hidden>` : ''}
       <p class="hint">El enlace puede ser a la carpeta compartida, a jw.org o a un PDF. Si no hay enlace, sirve igual para saber cuándo toca cambiarlo.</p>
       <div class="f-actions"><button type="submit" class="btn primary">Guardar</button>
         ${d ? `<button type="button" class="btn ghost danger" data-a="tb-del" data-id="${esc(d.id)}">Eliminar</button>` : ''}</div>
@@ -132,21 +182,27 @@ export function save(form, close) {
   const url = String(f.url || '').trim().slice(0, 400);
   // Solo enlaces de internet: no se aceptan javascript: ni otros esquemas
   if (url && !/^https?:\/\//i.test(url)) return toast('El enlace tiene que empezar por https://');
-  const id = String(f.id || '') || uid();
+  const id = String(f.id || '') || hojaId || uid();
   const previo = store.get('tablero', id);
+  // subido: undefined = se queda como estaba · null = se quita · ficha = el nuevo
+  const file = subido === undefined ? previo?.file : subido;
+  if (previo?.file?.ruta && previo.file.ruta !== file?.ruta) A.borrar(previo.file, id);
   store.upsert('tablero', {
-    ...(previo || {}), id, title, url,
+    ...(previo || {}), id, title, url, ...(file ? { file } : previo?.file ? { file: null } : {}),
     date: String(f.date || '').slice(0, 10),
     every: Math.max(0, Math.min(12, Number(f.every) || 0)),
     notes: String(f.notes || '').slice(0, 100),
     order: previo?.order ?? (data.tablero || []).length,
   });
+  subido = undefined;
   close();
   toast('Guardado');
 }
 
 export function del(id, close) {
-  if (!store.get('tablero', id)) return;
+  const d = store.get('tablero', id);
+  if (!d) return;
+  if (d.file?.ruta) A.borrar(d.file, id);
   store.remove('tablero', id);
   close();
   toast('Quitado del tablero');
@@ -172,7 +228,11 @@ export const compartir = () => shareText(texto(), { title: 'Tablero de anuncios'
 export function quitarMarcados() {
   const ids = [...document.querySelectorAll('input[name="tb-q"]:checked')].map(x => x.value);
   if (!ids.length) return toast('No marcaste ninguno');
-  ids.forEach(id => store.remove('tablero', id));
+  ids.forEach(id => {
+    const d = store.get('tablero', id);
+    if (d?.file?.ruta) A.borrar(d.file, id);
+    store.remove('tablero', id);
+  });
   toast(`${ids.length} ${ids.length === 1 ? 'quitado' : 'quitados'} del tablero`);
   return ids.length;
 }

@@ -13,6 +13,7 @@ import { data } from './store.js';
 import * as M from './model.js';
 import { ic, esc, uid, today, toast, fmtLong, addDays, shareText } from './util.js';
 import { printDoc } from './imprimir.js';
+import { guardarArchivoHtml, guardarArchivoLuego, borrar as borrarArchivo } from './archivos.js';
 
 export const TIPOS = [
   { k: 'semanal', n: 'Semanal', d: 'La limpieza más a fondo de cada semana', e: '🧹' },
@@ -51,6 +52,10 @@ function fila(x, t) {
   </button>`;
 }
 
+// El PDF que se subio para estos turnos (el mas reciente), para poder volver a abrirlo
+const conArchivo = lista => lista.map(x => x.file).filter(f => f?.url)
+  .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')))[0]?.url || '';
+
 export function limpiezaSection() {
   const t = today();
   const prox = proximos(t);
@@ -64,6 +69,7 @@ export function limpiezaSection() {
       <button class="btn small ${prox.length ? 'ghost' : 'primary'}" data-a="lp-gen">${ic('users', 'sm')} Repartir turnos</button>
       <button class="btn small ghost" data-a="lp-turno">${ic('plus', 'sm')} Un turno</button>
       <button class="btn small ghost" data-a="lp-import">${ic('clip', 'sm')} Subir un PDF</button>
+      ${conArchivo(prox) ? `<a class="btn small ghost" href="${esc(conArchivo(prox))}" target="_blank" rel="noopener">📄 Ver el PDF</a>` : ''}
       ${prox.length ? `<button class="btn small ghost" data-a="lp-print">🖨 Imprimir</button>
         <button class="btn small ghost" data-a="lp-share">${ic('chat', 'sm')} Compartir</button>` : ''}
     </div>
@@ -155,7 +161,9 @@ export function saveGen(form, close) {
 }
 
 export function del(id, close) {
-  if (!store.get('limpieza', id)) return;
+  const d = store.get('limpieza', id);
+  if (!d) return;
+  if (d.file?.ruta) borrarArchivo(d.file, id);
   store.remove('limpieza', id);
   close();
   toast('Turno eliminado');
@@ -216,8 +224,11 @@ export function leerTurnos(lineas, tipo = 'semanal') {
   return out;
 }
 
+let archivo = null;   // el PDF o la foto que se eligió, por si se quiere guardar también
+
 export async function importSheet(open) {
   leido = null;
+  archivo = null;
   open({
     title: 'Subir el programa de limpieza',
     body: `<p class="hint">Elige el PDF o una foto del programa que está en el tablero. Se lee aquí mismo, en tu teléfono.</p>
@@ -235,6 +246,7 @@ export async function fileChosen(input) {
   const f = input.files?.[0];
   if (!f) return;
   const tipo = document.querySelector('[name="tipoImport"]')?.value || 'semanal';
+  archivo = f;
   paso('Leyendo el archivo\u2026');
   try {
     const { readFile } = await import('./mecas.js');
@@ -260,6 +272,7 @@ function revisar() {
     <div class="stack">${leido.map((x, i) => `<label class="card mini tb-pick"><input type="checkbox" name="lp-w" value="${i}" checked>
       <span><strong>${esc(fmtLong(x.date))}</strong>
       <select name="lp-g-${i}"><option value="">Sin grupo</option>${grupos.map(g => `<option value="${esc(g.id)}" ${x.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></span></label>`).join('')}</div>
+    ${guardarArchivoHtml('lp')}
     <button type="button" class="btn primary block" data-a="lp-import-save">Guardar lo marcado</button>`;
 }
 
@@ -268,13 +281,17 @@ export function guardarImportado(close) {
   const marcados = [...document.querySelectorAll('input[name="lp-w"]:checked')].map(x => Number(x.value));
   if (!marcados.length) return toast('No marcaste ninguno');
   const previos = new Map(turnos().map(x => [`${x.date}|${x.tipo || 'semanal'}`, x]));
-  marcados.forEach(i => {
+  const ids = marcados.map(i => previos.get(`${leido[i].date}|${leido[i].tipo}`)?.id || uid());
+  marcados.forEach((i, n) => {
     const x = leido[i];
     const g = document.querySelector(`[name="lp-g-${i}"]`)?.value || '';
     const p = previos.get(`${x.date}|${x.tipo}`);
-    store.upsert('limpieza', { ...(p || {}), id: p?.id || uid(), date: x.date, tipo: x.tipo, groupId: g, notes: p?.notes || '' });
+    store.upsert('limpieza', { ...(p || {}), id: ids[n], date: x.date, tipo: x.tipo, groupId: g, notes: p?.notes || '' });
   });
+  // El archivo va detrás, sin hacer esperar: una sola copia para todos los turnos que salieron de él
+  guardarArchivoLuego('lp', 'limpieza', ids, archivo);
   leido = null;
+  archivo = null;
   close();
   toast(`${marcados.length} ${marcados.length === 1 ? 'turno guardado' : 'turnos guardados'}`);
 }

@@ -1,0 +1,33 @@
+// Archivos que subes desde la app (los PDF del programa, de la limpieza y del tablero).
+//
+// Misma regla que en firestore.rules: cada archivo vive bajo tu uid y solo tú lo ves.
+// Ni el administrador puede abrir los archivos de otra cuenta.
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() { return request.auth != null; }
+    function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
+    // Cuenta aprobada: el administrador le asigno un tipo de perfil (documento access/{uid})
+    function approved(uid) { return firestore.exists(/databases/(default)/documents/access/$(uid)); }
+    function isAdmin() { return signedIn() && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)); }
+
+    // Solo PDF e imagenes, y como mucho 10 MB por archivo
+    function okArchivo() {
+      return request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType != null
+        && (request.resource.contentType == 'application/pdf'
+            || request.resource.contentType.matches('image/.*'));
+    }
+
+    match /users/{uid}/{col}/{id}/{nombre} {
+      allow read, delete: if isSelf(uid) && (approved(uid) || isAdmin());
+      allow write: if isSelf(uid) && (approved(uid) || isAdmin())
+        && col in ['programa', 'limpieza', 'tablero', 'asistencia']
+        && okArchivo();
+    }
+
+    // Todo lo demas, cerrado
+    match /{todo=**} { allow read, write: if false; }
+  }
+}

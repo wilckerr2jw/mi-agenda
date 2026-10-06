@@ -1306,6 +1306,14 @@ fieldset.ro input, fieldset.ro select, fieldset.ro textarea { opacity: .75; }
 
 /* ───────────── Congregación · Tablero, limpieza y programa ───────────── */
 /* Fila con su tarjeta y, al lado, el botón de abrir o de marcar hecho */
+/* El archivo original que subiste (PDF o foto), dentro de la hoja */
+.ar-box { margin: 10px 0 2px; }
+.ar-chk { margin: 10px 0; }
+.ar-tiene { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.ar-tiene > span:first-child { flex: 1; min-width: 0; display: flex; gap: 6px; align-items: baseline; }
+.ar-tiene b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-tiene small { color: var(--muted); white-space: nowrap; }
+
 .tb-row { display: flex; gap: 8px; align-items: stretch; }
 .tb-row > .card { flex: 1; min-width: 0; }
 .tb-row.late > .card { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }

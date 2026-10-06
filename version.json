@@ -1,11 +1,10 @@
 {
-  "version": "10.6.0",
+  "version": "10.7.0",
   "notes": [
-    "📄 Sube el PDF del programa de la reunión (S-140) y la app lee sola las semanas, las partes y a quién le toca",
-    "🖨 Imprimir o guardar como PDF el programa, la limpieza, la asistencia y el tablero, con el formato de siempre",
-    "📄 La limpieza también se puede subir desde un PDF: reconoce las fechas y los grupos",
-    "🧹 Limpieza del Salón: ahora distingue la de después de la reunión, la semanal y la de a fondo",
-    "📌 Tablero de anuncios: «Quitar varios» para limpiar de una vez lo que ya no va",
-    "🔧 Se quitó el mantenimiento preventivo: la sección es solo de limpieza"
+    "📎 El PDF que subes se puede quedar guardado: ya no solo lo que la app lee de él",
+    "📄 «Ver el PDF» en el programa y en la limpieza, para abrir el archivo original tal cual",
+    "📌 Tablero de anuncios: cada documento puede llevar su propio PDF o foto adjunta",
+    "🔒 Los archivos son solo tuyos: ni el administrador puede abrirlos",
+    "⚡ Los datos se guardan al momento; el archivo va detrás y nunca te hace esperar"
   ]
 }

@@ -412,6 +412,7 @@ document.addEventListener('click', e => {
     case 'lp-print': return import('./limpieza.js').then(L => L.imprimir());
     case 'as-print': return import('./asistencia.js').then(A => A.imprimir(v));
     case 'tb-print': return import('./tablero.js').then(T => T.imprimir());
+    case 'tb-file-quitar': return import('./tablero.js').then(T => T.quitarArchivo());
     case 'tb-pick': ui.congre = { ...ui.congre, tbPick: !ui.congre.tbPick }; return render();
     case 'tb-quitar': return import('./tablero.js').then(T => { if (T.quitarMarcados()) { ui.congre = { ...ui.congre, tbPick: false }; render(); } });
     // Resumen del año de servicio listo para enviar (reports.js se pide solo al tocarlo)
@@ -745,6 +746,7 @@ document.addEventListener('change', e => {
     }).catch(() => toast('No se pudo usar esa foto'));
     return;
   }
+  if (t.id === 'tb-file') return import('./tablero.js').then(T => T.fileChosen(t));
   if (t.id === 'pg-file') return import('./programa.js').then(P => P.fileChosen(t));
   if (t.id === 'lp-file') return import('./limpieza.js').then(L => L.fileChosen(t));
   if (t.id === 'keep-file') { const files = [...(t.files || [])]; if (files.length) S.keepFiles(files); return; }
@@ -981,7 +983,11 @@ function showApp() {
   openShared();
   // Ya está pintada la pantalla: ahora, en un hueco libre, se traen las hojas para que el
   // primer formulario que abras salga al instante.
-  (window.requestIdleCallback || (f => setTimeout(f, 600)))(() => loadSheets());
+  (window.requestIdleCallback || (f => setTimeout(f, 600)))(() => {
+    loadSheets();
+    // ¿Hay Almacenamiento? De ello depende que se ofrezca guardar el archivo original
+    import('./archivos.js').then(A => A.comprobar()).then(hay => { if (hay) render(); }).catch(() => {});
+  });
 }
 
 // ───────────── Arranque ─────────────

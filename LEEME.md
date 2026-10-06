@@ -176,9 +176,23 @@ renglones con la posición X de cada trozo, que es lo que permite separar las do
 programa impreso. `js/programa-s140.js` se apoya en eso para saber qué es el nombre de una parte y
 qué es el nombre de un hermano (en el S-140 los nombres van en MAYÚSCULAS).
 
-**Se guardan los datos, no el archivo.** El proyecto no usa Firebase Storage y un PDF no cabe en
-Firestore, así que al subir un archivo se extrae la información y se guarda esa. Si algún día hace
-falta conservar el archivo, habría que activar Storage y añadir sus reglas.
+**Guardar también el archivo original** (`js/archivos.js` + `storage.rules`). Lo que se lee del PDF
+se guarda en Firestore como siempre; además, el archivo tal cual puede quedarse en Firebase Storage,
+en `users/{tu uid}/{sección}/{id}/{nombre}`, con la misma regla que tus datos: **solo tú lo abres**,
+ni el administrador. Se aceptan PDF e imágenes de hasta 10 MB.
+
+Tres detalles que importan:
+
+- **Los datos se guardan primero.** La subida va detrás y no se espera a ella (`guardarArchivoLuego`).
+  Si Storage falla, lo leído del PDF ya quedó guardado y solo se avisa de que el archivo no.
+- **El botón de subir no aparece si no hay Storage.** `comprobar()` pregunta una vez por sesión al
+  bucket; sin bucket responde 404 al instante. Así no se enseña un botón que no podría funcionar.
+- **Un archivo, varios registros.** Un PDF del programa deja seis semanas, todas apuntando al mismo
+  archivo. Al borrar un registro, `enUso()` mira si queda algún otro que lo use antes de borrarlo.
+
+**Para activarlo** (una sola vez): consola de Firebase → Storage → «Comenzar», y después
+`firebase deploy --only storage`. Requiere el plan Blaze; dentro del nivel gratuito de Google Cloud
+(5 GB) no se cobra. Mientras no esté activado, la app funciona igual: guarda los datos y nada más.
 
 **Imprimir.** `js/imprimir.js` arma una hoja pensada para el papel y la imprime desde un marco
 oculto dentro de la propia página (no una ventana nueva), así funciona aunque el navegador bloquee

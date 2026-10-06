@@ -4,6 +4,7 @@
     "ignore": [
       "firebase.json",
       "firestore.rules",
+      "storage.rules",
       "LEEME.md",
       "**/.*",
       "node_modules/**",
@@ -42,5 +43,8 @@
   },
   "firestore": {
     "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
   }
 }
