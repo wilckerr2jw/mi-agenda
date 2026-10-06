@@ -1304,6 +1304,22 @@ fieldset.ro input, fieldset.ro select, fieldset.ro textarea { opacity: .75; }
 .as-split b { color: var(--ink); }
 .as-row .meta b { color: var(--ink); }
 
+/* ───────────── Congregación · Tablero, limpieza y programa ───────────── */
+/* Fila con su tarjeta y, al lado, el botón de abrir o de marcar hecho */
+.tb-row { display: flex; gap: 8px; align-items: stretch; }
+.tb-row > .card { flex: 1; min-width: 0; }
+.tb-row.late > .card { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.tb-list { gap: 8px; }
+.lp-turno.pasado { opacity: .6; }
+.lp-next { display: grid; gap: 2px; border-left: 4px solid var(--primary); margin-bottom: 10px; }
+.lp-next strong { font: 600 22px/1.2 var(--serif); }
+.pg-card.late { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.pg-mine { display: grid; gap: 4px; border-left: 4px solid var(--c-asignacion); margin-bottom: 10px; }
+.pg-mine strong { display: flex; align-items: center; gap: 6px; }
+/* Cada parte del programa: el nombre a la izquierda y quién la tiene a la derecha */
+.pg-part { display: grid; grid-template-columns: 1fr; gap: 4px; }
+@media (min-width: 420px) { .pg-part { grid-template-columns: 1fr 1.3fr; align-items: center; } }
+
 /* ───────────── 9.8 · Pulido visual ───────────── */
 :root { --shadow-1: 0 1px 2px rgba(20, 40, 40, .05), 0 2px 8px -4px rgba(20, 40, 40, .10); --shadow-2: 0 10px 30px -12px rgba(10, 30, 30, .35); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --shadow-1: 0 1px 2px rgba(0, 0, 0, .35); --shadow-2: 0 12px 30px -10px rgba(0, 0, 0, .6); } }

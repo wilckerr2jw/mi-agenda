@@ -19,6 +19,9 @@ import * as N from './notify.js';
 import * as Nat from './native.js';
 import { saveFixMonth } from './corregir.js';
 import * as As from './asistencia.js';
+import * as Tb from './tablero.js';
+import * as Lp from './limpieza.js';
+import * as Pg from './programa.js';
 import { updateBanner } from './pwa.js';
 import { shareBlock, itemSheet as sharedItemSheet } from './compartido.js';
 import { newsHtml } from './adminhub.js';
@@ -2830,6 +2833,15 @@ export function keepImport() {
 // Congregacion · Asistencia (el modulo recibe open/close para no importar este archivo)
 export const asistenciaSheet = (id = '') => As.sheet(open, id);
 export const asistenciaDel = id => As.del(id, close);
+// Congregacion · Tablero, limpieza y programa (igual: reciben open/close)
+export const tableroSheet = (id = '') => Tb.sheet(open, id);
+export const tableroDel = id => Tb.del(id, close);
+export const lpTurnoSheet = (id = '') => Lp.turnoSheet(open, id);
+export const lpGenSheet = () => Lp.generarSheet(open);
+export const lpMantSheet = (id = '') => Lp.mantSheet(open, id);
+export const lpDel = id => Lp.del(id, close);
+export const programaSheet = (id = '', kind = 'semana') => Pg.sheet(open, id, kind);
+export const programaDel = id => Pg.del(id, close);
 
 export function searchSheet() {
   open({
@@ -3461,5 +3473,10 @@ export function submit(form) {
     case 'congre': return saveCongre(r);
     case 'study': return saveStudy(id, r, form);
     case 'asistencia': return As.save(form, close);
+    case 'tablero': return Tb.save(form, close);
+    case 'lp-turno': return Lp.saveTurno(form, close);
+    case 'lp-gen': return Lp.saveGen(form, close);
+    case 'lp-mant': return Lp.saveMant(form, close);
+    case 'programa': return Pg.save(form, close);
   }
 }

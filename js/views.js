@@ -6,6 +6,9 @@ import { comiteSection } from './comite.js';
 import { remindList } from './recordar.js';
 import { visitaSection, visitNotice } from './visita.js';
 import { asistenciaSection } from './asistencia.js';
+import * as Tb from './tablero.js';
+import * as Lp from './limpieza.js';
+import * as Pg from './programa.js';
 import * as store from './store.js';
 import * as WC from './weekcal.js';
 import * as Nat from './native.js';
@@ -281,6 +284,9 @@ export function hoy() {
     (() => { const vn = M.isModuleVisible('congregacion') && M.featureOn('congregacion.visita') ? visitNotice() : null; return vn ? `<button class="log-now visit-now" data-a="visita-open" data-id="${esc(vn.v.id)}">🧳 <span><b>Visita del superintendente de circuito ${vn.days > 1 ? `en ${vn.days} días` : vn.days === 1 ? 'mañana' : vn.days === 0 ? 'hoy' : 'esta semana'}</b><small>${vn.pend ? `Faltan ${vn.pend} cosas por tener listas` : '✓ Todo listo'}${vn.next ? ` · ${esc(vn.next.it.t.split(' (')[0])} ${vn.next.date < today() ? 'venció el' : 'antes del'} ${esc(fmtShort(vn.next.date))}` : ''}</small></span></button>` : ''; })(),
     ...Ah.hoyNotices(),
     ...Cp.hoyNotices(),
+    ...Pg.hoyNotices(),
+    ...Lp.hoyNotices(),
+    ...Tb.hoyNotices(),
     (() => { let last = ''; try { last = localStorage.getItem('miagenda.ultimoRespaldo') || ''; } catch { return ''; } const old = !last || (Date.parse(t) - Date.parse(last)) / 864e5 >= 14; return old && d.getDay() === 0 ? `<button class="log-now" data-a="backup-drive">☁️ <span><b>Guarda tu respaldo en Google Drive</b><small>${last ? `El último fue el ${esc(fmtShort(last))}.` : 'Todavía no has guardado uno desde este teléfono.'} Toca para guardarlo.</small></span></button>` : ''; })()
   ])}
   ${logToday ? `<button class="log-now" data-a="qa" data-v="time">📝 <span><b>Registra tu actividad de hoy</b><small>Aún no guardaste horas ni cursos. Toca aquí para anotarlos.</small></span></button>` : ''}
@@ -761,7 +767,10 @@ export function congregacion(ui) {
   ${M.featureOn('congregacion.nombramientos') ? foldable('nombramientos', rosterHtml) : ''}
   ${M.featureOn('congregacion.nombramientos') ? foldable('cargas', loadHtml) : ''}
   ${M.featureOn('congregacion.mecanicas') ? foldable('mecas', mecaSection(st)) : ''}
+  ${M.featureOn('congregacion.programa') ? foldable('programa', Pg.programaSection()) : ''}
   ${M.featureOn('congregacion.asistencia') ? foldable('asistencia', asistenciaSection(st)) : ''}
+  ${M.featureOn('congregacion.limpieza') ? foldable('limpieza', Lp.limpiezaSection()) : ''}
+  ${M.featureOn('congregacion.tablero') ? foldable('tablero', Tb.tableroSection()) : ''}
   ${!M.featureOn('congregacion.organigrama') ? '' : foldable('organigrama', `<section><div class="sec-h"><h2>${ic('building')}Organigrama</h2>${empty_ ? '' : `<span class="hint">${all.length} departamentos${noHead ? ` · ${noHead} sin responsable` : ''}</span>`}</div>
   ${empty_ ? empty('Arma el organigrama de tu congregación: quién atiende cada departamento y quiénes le ayudan.', `<div class="stack"><button class="btn primary" data-a="dept-suggest">Cargar departamentos sugeridos</button><button class="btn" data-a="dept-new">Empezar desde cero</button></div>`, 'users')
     : pick ? `<div class="org-tools pick-bar"><span class="grow"><b>${pick.size}</b> elegidos</span><button class="btn small ghost" data-a="org-pick-all">Todos</button><button class="btn small ghost" data-a="org-pick">Cancelar</button><button class="btn small danger" data-a="org-del" ${pick.size ? '' : 'disabled'}>Eliminar</button></div>

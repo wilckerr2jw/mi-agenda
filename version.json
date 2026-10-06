@@ -1,16 +1,10 @@
 {
-  "version": "10.4.0",
+  "version": "10.5.0",
   "notes": [
-    "🛡 Nuevo tipo de cuenta «Master»: acceso total a todas las funciones. Los administradores lo tienen siempre",
-    "💑 Vuelve el menú de Matrimonio (se había quedado apagado al hacerlo opcional en la 10.3.4)",
-    "📊 Congregación: asistencia a las reuniones, contando aparte el Salón y la videoconferencia, con el promedio del mes",
-    "⚡ La app abre más rápido: los formularios ya no se cargan hasta que hacen falta",
-    "🔍 Al buscar en Notas y Personas se resalta lo que coincide",
-    "💬 En Seguimiento, un botón de WhatsApp al lado de cada persona",
-    "📤 El Informe se puede compartir: resumen del año de servicio listo para enviar",
-    "📅 En el calendario del mes, desliza de lado para cambiar de mes",
-    "🔔 En Hoy, los avisos importantes se ven de una vez y el resto se recoge",
-    "📱 La app de Android y la web llevan por fin el mismo número de versión",
-    "🎨 Los iconos de las secciones ahora se ven igual en todos los teléfonos"
+    "📌 Tablero de anuncios: ten a mano lo que está puesto en el tablero y mira cuál toca cambiar",
+    "🧹 Limpieza del Salón: reparte los turnos entre los grupos de una sola vez",
+    "🔧 Mantenimiento preventivo: filtros, extintores, botiquín… la app avisa cuando toca",
+    "🎤 Programa de las reuniones: quién tiene cada parte entre semana y el fin de semana",
+    "👉 Si te toca una parte, te sale un aviso en Hoy unos días antes"
   ]
 }

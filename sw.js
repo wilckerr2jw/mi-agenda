@@ -11,7 +11,7 @@
 // Al añadir archivos nuevos a la app, agrégalos a SHELL y sube el número de VERSION
 // (node herramientas/version.mjs revisa que todo js/*.js esté en SHELL y que cada archivo exista).
 
-const VERSION = 'agenda-v10.4.0';
+const VERSION = 'agenda-v10.5.0';
 const CDN = 'agenda-cdn';
 const VENDOR = 'vendor-v1';
 const SHARED = 'agenda-compartido';
@@ -20,7 +20,7 @@ const SHELL = [
   './', 'index.html', 'guia.html', 'ver.html', 'manifest.webmanifest',
   'css/styles.css',
   'js/agenda.js', 'js/app.js', 'js/config.js', 'js/guide.js', 'js/tour.js', 'js/junta.js', 'js/keep.js', 'js/lock.js', 'js/notify.js', 'js/reports.js', 'js/model.js', 'js/sheets.js', 'js/store.js', 'js/theme.js', 'js/util.js', 'js/views.js', 'js/weekimg.js', 'js/orgimg.js', 'js/weekcal.js', 'js/native.js', 'js/mecas.js', 'js/comite.js', 'js/ics.js', 'js/voz.js', 'js/borrador.js', 'js/visita.js', 'js/pastoreo.js', 'js/compartir.js', 'js/gcal.js', 'js/gcal-script.js', 'js/recordar.js', 'js/corregir.js', 'js/ver.js', 'js/pwa.js',
-  'js/asistencia.js', 'js/perms.js', 'js/admin.js', 'js/mover.js', 'js/compartido.js', 'js/adminhub.js', 'js/respaldo.js', 'js/respaldo-script.js',
+  'js/asistencia.js', 'js/tablero.js', 'js/limpieza.js', 'js/programa.js', 'js/perms.js', 'js/admin.js', 'js/mover.js', 'js/compartido.js', 'js/adminhub.js', 'js/respaldo.js', 'js/respaldo-script.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/n-badge.png', 'sonidos/campanita.mp3',
 ];
 const KEEP = [VERSION, CDN, VENDOR, SHARED, RUNTIME];

@@ -9,5 +9,7 @@ globalThis.localStorage ??= {
   setItem: (k, v) => { mem.set(k, String(v)); },
   removeItem: k => { mem.delete(k); },
 };
+// Lo justo para que toast() no reviente: sin su elemento en la pagina, no hace nada.
+globalThis.document ??= { getElementById: () => null, querySelector: () => null };
 globalThis.requestAnimationFrame ??= fn => setTimeout(fn, 0);
 globalThis.cancelAnimationFrame ??= id => clearTimeout(id);

@@ -74,6 +74,9 @@ export const FEATURES = {
     { id: 'congregacion.enlace', n: 'Enlace para los ancianos', d: 'Enlace cifrado con organigrama, acuerdos y programa', a: ['sh-open', 'sh-create', 'sh-save', 'sh-rekey', 'sh-rekey-go', 'sh-off', 'sh-off-go', 'sh-copy', 'sh-send'] },
     { id: 'congregacion.nombramientos', n: 'Nombramientos y cargas', d: 'Ancianos, siervos y precursores; asignaciones por hermano', a: ['load-g'] },
     { id: 'congregacion.asistencia', n: 'Asistencia a las reuniones', d: 'En el Salón y por videoconferencia, con el promedio del mes y del año', a: ['as-new', 'as-save', 'as-del', 'as-mes', 'as-share'] },
+    { id: 'congregacion.tablero', n: 'Tablero de anuncios', d: 'Los papeles del tablero, a mano y siempre al día', a: ['tb-new', 'tb-del', 'tb-sugeridos', 'tb-share'] },
+    { id: 'congregacion.limpieza', n: 'Limpieza y mantenimiento del Salón', d: 'Turnos de limpieza por grupo y revisiones que no se pueden pasar', a: ['lp-turno', 'lp-del', 'lp-gen', 'lp-mant', 'lp-hecho', 'lp-share'] },
+    { id: 'congregacion.programa', n: 'Programa de las reuniones', d: 'Quién tiene cada parte entre semana y el fin de semana', a: ['pg-new', 'pg-del', 'pg-share'] },
   ],
 };
 export const FEATURE_LIST = Object.entries(FEATURES).flatMap(([s, list]) => list.map(f => ({ ...f, s })));

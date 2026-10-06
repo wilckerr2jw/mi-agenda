@@ -388,6 +388,22 @@ document.addEventListener('click', e => {
     case 'as-new': return S.asistenciaSheet(id || '');
     case 'as-del': return S.asistenciaDel(id);
     case 'as-share': return import('./asistencia.js').then(A => A.compartirMes(v));
+    // Congregacion · Tablero de anuncios
+    case 'tb-new': return S.tableroSheet(id || '');
+    case 'tb-del': return S.tableroDel(id);
+    case 'tb-sugeridos': return import('./tablero.js').then(T => { T.cargarSugeridos(); render(); });
+    case 'tb-share': return import('./tablero.js').then(T => T.compartir());
+    // Congregacion · Limpieza y mantenimiento
+    case 'lp-turno': return S.lpTurnoSheet(id || '');
+    case 'lp-gen': return S.lpGenSheet();
+    case 'lp-mant': return S.lpMantSheet(id || '');
+    case 'lp-del': return S.lpDel(id);
+    case 'lp-hecho': return import('./limpieza.js').then(L => { L.marcarHecho(id); render(); });
+    case 'lp-share': return import('./limpieza.js').then(L => L.compartir());
+    // Congregacion · Programa de las reuniones
+    case 'pg-new': return S.programaSheet(id || '', v || 'semana');
+    case 'pg-del': return S.programaDel(id);
+    case 'pg-share': return import('./programa.js').then(P => P.compartir(id));
     // Resumen del año de servicio listo para enviar (reports.js se pide solo al tocarlo)
     case 'inf-share': return import('./reports.js')
       .then(R => shareText(R.informeAnualText(Number(v)), { title: 'Informe del año de servicio', copied: 'Resumen copiado' }));

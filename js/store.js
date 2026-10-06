@@ -13,8 +13,9 @@
 import { firebaseConfig, FIREBASE_VERSION } from './config.js';
 
 export const COLS = ['notes', 'events', 'tasks', 'people', 'groups', 'meetings', 'entries', 'profile', 'weeks', 'depts', 'mecas', 'visitas',
-  // Asistencia a las reuniones (presencial y por videoconferencia)
-  'asistencia'];
+  // Congregacion: asistencia, documentos del tablero, limpieza y mantenimiento del Salon,
+  // y el programa de las reuniones (quien tiene cada parte).
+  'asistencia', 'tablero', 'limpieza', 'programa'];
 export const data = Object.fromEntries(COLS.map(c => [c, []]));
 
 // Estado de la sesión en modo nube: si es administrador y qué tipo de perfil tiene asignado

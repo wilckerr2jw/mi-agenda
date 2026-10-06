@@ -102,6 +102,10 @@ y la versión del pie.
 | `js/respaldo.js` + `js/respaldo-script.js` | 💾 Respaldo completo y cifrado de todas las cuentas en el Google Drive del administrador (lo hace `avisos/run.js`; se configura en `config/respaldo`) |
 | `js/adminhub.js` | 🛡 Mi administración (cuentas, uso, novedades, compartido) y 📰 Novedades en Ajustes |
 | `js/compartido.js` | 👥 Congregación compartida con otro anciano (solo lectura, siempre al día) y notas o tareas compartidas con comentarios. Los datos: `congres/{uid}` y `sharedItems/{id}` en Firestore (ver `firestore.rules`) |
+| `js/asistencia.js` | 📊 Asistencia a las reuniones: en el Salón y por videoconferencia, con el promedio del mes y del año |
+| `js/tablero.js` | 📌 Tablero de anuncios: los papeles del tablero, su enlace y cuándo toca cambiarlos |
+| `js/limpieza.js` | 🧹 Turnos de limpieza repartidos entre los grupos y mantenimiento preventivo del Salón |
+| `js/programa.js` | 🎤 Programa de las reuniones: quién tiene cada parte (complementa `js/mecas.js`, que son las mecánicas) |
 | `modulos/matrimonio/` | 💑 Módulo aparte; se activa con una línea en `index.html` y se quita borrando esa línea y la carpeta |
 
 Ejemplos de cambios sencillos:
@@ -111,6 +115,9 @@ Ejemplos de cambios sencillos:
 - **Iconos de categorías:** `CAT_ICONS` y `ICON_HINTS` en `js/model.js`; los dibujos están en `index.html` (`<symbol id="i-…">`).
 - **Categorías de Mi Informe:** `SERVICIO_CATS` en `js/model.js` (nombre, color e ic="tiempo de crédito" o no) y sus colores `--c-s1`/`--c-s2` en `css/styles.css`.
 - **Tipos de tarea y sugerencias de "Relación":** `KINDS` y `ROLES` en `js/model.js`.
+- **Partes del programa de las reuniones:** `PARTES` en `js/programa.js`.
+- **Qué lleva el tablero de anuncios:** `SUGERIDOS` en `js/tablero.js`.
+- **Revisiones de mantenimiento sugeridas:** `MANT_SUGERIDO` en `js/limpieza.js`.
 - **Semana que empieza en domingo:** en `js/views.js`, función `agenda`, cambia `(getDay() + 6) % 7` por `getDay()` y ajusta las letras de los días.
 - **Colores:** variables `--primary`, `--bg`, etc. al inicio de `css/styles.css`. Cada color se escribe
   **una sola vez** con `light-dark(claro, oscuro)`; no hay un bloque aparte para el tema oscuro, así que
