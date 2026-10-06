@@ -8,7 +8,6 @@ calendario-*.json
 # Claves de cuentas de servicio: NUNCA se suben
 mi-agenda-app-855f1-*.json
 *.key.json
-functions/
 # Archivos de trabajo con nombres reales: solo en esta carpeta (nunca al repositorio ni a la web)
 MEJORAS.md
 RESUMEN-CHAT.md
