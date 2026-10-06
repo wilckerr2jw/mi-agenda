@@ -103,3 +103,32 @@ test('acciones y CSS de lo apagado', () => {
   assert.equal(P.hiddenCss(new Set(P.FEATURE_IDS)), '');
   assert.ok(P.TYPE_ID_RE.test('siervo-ministerial') && !P.TYPE_ID_RE.test('Con Espacio'));
 });
+
+// ───── Master y administradores: acceso total ─────
+
+test('el tipo master lleva todas las funciones, incluidas las que no trae ninguna otra plantilla', () => {
+  const tpl = P.templateFromType({ n: 'Master', master: true });
+  assert.equal(tpl.master, true);
+  assert.ok(tpl.features.includes('general.matrimonio'), 'debe traer las funciones «off»');
+  assert.deepEqual([...tpl.features].sort(), [...P.FEATURE_IDS].sort());
+});
+
+test('una cuenta master no tiene restricciones, aunque le hayan denegado algo', () => {
+  const tpl = P.templateFromType({ n: 'Master', master: true });
+  const p = P.effectivePerms(tpl, { deny: ['agenda', 'general.matrimonio'] });
+  assert.equal(p.all, true);
+  assert.ok(p.features.has('general.matrimonio'));
+  assert.ok(p.modules.has('agenda'));
+});
+
+test('los demás tipos siguen sin las funciones «off»', () => {
+  const tpl = P.templateFromType({ n: 'Anciano', hideModules: [] });
+  assert.equal(tpl.master, undefined);
+  assert.ok(!tpl.features.includes('general.matrimonio'));
+});
+
+test('la marca de master sobrevive al pasar por Firestore', () => {
+  const base = P.templateFromType({ n: 'Master', master: true });
+  const limpia = P.cleanTemplate({ n: 'Master mío', features: ['agenda.ics'] }, base);
+  assert.equal(limpia.master, true);
+});

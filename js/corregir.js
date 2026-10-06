@@ -9,7 +9,9 @@ import * as store from './store.js';
 import { data } from './store.js';
 import { esc, ic, uid, today, toast, fmtShort, fmtMonth, addDays, cap, norm } from './util.js';
 import * as M from './model.js';
-import { open } from './sheets.js';
+// Las hojas se piden solo cuando se abre una (así no pesan en el arranque de la app)
+const Sheets = () => import('./sheets.js');
+const open = (...a) => Sheets().then(m => m.open(...a));
 
 const ADJ_NOTE = 'Ajuste del total (corrección)';
 const mid0 = () => today().slice(0, 7);

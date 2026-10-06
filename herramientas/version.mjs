@@ -21,7 +21,13 @@ const PLACES = [
   { f: 'sw.js', re: new RegExp(String.raw`(const VERSION = 'agenda-v)${V}(')`, 'g'), n: 1 },
   { f: 'guia.html', re: new RegExp(String.raw`(<b id="guia-version">)${V}(</b>)`, 'g'), n: 1 },
   { f: 'guia.html', re: new RegExp(String.raw`(Guía de uso · versión <span>)${V}(</span>)`, 'g'), n: 1 },
+  // La app de Android lleva el mismo número que la web (el APK lo toma de version.json al construirse)
+  { f: 'app-android/package.json', re: new RegExp(String.raw`("version":\s*")${V}(")`, 'g'), n: 1 },
 ];
+
+// Android compara un entero que solo puede subir: 10.4.0 → 100400 (igual que versionCode() en js/native.js
+// y que el cálculo de .github/workflows/android.yml).
+const codigoAndroid = v => { const [a, b, c] = String(v).split('.').map(Number); return a * 10000 + b * 100 + c; };
 
 const read = f => readFileSync(join(root, f), 'utf8');
 const found = PLACES.map(p => ({ ...p, vals: [...read(p.f).matchAll(p.re)].map(m => m[2]) }));
@@ -41,6 +47,12 @@ function shellProblems() {
 }
 const shellBad = shellProblems();
 
+// Para la publicación automática: imprime solo el dato pedido, sin adornos.
+//   node herramientas/version.mjs numero  → 10.4.0
+//   node herramientas/version.mjs codigo  → 100400   (el que usa Android)
+if (arg === 'numero') { console.log(current); process.exit(0); }
+if (arg === 'codigo') { console.log(codigoAndroid(current)); process.exit(0); }
+
 if (!arg) {
   let ok = true;
   for (const p of found) {
@@ -48,7 +60,7 @@ if (!arg) {
     if (!good) ok = false;
     console.log(`${good ? '✓' : '✗'} ${p.f.padEnd(14)} ${p.vals.join(', ') || '(no se encontró)'}`);
   }
-  console.log(ok ? `\nVersión ${current} en todos lados.` : `\n⚠️ No coincide. Arréglalo con: node herramientas/version.mjs ${FMT.test(current) ? current : '9.8.1'}`);
+  console.log(ok ? `\nVersión ${current} en todos lados (web y app de Android; versionCode ${codigoAndroid(current)}).` : `\n⚠️ No coincide. Arréglalo con: node herramientas/version.mjs ${FMT.test(current) ? current : '9.8.1'}`);
   console.log(shellBad.length ? `\n✗ Archivos sin internet (SHELL):\n${shellBad.map(x => `  · ${x}`).join('\n')}` : '✓ SHELL de sw.js: todos los archivos existen y están todos los js/*.js');
   process.exit(ok && !shellBad.length ? 0 : 1);
 }
@@ -68,4 +80,6 @@ for (const p of found) {
   files.set(p.f, txt.replace(p.re, (_, a, _v, b) => `${a}${next}${b}`));
 }
 for (const [f, txt] of files) writeFileSync(join(root, f), txt);
-console.log(`Listo: ${current} → ${next} en ${[...files.keys()].join(', ')}.\nNo olvides escribir las notas nuevas en version.json.`);
+console.log(`Listo: ${current} → ${next} en ${[...files.keys()].join(', ')}.`);
+console.log(`La app de Android se publicará como ${next} (versionCode ${codigoAndroid(next)}).`);
+console.log('No olvides escribir las notas nuevas en version.json.');

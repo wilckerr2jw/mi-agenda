@@ -1,7 +1,16 @@
 {
-  "version": "10.3.4",
+  "version": "10.4.0",
   "notes": [
-    "💑 Matrimonio ahora sale solo para ti y tu cónyuge: a los demás usuarios ya no les aparece",
-    "Para activárselo a tu cónyuge, elige su cuenta en ⚙️ Ajustes del módulo (o en Mi administración → Funciones)"
+    "🛡 Nuevo tipo de cuenta «Master»: acceso total a todas las funciones. Los administradores lo tienen siempre",
+    "💑 Vuelve el menú de Matrimonio (se había quedado apagado al hacerlo opcional en la 10.3.4)",
+    "📊 Congregación: asistencia a las reuniones, contando aparte el Salón y la videoconferencia, con el promedio del mes",
+    "⚡ La app abre más rápido: los formularios ya no se cargan hasta que hacen falta",
+    "🔍 Al buscar en Notas y Personas se resalta lo que coincide",
+    "💬 En Seguimiento, un botón de WhatsApp al lado de cada persona",
+    "📤 El Informe se puede compartir: resumen del año de servicio listo para enviar",
+    "📅 En el calendario del mes, desliza de lado para cambiar de mes",
+    "🔔 En Hoy, los avisos importantes se ven de una vez y el resto se recoge",
+    "📱 La app de Android y la web llevan por fin el mismo número de versión",
+    "🎨 Los iconos de las secciones ahora se ven igual en todos los teléfonos"
   ]
 }

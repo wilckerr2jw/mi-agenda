@@ -4,7 +4,7 @@ import { data, session, isCloud } from './store.js';
 import * as P from './perms.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '10.3.4';
+export const APP_VERSION = '10.4.0';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -12,6 +12,10 @@ export const PROFILE_TYPES = {
   publicador: { n: 'Publicador',                   hideEventCats: ['ancianos', 'pastoreo'], hideServCats: ['pastoreo'], hideModules: ['congregacion'] },
   precursor:  { n: 'Precursor',                    hideEventCats: ['ancianos', 'pastoreo'], hideServCats: ['pastoreo'], hideModules: ['congregacion'], goal: true },
   anciano:    { n: 'Anciano / Siervo ministerial', hideEventCats: [],                      hideServCats: [], hideModules: [] },
+  // Master: acceso total. Lleva TODAS las funciones, tambien las que no vienen en ninguna otra
+  // plantilla (como 💑 Matrimonio). Los administradores lo tienen siempre, aunque su cuenta
+  // tenga otro tipo asignado: asi no se quedan sin una funcion por un descuido.
+  master:     { n: 'Master (acceso total)',        hideEventCats: [],                      hideServCats: [], hideModules: [], master: true },
 };
 // ───── Administración de funciones (v10.0): plantillas editables (config/plantillas) y ajustes por cuenta (access/{uid}) ─────
 // Si el documento de plantillas no existe, se usan las de siempre (calculadas de PROFILE_TYPES).
@@ -25,14 +29,14 @@ export const templates = () => {
   return tplCache.out;
 };
 export const typeName = id => templates()[id]?.n || (id ? id : 'Pendiente');
-// Sin tipo asignado (modo local, administrador sin tipo o reglas antiguas) se ve todo.
+// Sin tipo asignado (modo local o reglas antiguas), con el tipo «master» o siendo administrador, se ve todo.
 export const profileType = () => (templates()[session.type] ? session.type : 'anciano');
 let permCache = null;
 export function perms() {
-  const key = [isCloud, session.legacy, session.type, session.templates, session.allow, session.deny];
+  const key = [isCloud, session.legacy, session.type, session.templates, session.allow, session.deny, session.isAdmin];
   if (permCache && permCache.key.every((x, i) => x === key[i])) return permCache.out;
   const tpl = templates()[session.type];
-  const out = P.effectivePerms(tpl, { allow: session.allow, deny: session.deny }, { all: !isCloud || session.legacy || !tpl });
+  const out = P.effectivePerms(tpl, { allow: session.allow, deny: session.deny }, { all: !isCloud || session.legacy || !tpl || !!session.isAdmin });
   permCache = { key, out };
   return out;
 }

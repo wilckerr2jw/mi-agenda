@@ -2,35 +2,37 @@
    El tema cambia solo según el teléfono (claro/oscuro).
    Para ajustar la identidad visual, casi todo se cambia en estas variables. */
 :root {
+  /* Un solo sitio por color: light-dark(claro, oscuro).
+     El tema lo decide color-scheme, que se fija mas abajo segun data-theme. */
   color-scheme: light dark;
-  --bg: #EEF1EC;
-  --surface: #FBFCFA;
-  --surface-2: #E2E8E1;
-  --ink: #17282A;
-  --ink-2: #4B5E5F;
-  --line: #D0D8CF;
-  --primary: #1D5F5A;
-  --on-primary: #FFFFFF;
-  --primary-soft: #D5E8E4;
-  --warn: #9A5B0C;
-  --danger: #A63D33;
-  --toast-a: #9FD8D1;
+  --bg: light-dark(#EEF1EC, #0E1618);
+  --surface: light-dark(#FBFCFA, #162224);
+  --surface-2: light-dark(#E2E8E1, #1F2F31);
+  --ink: light-dark(#17282A, #E4EDEA);
+  --ink-2: light-dark(#4B5E5F, #9FB2B0);
+  --line: light-dark(#D0D8CF, #2A3D3F);
+  --primary: light-dark(#1D5F5A, #63B8AF);
+  --on-primary: light-dark(#FFFFFF, #06211E);
+  --primary-soft: light-dark(#D5E8E4, #1C3836);
+  --warn: light-dark(#9A5B0C, #E0A050);
+  --danger: light-dark(#A63D33, #E58478);
+  --toast-a: light-dark(#9FD8D1, #1D5F5A);
 
   /* colores por tipo de evento */
-  --c-reunion: #3D6FB6;
-  --c-predicacion: #627E1E;
-  --c-pastoreo: #8B5FBF;
-  --c-ancianos: #B5484F;
-  --c-estudio: #217E92;
-  --c-personal: #6A7682;
-  --c-asignacion: #C2185B;
-  --c-mtg: #B5484F;
-  --c-x1: #956D23;
-  --c-x2: #2B8261;
-  --c-x3: #B65283;
-  --c-x4: #5B6BB0;
-  --c-s1: #6B7280;
-  --c-s2: #A0459E;
+  --c-reunion: light-dark(#3D6FB6, #6B97DB);
+  --c-predicacion: light-dark(#627E1E, #9BBB4A);
+  --c-pastoreo: light-dark(#8B5FBF, #AC86DB);
+  --c-ancianos: light-dark(#B5484F, #DB7178);
+  --c-estudio: light-dark(#217E92, #4DB0C5);
+  --c-personal: light-dark(#6A7682, #93A0AC);
+  --c-asignacion: light-dark(#C2185B, #F06292);
+  --c-mtg: light-dark(#B5484F, #DB7178);
+  --c-x1: light-dark(#956D23, #D9A94E);
+  --c-x2: light-dark(#2B8261, #4FB58C);
+  --c-x3: light-dark(#B65283, #DE7FAE);
+  --c-x4: light-dark(#5B6BB0, #8A98DB);
+  --c-s1: light-dark(#6B7280, #9AA5B1);
+  --c-s2: light-dark(#A0459E, #D98FD6);
 
   --radius: 14px;
   --nav-h: 64px;
@@ -39,64 +41,6 @@
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0E1618;
-    --surface: #162224;
-    --surface-2: #1F2F31;
-    --ink: #E4EDEA;
-    --ink-2: #9FB2B0;
-    --line: #2A3D3F;
-    --primary: #63B8AF;
-    --on-primary: #06211E;
-    --primary-soft: #1C3836;
-    --warn: #E0A050;
-    --danger: #E58478;
-    --toast-a: #1D5F5A;
-    --c-reunion: #6B97DB;
-    --c-predicacion: #9BBB4A;
-    --c-pastoreo: #AC86DB;
-    --c-ancianos: #DB7178;
-    --c-estudio: #4DB0C5;
-    --c-personal: #93A0AC;
-    --c-asignacion: #F06292;
-    --c-mtg: #DB7178;
-    --c-x1: #D9A94E;
-    --c-x2: #4FB58C;
-    --c-x3: #DE7FAE;
-    --c-x4: #8A98DB;
-    --c-s1: #9AA5B1;
-    --c-s2: #D98FD6;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #0E1618;
-  --surface: #162224;
-  --surface-2: #1F2F31;
-  --ink: #E4EDEA;
-  --ink-2: #9FB2B0;
-  --line: #2A3D3F;
-  --primary: #63B8AF;
-  --on-primary: #06211E;
-  --primary-soft: #1C3836;
-  --warn: #E0A050;
-  --danger: #E58478;
-  --toast-a: #1D5F5A;
-  --c-reunion: #6B97DB;
-  --c-predicacion: #9BBB4A;
-  --c-pastoreo: #AC86DB;
-  --c-ancianos: #DB7178;
-  --c-estudio: #4DB0C5;
-  --c-personal: #93A0AC;
-  --c-asignacion: #F06292;
-  --c-mtg: #DB7178;
-  --c-x1: #D9A94E;
-  --c-x2: #4FB58C;
-  --c-x3: #DE7FAE;
-  --c-x4: #8A98DB;
-  --c-s1: #9AA5B1;
-  --c-s2: #D98FD6;
-}
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }
 
@@ -141,6 +85,8 @@ code { font-size: .9em; background: var(--surface-2); padding: 1px 6px; border-r
 .sub { color: var(--ink-2); margin-top: 8px; }
 .sec-h { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 26px 0 10px; }
 .sec-h h2 { font: 600 20px/1.2 var(--serif); }
+/* Icono de seccion: toma el color del titulo y se alinea con la linea base del texto */
+.sec-h h2 > .ic:first-child { width: 19px; height: 19px; vertical-align: -3px; margin-right: 7px; }
 .sub-h { font: 650 15px/1.3 var(--sans); color: var(--ink-2); margin: 20px 0 8px; }
 
 .icon-btn { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; color: var(--ink-2); flex: none; }
@@ -212,6 +158,13 @@ code { font-size: .9em; background: var(--surface-2); padding: 1px 6px; border-r
 
 /* ───────────── Filas, tarjetas y listas ───────────── */
 .stack { display: grid; gap: 8px; }
+/* Lo que coincide con la busqueda: el amarillo del navegador no pega con la app ni se lee
+   en modo oscuro, asi que se marca con el color propio. */
+mark { background: color-mix(in srgb, var(--primary) 26%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; }
+/* Listas largas (Personas, Tareas, Notas): el navegador se salta el dibujado de las tarjetas
+   que quedan fuera de la pantalla. contain-intrinsic-size le dice cuanto ocupan para que la
+   barra de desplazamiento no de saltos. */
+.stack > .card, .stack > .row, .tgrid > .card { content-visibility: auto; contain-intrinsic-size: auto 72px; }
 .row, .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .card { width: 100%; padding: 12px 14px; }
 .card.mini { display: grid; gap: 2px; padding: 10px 14px; }
@@ -243,6 +196,12 @@ code { font-size: .9em; background: var(--surface-2); padding: 1px 6px; border-r
 .avatar-pick .photo-btn { cursor: pointer; }
 .avatar-pick .link { font-size: 13px; }
 .card.person { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; }
+/* Fila de seguimiento: la ficha ocupa todo y, al lado, el atajo de WhatsApp */
+.follow-row { display: flex; gap: 8px; align-items: stretch; }
+.follow-row > .card { flex: 1; min-width: 0; }
+.wa-side { display: grid; place-items: center; flex: none; width: 52px; border: 1px solid var(--line);
+  border-radius: var(--radius); background: var(--surface); color: var(--primary); }
+.wa-side:hover { background: var(--primary-soft); }
 .p-body { display: grid; gap: 1px; min-width: 0; }
 .badge { min-width: 26px; height: 26px; padding: 0 8px; border-radius: 13px; display: grid; place-items: center; background: var(--primary); color: var(--on-primary); font-size: 13px; font-weight: 700; }
 
@@ -394,15 +353,9 @@ input[type="date"], input[type="time"] { min-height: 48px; }
 
 .pace-chip { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; padding: 8px 14px; border-radius: 999px; font-size: 14px; font-weight: 650; }
 .pace-chip .pe { font-size: 18px; line-height: 1; }
-.pace-chip.atrasado { background: color-mix(in srgb, var(--warn) 18%, transparent); color: #7E4A08; }
+.pace-chip.atrasado { background: color-mix(in srgb, var(--warn) 18%, transparent); color: light-dark(#7E4A08, var(--warn)); }
 .pace-chip.alDia { background: var(--primary-soft); color: var(--primary); }
-.pace-chip.adelantado { background: color-mix(in srgb, #2F8F6B 20%, transparent); color: #22704F; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .pace-chip.atrasado { color: var(--warn); }
-  :root:not([data-theme="light"]) .pace-chip.adelantado { background: color-mix(in srgb, #5FCB9E 22%, transparent); color: #5FCB9E; }
-}
-:root[data-theme="dark"] .pace-chip.atrasado { color: var(--warn); }
-:root[data-theme="dark"] .pace-chip.adelantado { background: color-mix(in srgb, #5FCB9E 22%, transparent); color: #5FCB9E; }
+.pace-chip.adelantado { background: color-mix(in srgb, light-dark(#2F8F6B, #5FCB9E) 21%, transparent); color: light-dark(#22704F, #5FCB9E); }
 
 .cat-list { display: grid; gap: 8px; }
 .cat-btn {
@@ -724,18 +677,10 @@ body.privacy #app, body.privacy #sheet-root { filter: blur(14px); }
 @media (prefers-reduced-motion: reduce) { .j-clock.over2 { animation: none; } }
 
 /* ───────────── v4.0: color de la app y tamaño de letra ───────────── */
-:root[data-accent="azul"] { --primary: #2B5C9E; --primary-soft: #DCE6F4; }
-@media (prefers-color-scheme: dark) { :root[data-accent="azul"]:not([data-theme="light"]) { --primary: #7FA8E0; --primary-soft: #1C2A3E; } }
-:root[data-accent="azul"][data-theme="dark"] { --primary: #7FA8E0; --primary-soft: #1C2A3E; }
-:root[data-accent="vino"] { --primary: #8A2D45; --primary-soft: #F2DDE3; }
-@media (prefers-color-scheme: dark) { :root[data-accent="vino"]:not([data-theme="light"]) { --primary: #D98AA0; --primary-soft: #3A1D26; } }
-:root[data-accent="vino"][data-theme="dark"] { --primary: #D98AA0; --primary-soft: #3A1D26; }
-:root[data-accent="morado"] { --primary: #5E4A9E; --primary-soft: #E4DEF4; }
-@media (prefers-color-scheme: dark) { :root[data-accent="morado"]:not([data-theme="light"]) { --primary: #A898E0; --primary-soft: #2A2440; } }
-:root[data-accent="morado"][data-theme="dark"] { --primary: #A898E0; --primary-soft: #2A2440; }
-:root[data-accent="terracota"] { --primary: #A5522A; --primary-soft: #F5E1D6; }
-@media (prefers-color-scheme: dark) { :root[data-accent="terracota"]:not([data-theme="light"]) { --primary: #E59A6E; --primary-soft: #3C261B; } }
-:root[data-accent="terracota"][data-theme="dark"] { --primary: #E59A6E; --primary-soft: #3C261B; }
+:root[data-accent="azul"] { --primary: light-dark(#2B5C9E, #7FA8E0); --primary-soft: light-dark(#DCE6F4, #1C2A3E); }
+:root[data-accent="vino"] { --primary: light-dark(#8A2D45, #D98AA0); --primary-soft: light-dark(#F2DDE3, #3A1D26); }
+:root[data-accent="morado"] { --primary: light-dark(#5E4A9E, #A898E0); --primary-soft: light-dark(#E4DEF4, #2A2440); }
+:root[data-accent="terracota"] { --primary: light-dark(#A5522A, #E59A6E); --primary-soft: light-dark(#F5E1D6, #3C261B); }
 :root[data-size="l"] { zoom: 1.1; }
 :root[data-size="xl"] { zoom: 1.22; }
 .swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
@@ -1187,9 +1132,7 @@ body.offline::before { content: "Sin conexión · lo que guardes se enviará al 
 #gcal-url { width: 100%; font-size: 14px; }
 
 /* Aviso suave en el formulario de departamento */
-.warn-box{background:#FFF4E0;color:#7A4A06;border:1px solid #F0C27A;border-radius:10px;padding:8px 10px;font-size:.9em;margin:6px 0}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .warn-box{background:#3A2A10;color:#F5D39A;border-color:#7A5A20}}
-:root[data-theme="dark"] .warn-box{background:#3A2A10;color:#F5D39A;border-color:#7A5A20}
+.warn-box{background:light-dark(#FFF4E0,#3A2A10);color:light-dark(#7A4A06,#F5D39A);border:1px solid light-dark(#F0C27A,#7A5A20);border-radius:10px;padding:8px 10px;font-size:.9em;margin:6px 0}
 
 /* ───── Tareas: prioridad, grupos, resumen y vista de tarjetas ───── */
 .seg.four.three { grid-template-columns: repeat(3, 1fr); }
@@ -1348,6 +1291,18 @@ fieldset.ro input, fieldset.ro select, fieldset.ro textarea { opacity: .75; }
 .rm-f { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
 .rm-f .hint { flex: 1; }
 .empty-mini { text-align: center; padding: 18px; color: var(--ink-2); background: var(--surface); border: 1.5px dashed var(--line); border-radius: var(--radius); margin-top: 10px; }
+
+/* ───────────── Congregación · Asistencia ───────────── */
+.as-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 6px; }
+@media (max-width: 460px) { .as-grid { grid-template-columns: 1fr; } }
+.as-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.as-top { display: flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: 14px; }
+.as-top b { color: var(--ink); }
+.as-top .hint { margin-left: auto; }
+.as-n { font: 600 38px/1.05 var(--serif); letter-spacing: -.02em; margin: 6px 0 2px; }
+.as-split { display: grid; gap: 2px; font-size: 13px; color: var(--ink-2); }
+.as-split b { color: var(--ink); }
+.as-row .meta b { color: var(--ink); }
 
 /* ───────────── 9.8 · Pulido visual ───────────── */
 :root { --shadow-1: 0 1px 2px rgba(20, 40, 40, .05), 0 2px 8px -4px rgba(20, 40, 40, .10); --shadow-2: 0 10px 30px -12px rgba(10, 30, 30, .35); }

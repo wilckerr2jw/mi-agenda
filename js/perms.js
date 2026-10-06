@@ -5,6 +5,7 @@
 //      { n, modules:[secciones], features:[funciones], hideEventCats:[], hideServCats:[], goal:bool }
 //  · Cuenta (access/{uid}): { type, allow:[ids], deny:[ids] }   (ids de sección o de función)
 //  · Lo que ve la cuenta = plantilla ∪ allow − deny. Una función solo cuenta si su sección está activa.
+//  · El tipo «master» y los administradores no tienen restricciones: ven todo, incluso las funciones «off».
 
 export const TYPE_ID_RE = /^[a-z0-9_-]{1,30}$/;
 export const MAX_LIST = 200;
@@ -72,6 +73,7 @@ export const FEATURES = {
     { id: 'congregacion.comite', n: 'Panel Cuerpo de ancianos', d: 'Pendientes para la reunión de ancianos y su resumen', a: ['comite-share'] },
     { id: 'congregacion.enlace', n: 'Enlace para los ancianos', d: 'Enlace cifrado con organigrama, acuerdos y programa', a: ['sh-open', 'sh-create', 'sh-save', 'sh-rekey', 'sh-rekey-go', 'sh-off', 'sh-off-go', 'sh-copy', 'sh-send'] },
     { id: 'congregacion.nombramientos', n: 'Nombramientos y cargas', d: 'Ancianos, siervos y precursores; asignaciones por hermano', a: ['load-g'] },
+    { id: 'congregacion.asistencia', n: 'Asistencia a las reuniones', d: 'En el Salón y por videoconferencia, con el promedio del mes y del año', a: ['as-new', 'as-save', 'as-del', 'as-mes', 'as-share'] },
   ],
 };
 export const FEATURE_LIST = Object.entries(FEATURES).flatMap(([s, list]) => list.map(f => ({ ...f, s })));
@@ -87,8 +89,10 @@ export function defaultTemplates(types) {
 export function templateFromType(t) {
   const hideM = t.hideModules || [], hideS = t.hideServCats || [];
   const modules = MODULE_IDS.filter(m => !hideM.includes(m));
-  const features = FEATURE_LIST.filter(f => !f.off && (f.s === 'general' || modules.includes(f.s)) && !(f.shep && hideS.includes('pastoreo'))).map(f => f.id);
-  return { n: t.n, modules, features, hideEventCats: [...(t.hideEventCats || [])], hideServCats: [...hideS], goal: !!t.goal };
+  // Master: todo encendido, incluidas las funciones «off» (las que no vienen en ninguna otra plantilla)
+  const features = t.master ? [...FEATURE_IDS]
+    : FEATURE_LIST.filter(f => !f.off && (f.s === 'general' || modules.includes(f.s)) && !(f.shep && hideS.includes('pastoreo'))).map(f => f.id);
+  return { n: t.n, modules, features, hideEventCats: [...(t.hideEventCats || [])], hideServCats: [...hideS], goal: !!t.goal, ...(t.master ? { master: true } : {}) };
 }
 
 // Limpia una plantilla que viene de Firestore (nombres, ids conocidos, listas acotadas)
@@ -102,6 +106,8 @@ export function cleanTemplate(t, fallback = {}) {
     hideEventCats: pick('hideEventCats', () => true),
     hideServCats: pick('hideServCats', () => true),
     goal: src.goal !== undefined ? !!src.goal : !!fallback.goal,
+    // La marca de master no se edita desde la app: viene de la plantilla de siempre
+    ...(fallback.master ? { master: true } : {}),
   };
 }
 
@@ -116,7 +122,7 @@ export function mergeTemplates(defaults, stored) {
 
 // Lo que realmente puede usar la cuenta. all = sin restricciones (modo local, administrador sin tipo, reglas antiguas…)
 export function effectivePerms(tpl, access = {}, { all = false } = {}) {
-  if (all || !tpl) {
+  if (all || !tpl || tpl.master) {
     return { all: true, n: tpl?.n || '', modules: new Set(MODULE_IDS), features: new Set(FEATURE_IDS), hideEventCats: [], hideServCats: [], hideModules: [], goal: false };
   }
   const allow = new Set(strList(access?.allow)), deny = new Set(strList(access?.deny));

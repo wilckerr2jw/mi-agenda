@@ -2,7 +2,7 @@
 // (acuerdos de la última reunión, tareas que supervisas, capacitaciones por revisar, pastoreo de tu grupo y asignaciones mecánicas).
 import { data } from './store.js';
 import * as M from './model.js';
-import { esc, today, fmtShort, toast, shareText } from './util.js';
+import { ic, esc, today, fmtShort, toast, shareText } from './util.js';
 import { mecaStats } from './mecas.js';
 
 export function comiteData(t = today()) {
@@ -44,7 +44,7 @@ export function comiteSection() {
     ? `<div class="chips wrap">${c.mec.notUsed.map(p => `<button class="chip warn-chip" data-a="person" data-id="${esc(p.id)}">${esc(p.name)}</button>`).join('')}</div>`
     : '<p class="hint">✓ Todos tienen alguna.</p>', c.mec.notUsed.length) : '';
   const link = `<button class="btn small ${M.profile().share?.secret ? '' : 'ghost'}" data-a="sh-open">🔗 ${M.profile().share?.secret ? 'Enlace activo' : 'Enlace para los ancianos'}</button>`;
-  return `<section><div class="sec-h"><h2>📋 Para el Cuerpo de ancianos</h2></div>
+  return `<section><div class="sec-h"><h2>${ic('clip')}Para el Cuerpo de ancianos</h2></div>
     <div class="org-tools">${link}${nothing ? '' : '<button class="btn small ghost" data-a="comite-share">📤 Compartir resumen</button>'}</div>
     ${nothing ? '<p class="hint pad">Cuando tengas reuniones con acuerdos y tareas que supervisas, aquí verás lo pendiente para la reunión del cuerpo de ancianos.</p>' : `<div class="stack">${agr}${sup}${rev}${pas}${mec}</div>`}</section>`;
 }

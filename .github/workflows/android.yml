@@ -8,7 +8,7 @@ name: App Android
 on:
   push:
     branches: [main]
-    paths: ['app-android/**', '.github/workflows/android.yml']
+    paths: ['app-android/**', '.github/workflows/android.yml', 'version.json']
   workflow_dispatch:
 
 permissions:
@@ -52,6 +52,14 @@ jobs:
         working-directory: app-android
         run: npx cap sync android
 
+      # La app de Android lleva el MISMO numero que la web. Lo dice la herramienta de versiones,
+      # que es donde vive el calculo (10.4.0 -> versionCode 100400); aqui no se repite la formula.
+      - name: Leer la version de la app
+        id: ver
+        run: |
+          echo "name=$(node herramientas/version.mjs numero)" >> "$GITHUB_OUTPUT"
+          echo "code=$(node herramientas/version.mjs codigo)" >> "$GITHUB_OUTPUT"
+
       - name: Construir el APK
         working-directory: app-android/android
         env:
@@ -59,7 +67,7 @@ jobs:
           ANDROID_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon -PappVersionCode=${{ github.run_number }} -PappVersionName=1.${{ github.run_number }}
+          ./gradlew assembleRelease --no-daemon -PappVersionCode=${{ steps.ver.outputs.code }} -PappVersionName=${{ steps.ver.outputs.name }}
 
       - name: Publicar en Releases
         env:
@@ -67,6 +75,6 @@ jobs:
         run: |
           cp app-android/android/app/build/outputs/apk/release/app-release.apk agenda-teocratica.apk
           cp agenda-teocratica.apk mi-agenda.apk   # mismo archivo con el nombre anterior (enlaces viejos)
-          gh release create "apk-${{ github.run_number }}" agenda-teocratica.apk mi-agenda.apk \
-            --title "Agenda Teocrática 1.${{ github.run_number }}" \
+          gh release create "v${{ steps.ver.outputs.name }}" agenda-teocratica.apk mi-agenda.apk \
+            --title "Agenda Teocrática ${{ steps.ver.outputs.name }}" \
             --notes "Instálala encima de la anterior: no se borra nada. Descarga: agenda-teocratica.apk" --latest

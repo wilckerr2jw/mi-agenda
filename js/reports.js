@@ -47,6 +47,36 @@ export function supervisionText(title, rep) {
   return lines.join('\n');
 }
 
+// ───── Informe del año de servicio: resumen listo para enviar ─────
+// Solo lleva tus propios números (horas, cursos y los campos adicionales que uses).
+export function informeAnualText(startYear = M.serviceYearStart()) {
+  const meses = M.serviceYearMonths(startYear);
+  const año = M.yearTotals(false, startYear);
+  const v = M.profile();
+  const lines = [`*Informe ${startYear}–${startYear + 1}*`];
+  const rol = M.roleText(v);
+  if (rol) lines.push(rol);
+  lines.push('');
+  meses.forEach(mo => {
+    const t = M.monthTotals(mo.id);
+    const xt = M.extrasText(M.monthExtras(mo.id));
+    if (!t.minutes && !t.studies && !xt) return;   // los meses sin nada no se listan
+    const partes = [];
+    if (t.minutes) partes.push(`${M.fmtHM(t.minutes)} h`);
+    if (t.studies) partes.push(`${t.studies} ${t.studies === 1 ? 'curso' : 'cursos'}`);
+    if (xt) partes.push(xt);
+    lines.push(`• ${mo.name.charAt(0).toUpperCase()}${mo.name.slice(1)}: ${partes.join(' · ')}`);
+  });
+  const xtAño = M.extrasText(M.yearExtras(startYear));
+  lines.push('', `*Total del año:* ${M.fmtHM(año.minutes)} h · ${año.studies} ${año.studies === 1 ? 'curso bíblico' : 'cursos bíblicos'}${xtAño ? ` · ${xtAño}` : ''}`);
+  const meta = Number(v.goalAnnual);
+  if (v.goalEnabled && meta > 0) {
+    const faltan = meta * 60 - año.minutes;
+    lines.push(faltan <= 0 ? `Meta del año (${meta} h): alcanzada` : `Meta del año (${meta} h): faltan ${M.fmtHM(faltan)} h`);
+  }
+  return lines.join('\n');
+}
+
 // ───── Participación: quién presentó puntos o hizo oraciones en las reuniones de un período ─────
 export function participation(months = 6) {
   const from = new Date(); from.setMonth(from.getMonth() - months);

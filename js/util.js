@@ -78,6 +78,28 @@ export const relDays = iso => {
 
 // ---------- Texto ----------
 export const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+// Resalta en el texto lo que se busco. Como norm() quita los acentos (y eso puede cambiar la
+// longitud del texto), se construye un mapa de posiciones para marcar el trozo correcto del
+// original: buscar "cancion" resalta "canción". Devuelve HTML ya escapado.
+export const marcar = (texto, consulta) => {
+  const t = String(texto ?? '');
+  const q = norm(consulta);
+  if (!q) return esc(t);
+  let plano = '';
+  const mapa = [];
+  for (let i = 0; i < t.length; i++) {
+    for (const ch of norm(t[i])) { plano += ch; mapa.push(i); }
+  }
+  let html = '', desde = 0, i = plano.indexOf(q);
+  while (i !== -1) {
+    const a = mapa[i], b = mapa[i + q.length - 1] + 1;
+    html += esc(t.slice(desde, a)) + '<mark>' + esc(t.slice(a, b)) + '</mark>';
+    desde = b;
+    i = plano.indexOf(q, i + q.length);
+  }
+  return html + esc(t.slice(desde));
+};
+
 export const initials = name =>
   String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => (w[0] || '').toUpperCase()).join('') || '?';
 

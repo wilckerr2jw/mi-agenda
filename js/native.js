@@ -425,6 +425,14 @@ async function clearDoneDelivered(LN) {
 }
 
 // ───── Actualización de la app (APK) ─────
+// La app de Android y la web llevan el MISMO numero (version.json). Android necesita ademas un
+// numero entero que solo suba: se saca del mismo sitio, 10.4.0 → 100400. Asi no hay dos cuentas
+// distintas que mantener. (Lo usa tambien .github/workflows/android.yml al construir el APK.)
+export const versionCode = v => {
+  const [a = 0, b = 0, c = 0] = String(v || '').split('.').map(n => Number(n) || 0);
+  return a * 10000 + b * 100 + c;
+};
+
 // Compara el número de la app instalada con el último APK publicado en GitHub.
 export async function checkUpdate() {
   if (!isNative) return;
@@ -434,9 +442,14 @@ export async function checkUpdate() {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' } });
     if (!res.ok) return;
     const rel = await res.json();
-    const n = Number(String(rel.tag_name || '').replace(/\D/g, '')) || 0;
+    // Etiqueta nueva (v10.4.0) → 100400. Las antiguas (apk-12) no traen version: se leen como antes.
+    const tag = String(rel.tag_name || '');
+    const sem = tag.match(/\d+\.\d+\.\d+/);
+    const n = sem ? versionCode(sem[0]) : (Number(tag.replace(/\D/g, '')) || 0);
     const asset = (rel.assets || []).find(a => /\.apk$/i.test(a.name));
-    state.update = n > state.build ? { build: n, name: rel.name || `1.${n}`, notes: rel.body || '', url: APK_URL, alt: asset?.browser_download_url || APK_URL_GITHUB } : null;
+    state.update = n > state.build
+      ? { build: n, name: sem ? sem[0] : (rel.name || `1.${n}`), notes: rel.body || '', url: APK_URL, alt: asset?.browser_download_url || APK_URL_GITHUB }
+      : null;
     handlers.changed();
   } catch { /* sin internet: se revisa después */ }
 }

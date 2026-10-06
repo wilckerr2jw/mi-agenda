@@ -8,7 +8,10 @@ import * as store from './store.js';
 import { account, session } from './store.js';
 import * as M from './model.js';
 import { overridesFor, cleanTemplate, TYPE_ID_RE, MODULE_IDS } from './perms.js';
-import { open, settings } from './sheets.js';
+// Las hojas se piden solo cuando se abre una (así no pesan en el arranque de la app)
+const Sheets = () => import('./sheets.js');
+const open = (...a) => Sheets().then(m => m.open(...a));
+const settings = (...a) => Sheets().then(m => m.settings(...a));
 import { esc, toast, norm, fmtShort, dateOf } from './util.js';
 
 const BUILTIN = Object.keys(M.PROFILE_TYPES);

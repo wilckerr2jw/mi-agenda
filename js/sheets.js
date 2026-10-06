@@ -18,6 +18,7 @@ import { hhmm } from './weekcal.js';
 import * as N from './notify.js';
 import * as Nat from './native.js';
 import { saveFixMonth } from './corregir.js';
+import * as As from './asistencia.js';
 import { updateBanner } from './pwa.js';
 import { shareBlock, itemSheet as sharedItemSheet } from './compartido.js';
 import { newsHtml } from './adminhub.js';
@@ -2826,6 +2827,10 @@ export function keepImport() {
 
 // ───────────── Búsqueda global ─────────────
 
+// Congregacion · Asistencia (el modulo recibe open/close para no importar este archivo)
+export const asistenciaSheet = (id = '') => As.sheet(open, id);
+export const asistenciaDel = id => As.del(id, close);
+
 export function searchSheet() {
   open({
     title: 'Buscar', focus: '#gsearch',
@@ -3455,5 +3460,6 @@ export function submit(form) {
     case 'dept': return saveDept(id, r, form);
     case 'congre': return saveCongre(r);
     case 'study': return saveStudy(id, r, form);
+    case 'asistencia': return As.save(form, close);
   }
 }

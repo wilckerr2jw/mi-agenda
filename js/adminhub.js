@@ -5,7 +5,9 @@ import * as store from './store.js';
 import { data, isCloud, account, session } from './store.js';
 import * as M from './model.js';
 import { esc, toast, fmtShort, today, dateOf, isPhone } from './util.js';
-import { open } from './sheets.js';
+// Las hojas se piden solo cuando se abre una (así no pesan en el arranque de la app)
+const Sheets = () => import('./sheets.js');
+const open = (...a) => Sheets().then(m => m.open(...a));
 import { openAdmin } from './admin.js';
 import * as Rs from './respaldo.js';
 

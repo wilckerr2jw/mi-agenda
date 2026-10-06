@@ -2,7 +2,6 @@
 
 import * as store from './store.js';
 import * as V from './views.js';
-import * as S from './sheets.js';
 import * as M from './model.js';
 import * as Theme from './theme.js';
 import { startTour } from './tour.js';
@@ -22,7 +21,24 @@ import * as Pwa from './pwa.js';
 import * as Mv from './mover.js';
 import * as Cp from './compartido.js';
 import * as Ah from './adminhub.js';
-import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays, uid, fmtShort } from './util.js';
+import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays, uid, fmtShort, shareText } from './util.js';
+
+// 📄 Las hojas (formularios, fichas, ajustes) pesan mucho y no hacen falta para pintar la primera
+// pantalla: se cargan aparte. «S» es un intermediario que, mientras el archivo no haya llegado,
+// recibe la llamada y la ejecuta en cuanto llegue. Una vez cargado, «S.loQueSea» es la función real.
+let SM = null;                       // el módulo ya cargado (null hasta que llega)
+let SP = null;                       // la carga en curso (para no pedirlo dos veces)
+const loadSheets = () => SM ? Promise.resolve(SM) : (SP ??= import('./sheets.js').then(m => {
+  SM = m;
+  m.hooks.deptsChanged = () => render();           // al cambiar departamentos, se repinta
+  m.hooks.eventSaved = date => {                   // al guardar un evento, el calendario salta a su fecha
+    if (ui.route !== 'agenda') return;
+    ui.agenda.sel = date;
+    ui.agenda.ym = date.slice(0, 7);
+  };
+  return m;
+}));
+const S = new Proxy({}, { get: (_, k) => SM ? SM[k] : (...a) => loadSheets().then(m => m[k](...a)) });
 
 // Estado de la interfaz (no se guarda; solo vive mientras la app está abierta)
 const ui = {
@@ -368,6 +384,13 @@ document.addEventListener('click', e => {
     case 'meca-months': ui.congre.mm = Number(v) || 3; return render();
     case 'meca-elders': ui.congre.me = !ui.congre.me; return render();
     case 'sy-move': if (v) { ui.informe.sy = Number(v); ui.informe.sm = ''; } return render();
+    // Congregacion · Asistencia a las reuniones
+    case 'as-new': return S.asistenciaSheet(id || '');
+    case 'as-del': return S.asistenciaDel(id);
+    case 'as-share': return import('./asistencia.js').then(A => A.compartirMes(v));
+    // Resumen del año de servicio listo para enviar (reports.js se pide solo al tocarlo)
+    case 'inf-share': return import('./reports.js')
+      .then(R => shareText(R.informeAnualText(Number(v)), { title: 'Informe del año de servicio', copied: 'Resumen copiado' }));
     case 'meca-add-person': return Mc.addPerson(el.dataset.name);
     case 'remind-tasks': return import('./recordar.js').then(R => R.sheet(v === undefined || v === '' ? 3 : Number(v)));
     case 'remind-send': return import('./recordar.js').then(R => R.send(v, el.dataset.k));
@@ -607,6 +630,7 @@ document.addEventListener('change', e => {
   if (e.target.form?.id === 'f') Bor.track(e.target.form);
   const t = e.target;
   if (t.id === 'tareas-person') { ui.tareas.p = t.value; return render(); }
+  if (t.id === 'as-mes') { ui.congre = { ...ui.congre, asMes: t.value }; return render(); }
   if (t.id === 'tareas-meeting') { ui.tareas.m = t.value; return render(); }
   if (t.id === 'personas-priv') { ui.personas.pv = t.value; return render(); }
   if (t.name === 'catIcon') return S.catIconPicked(t.value);
@@ -702,6 +726,24 @@ document.addEventListener('change', e => {
   file.text().then(txt => S.importPreview(txt));   // primero muestra qué se va a restaurar y pide confirmar
 });
 
+// Calendario: deslizar de lado cambia de mes, como pasar la hoja de una agenda de papel.
+// Solo en la cuadricula del mes, que no tiene desplazamiento horizontal propio.
+let desliz = null;
+document.addEventListener('touchstart', e => {
+  desliz = e.touches.length === 1 && e.target.closest?.('.cal')
+    ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+}, { passive: true });
+document.addEventListener('touchend', e => {
+  const d = desliz;
+  desliz = null;
+  if (!d || !e.changedTouches.length) return;
+  const dx = e.changedTouches[0].clientX - d.x;
+  const dy = e.changedTouches[0].clientY - d.y;
+  // Tiene que ser claramente horizontal y largo: si no, es un toque o un desplazamiento vertical
+  if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
+  shiftMonth(dx < 0 ? 1 : -1);
+}, { passive: true });
+
 // Tareas: recordar si la sección «Baja prioridad» está abierta
 document.addEventListener('toggle', e => { if (e.target.matches?.('details.tgroup.low')) ui.tareas.lowOpen = e.target.open; }, true);
 // Tareas por departamento: al mover una tarea a un departamento cerrado, se abre para verla
@@ -720,14 +762,6 @@ document.addEventListener('submit', e => {
   e.preventDefault();
   S.submit(form);
 });
-
-// Al guardar un evento, el calendario salta a su fecha
-S.hooks.deptsChanged = () => render();
-S.hooks.eventSaved = date => {
-  if (ui.route !== 'agenda') return;
-  ui.agenda.sel = date;
-  ui.agenda.ym = date.slice(0, 7);
-};
 
 // ───────────── Inicio de sesión (solo modo nube) ─────────────
 
@@ -917,6 +951,9 @@ function showApp() {
   offerGuide();
   Pwa.persistOnce();
   openShared();
+  // Ya está pintada la pantalla: ahora, en un hueco libre, se traen las hojas para que el
+  // primer formulario que abras salga al instante.
+  (window.requestIdleCallback || (f => setTimeout(f, 600)))(() => loadSheets());
 }
 
 // ───────────── Arranque ─────────────

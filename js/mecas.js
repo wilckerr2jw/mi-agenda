@@ -4,7 +4,7 @@
 import * as store from './store.js';
 import { data } from './store.js';
 import * as M from './model.js';
-import { esc, uid, today, toast, fmtShort, norm, addDays, waLink, shareText } from './util.js';
+import { ic, esc, uid, today, toast, fmtShort, norm, addDays, waLink, shareText } from './util.js';
 
 // Las bibliotecas vienen con la app (carpeta vendor/): no se descarga nada de otros sitios
 const base = new URL('../vendor/', import.meta.url).href;
@@ -302,7 +302,7 @@ export function mecaSection(st = {}) {
   const cur = currentArreglo();
   const missing = cur ? [...new Set((cur.rows || []).filter(r => !rowPerson(r)).map(r => r.n).filter(Boolean))] : [];
   const chip = (x, t) => `<button class="chip" data-a="meca-months" data-v="${x}" aria-pressed="${months === x}">${t}</button>`;
-  return `<section><div class="sec-h"><h2>🎛 Asignaciones mecánicas</h2>${head ? `<span class="hint">★ ${esc(head)}</span>` : ''}</div>
+  return `<section><div class="sec-h"><h2>${ic('sliders')}Asignaciones mecánicas</h2>${head ? `<span class="hint">★ ${esc(head)}</span>` : ''}</div>
     <div class="org-tools"><button class="btn small primary" data-a="meca-import">📥 Importar programa</button><button class="btn small ghost" data-a="meca-bapt">✔ Varones bautizados (${s.eligible.length + s.off.length})</button>${s.notUsed.length ? `<button class="btn small ghost" data-a="meca-suggest">💬 Sugerir al encargado</button>` : ''}</div>
     ${!imports.length ? `<div class="mc-empty"><span class="mc-empty-ic">🎛</span><p>Importa el programa que hizo el hermano encargado: una <b>foto</b>, un <b>PDF</b>, un archivo de <b>texto</b> o pegándolo. Entiende tablas y también el formato «Audio: Nombre» con la fecha arriba.</p><p class="hint">Se lee en tu teléfono: no se envía a nadie.</p></div>` : `
     ${programHtml(cur, st)}

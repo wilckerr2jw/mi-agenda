@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mi-agenda",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["herramientas/servidor-local.py", "8080"],
+      "port": 8080
+    }
+  ]
+}

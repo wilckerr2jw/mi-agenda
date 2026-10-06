@@ -7,7 +7,12 @@ import * as store from './store.js';
 import { data, isCloud, account } from './store.js';
 import * as M from './model.js';
 import { esc, toast, fmtShort, today, dateOf, fmtTime } from './util.js';
-import { open, close, noteSheet, taskSheet } from './sheets.js';
+// Las hojas se piden solo cuando se abre una (así no pesan en el arranque de la app)
+const Sheets = () => import('./sheets.js');
+const open = (...a) => Sheets().then(m => m.open(...a));
+const close = (...a) => Sheets().then(m => m.close(...a));
+const noteSheet = (...a) => Sheets().then(m => m.noteSheet(...a));
+const taskSheet = (...a) => Sheets().then(m => m.taskSheet(...a));
 
 const me = () => account.user?.uid || '';
 const first = n => String(n || '').trim().split(/\s+/)[0] || 'otra cuenta';

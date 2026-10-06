@@ -1,7 +1,6 @@
 /* 💑 Matrimonio · estilos del módulo (solo clases mx-…, usa los colores de la app) */
-.mx { --mx: #C2507F; }
-:root[data-theme="dark"] .mx, :root[data-theme="dark"] .mx-hoy { --mx: #F08DB5; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .mx, :root:not([data-theme="light"]) .mx-hoy { --mx: #F08DB5; } }
+/* Un solo sitio para el rosa del modulo: claro y oscuro en la misma linea */
+.mx, .mx-hoy { --mx: light-dark(#C2507F, #F08DB5); }
 
 .mx-seg { position: sticky; top: 0; z-index: 2; }
 .mx .sub-h { margin-top: 18px; }
@@ -10,8 +9,8 @@
 .mx .btn.sm, .mx-hoy + .btn.sm { padding: 7px 12px; font-size: 14px; min-height: 0; }
 .mx-foot { margin-top: 22px; text-align: center; font-size: 14px; color: var(--ink-2); }
 
-.mx-hoy { --mx: #C2507F; background: color-mix(in srgb, var(--mx) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--mx) 35%, var(--line)); }
-.mx-hoy > .ic, .mx-tab .ic, .more-item[data-mx] .ic { color: #C2507F; }
+.mx-hoy { background: color-mix(in srgb, var(--mx) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--mx) 35%, var(--line)); }
+.mx-hoy > .ic, .mx-tab .ic, .more-item[data-mx] .ic { color: light-dark(#C2507F, #F08DB5); }
 .mx-hoy > .ic { width: 26px; height: 26px; flex: none; }
 
 /* Tarjetas de números */

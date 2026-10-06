@@ -4,7 +4,7 @@
 import * as store from './store.js';
 import { data } from './store.js';
 import * as M from './model.js';
-import { esc, uid, today, toast, fmtShort, fmtLong, addDays, diffDays, waLink, shareText } from './util.js';
+import { ic, esc, uid, today, toast, fmtShort, fmtLong, addDays, diffDays, waLink, shareText } from './util.js';
 
 // who: coord | secre | serv | sc (lo llena el superintendente de circuito)   q: 2 = Sí/No, 3 = Sí/No/N/A
 export const VISIT_ITEMS = [
@@ -70,14 +70,14 @@ export function visitaSection() {
   const v = currentVisit();
   if (!v) {
     const last = [...(data.visitas || [])].sort((a, b) => (b.start || '').localeCompare(a.start || ''))[0];
-    return `<section><div class="sec-h"><h2>🧳 Visita del superintendente de circuito</h2></div>
+    return `<section><div class="sec-h"><h2>${ic('suitcase')}Visita del superintendente de circuito</h2></div>
       <p class="hint pad">Prepara la visita con la lista de lo que hay que entregar: quién lo prepara, qué falta y las fechas límite (el S-62 un mes antes, todo lo demás el martes).${last ? ` La última fue el ${esc(fmtShort(last.start))}.` : ''}</p>
       <button class="btn" data-a="visita-new">＋ Preparar la próxima visita</button></section>`;
   }
   const t = today(), p = progress(v), d = diffDays(v.start, t);
   const when = d > 1 ? `en ${d} días` : d === 1 ? 'mañana' : d === 0 ? 'hoy' : 'esta semana';
   const dl = deadlines(v);
-  return `<section><div class="sec-h"><h2>🧳 Visita del superintendente de circuito</h2><span class="hint">${esc(when)}</span></div>
+  return `<section><div class="sec-h"><h2>${ic('suitcase')}Visita del superintendente de circuito</h2><span class="hint">${esc(when)}</span></div>
     <button class="card visit-card" data-a="visita-open" data-id="${esc(v.id)}">
       <span class="grow"><strong>Semana del ${esc(fmtLong(v.start))}</strong>
         <span class="meta">${p.done} de ${p.total} listos${p.no.length ? ` · ⚠️ ${p.no.length} con «No»` : ''}</span>

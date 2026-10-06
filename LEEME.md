@@ -112,7 +112,9 @@ Ejemplos de cambios sencillos:
 - **Categorías de Mi Informe:** `SERVICIO_CATS` en `js/model.js` (nombre, color e ic="tiempo de crédito" o no) y sus colores `--c-s1`/`--c-s2` en `css/styles.css`.
 - **Tipos de tarea y sugerencias de "Relación":** `KINDS` y `ROLES` en `js/model.js`.
 - **Semana que empieza en domingo:** en `js/views.js`, función `agenda`, cambia `(getDay() + 6) % 7` por `getDay()` y ajusta las letras de los días.
-- **Colores:** variables `--primary`, `--bg`, etc. al inicio de `css/styles.css`.
+- **Colores:** variables `--primary`, `--bg`, etc. al inicio de `css/styles.css`. Cada color se escribe
+  **una sola vez** con `light-dark(claro, oscuro)`; no hay un bloque aparte para el tema oscuro, así que
+  no hace falta acordarse de cambiarlo en dos sitios.
 
 Después de cambiar archivos, sube el número de versión **en todos lados a la vez** y vuelve a publicar:
 
@@ -120,12 +122,54 @@ Después de cambiar archivos, sube el número de versión **en todos lados a la 
 node herramientas/version.mjs parche   # 9.8.1 → 9.8.2  (un módulo o un arreglo)
 node herramientas/version.mjs menor    # 9.8.1 → 9.9.0  (varios módulos)
 node herramientas/version.mjs mayor    # 9.8.1 → 10.0.0 (cambio grande)
-node herramientas/version.mjs          # solo revisa que coincida en version.json, js/model.js, sw.js y guia.html
+node herramientas/version.mjs          # solo revisa que coincida en todos lados
+node herramientas/version.mjs numero   # imprime 10.4.0   (lo usa la publicación automática)
+node herramientas/version.mjs codigo   # imprime 100400   (el número que compara Android)
 ```
 
+**La web y la app de Android llevan el mismo número.** Se cambia en los cinco sitios a la vez
+(`version.json`, `js/model.js`, `sw.js`, `guia.html` y `app-android/package.json`). Android necesita
+además un entero que solo pueda subir: sale del mismo número (10.4.0 → **100400**) y el cálculo vive
+en un solo lugar, `herramientas/version.mjs`; el workflow del APK se lo pregunta en vez de repetirlo.
+La publicación del APK etiqueta la versión como `v10.4.0` y `js/native.js` lee esa etiqueta para
+avisar de actualizaciones (sigue entendiendo las etiquetas antiguas `apk-12`). Al cambiar
+`version.json` se vuelve a construir el APK, para que los dos números no se separen otra vez.
+
 El formato es siempre **MAYOR.MENOR.PARCHE** (3 números). Luego escribe las novedades en `version.json`.
-La publicación automática (`Publicar`) revisa la versión antes de subir y se detiene si no coincide.
+Antes de publicar, revisa que el número coincida con `node herramientas/version.mjs` (no lo comprueba el workflow).
 Si agregas archivos nuevos a `js/` o `css/`, añádelos también a la lista `SHELL` de `sw.js`.
+
+## Módulos aparte (el patrón de `modulos/`)
+
+`modulos/matrimonio/` es la plantilla a seguir para cualquier añadido grande que no tenga que
+cargar todo el mundo. El trato es este:
+
+- **Se activa con una línea** en `index.html`:
+  `<script type="module" src="modulos/<nombre>/<nombre>.js"></script>`
+- **Se quita** borrando esa línea y la carpeta. La app queda exactamente como estaba.
+- **No toca ningún archivo de la app.** Solo importa de `js/` (`store`, `model`, `sheets`, `util`);
+  nunca al revés. Si hace falta cambiar un archivo de `js/` para que el módulo funcione, el patrón
+  se rompió: busca otra manera.
+- **Guarda lo suyo en un solo campo del perfil** (`profile.matrimonio`), con un objeto `DEF` de
+  valores por defecto. Así no hay que tocar `firestore.rules` ni migrar datos.
+- **Reaprovecha lo que ya existe**: lo que planea se guarda como evento normal de la Agenda y las
+  fechas especiales como tareas que se repiten. De ese modo los avisos del teléfono, el servidor,
+  el widget y Google Calendar le funcionan solos, sin escribir nada de eso otra vez.
+- **Sus estilos usan solo clases propias** con prefijo (`.mx-…`) y los colores de la app.
+- **Se puede apagar por cuenta** desde Mi administración, con una función en `model.js`
+  (`general.matrimonio`) que el módulo consulta con `M.featureOn(...)`.
+
+## Rendimiento del arranque
+
+`js/sheets.js` (los formularios) es el archivo más pesado y no hace falta para pintar la primera
+pantalla, así que **no se importa de forma estática**. En `js/app.js`, `S` es un intermediario:
+mientras el archivo no haya llegado, recibe la llamada y la ejecuta en cuanto llega; una vez
+cargado, `S.loQueSea` es ya la función real. El archivo se pide en un hueco libre justo después
+del primer pintado, así que al abrir un formulario ya está.
+
+Si añades un módulo que importe `sheets.js`, **hazlo con `import()` dinámico**, no con `import`
+arriba del archivo: si no, vuelve a entrar en el arranque y se pierde la mejora. El patrón está
+en `js/compartido.js`, `js/adminhub.js`, `js/corregir.js` y `js/admin.js`.
 
 ## Ideas para la siguiente versión
 
