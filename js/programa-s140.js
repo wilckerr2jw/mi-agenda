@@ -15,7 +15,13 @@ export const SECCIONES = [
 ];
 // Lo que sale en la columna de la derecha pero NO es el nombre de un hermano
 const NO_ES_NOMBRE = /^(auditorio principal|sala auxiliar|sala b|sala c|aula\b)/i;
+// Renglones que no son del programa: el pie de pagina, la fecha de impresion y el encabezado que
+// se repite en cada hoja. «Impreso el 06-10-2026» traia una fecha y abria una semana fantasma.
+const BASURA = /(^s-140|^impreso el\b|programa (para|de) la reuni[oó]n)/i;
 const ETIQUETAS = /^(presidente|presidencia|oraci[oó]n|estudiante(\s*\/\s*ayudante)?|ayudante|lector|conductor|orador|discurso)\s*:?$/i;
+// La misma lista, pero cuando el nombre viene pegado: «Estudiante: MARIO GUZMAN».
+// Sirve para saber dónde empieza la columna de la derecha aunque el trozo no sea solo la etiqueta.
+const ETIQUETA_INICIO = /^(presidente|presidencia|oraci[oó]n|estudiante(\s*\/\s*ayudante)?|ayudante|lector|conductor|orador|discurso)\s*:/i;
 
 const texto = segs => segs.map(s => s.t).join(' ').replace(/\s+/g, ' ').trim();
 const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
@@ -59,7 +65,7 @@ function calcularCorte(lineas) {
   // Las etiquetas («Estudiante:», «Presidente:») marcan el borde de la columna derecha
   const xs = [];
   lineas.forEach(l => (l.segs || []).forEach(s => {
-    if (ETIQUETAS.test(s.t.replace(/:$/, '') + ':') || (pareceNombre(s.t) && s.x > ancho * 0.35)) xs.push(s.x);
+    if (ETIQUETA_INICIO.test(s.t) || ETIQUETAS.test(s.t.replace(/:$/, '') + ':') || (pareceNombre(s.t) && s.x > ancho * 0.35)) xs.push(s.x);
   }));
   if (xs.length >= 3) {
     xs.sort((a, b) => a - b);
@@ -67,6 +73,42 @@ function calcularCorte(lineas) {
     return Math.max(ancho * 0.38, xs[Math.floor(xs.length * 0.1)] - 6);
   }
   return ancho * 0.52;
+}
+
+// ¿El renglón trae solo la etiqueta («Estudiante/Ayudante:»), sin ningún nombre detrás?
+const esEtiquetaSola = t => ETIQUETAS.test(String(t || '').trim());
+// ¿Y este trae solo un nombre a la derecha, sin parte a la izquierda?
+const soloNombre = f => !!f && !f.izq && !!f.der && !esEtiquetaSola(f.der) && pareceNombre(f.der);
+
+// Cuando el nombre no cabe en su renglón, el PDF lo reparte entre el de arriba y el de abajo, y en
+// el de la parte deja solo la etiqueta. Así se ve «JHOSUA HERNANDEZ / OPNIEL» encima de la parte y
+// «RAMIREZ» debajo. Aquí se vuelven a juntar y los renglones sueltos se quitan.
+function unirNombresPartidos(filas) {
+  const fuera = new Set();
+  filas.forEach((f, i) => {
+    if (!f.izq || !esEtiquetaSola(f.der)) return;
+    const trozos = [];
+    [i - 1, i + 1].forEach(j => {          // primero el de arriba: ahí empieza el nombre
+      if (fuera.has(j) || !soloNombre(filas[j])) return;
+      trozos.push(filas[j].der);
+      fuera.add(j);
+    });
+    if (trozos.length) f.der = `${f.der} ${trozos.join(' ')}`.replace(/\s*\/\s*/g, ' / ').replace(/\s+/g, ' ').trim();
+  });
+  return filas.filter((_, i) => !fuera.has(i));
+}
+
+// Cada hoja pone la columna de la derecha donde le cabe: depende de lo largos que sean los nombres
+// de esa semana. En un mismo PDF se han visto en 318, 337, 357 y 360, así que el corte no puede ser
+// uno solo para todo: se corta la lista por semanas y cada una calcula el suyo.
+function partirEnSemanas(ls) {
+  const bloques = [[]];
+  ls.forEach(l => {
+    const t = texto(l.segs || []);
+    if (fechaDe(t) && !BASURA.test(t)) bloques.push([]);
+    bloques[bloques.length - 1].push(l);
+  });
+  return bloques.filter(b => b.length);
 }
 
 // Clave estable de cada parte: el número si lo trae, si no un nombre corto
@@ -81,9 +123,11 @@ function claveDe(izq, i) {
   return `l${i}`;
 }
 
-// Limpia el texto de la parte: se le quita la hora del principio y la viñeta
+// Limpia el texto de la parte: se le quita la hora del principio y la viñeta.
+// Algunos programas repiten el número («1. 1. La esperanza es clave…»): se deja uno solo.
 function limpiarParte(t) {
-  return String(t).replace(/^\s*\d{1,2}:\d{2}\s*/, '').replace(/^[•·*-]\s*/, '').replace(/\s+/g, ' ').trim();
+  return String(t).replace(/^\s*\d{1,2}:\d{2}\s*/, '').replace(/^[•·*-]\s*/, '')
+    .replace(/^(\d{1,2})\.\s*\1\.\s*/, '$1. ').replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -95,17 +139,20 @@ function limpiarParte(t) {
 export function leerPrograma(lineas, kind = 'semana') {
   const ls = (lineas || []).filter(l => (l.segs || []).length);
   if (!ls.length) return [];
-  const corte = calcularCorte(ls);
+  // Un bloque corto (el encabezado del documento) no da para calcular su corte: usa el de todo
+  const filas = partirEnSemanas(ls).flatMap(b => {
+    const corte = calcularCorte(b.length >= 6 ? b : ls);
+    return unirNombresPartidos(b.map(l => partirRenglon(l, corte)));
+  });
   const semanas = [];
   let actual = null, seccion = '', i = 0;
 
   const cerrar = () => { if (actual && actual.parts.length) semanas.push(actual); };
 
-  ls.forEach(l => {
+  filas.forEach(({ izq, der }) => {
     i++;
-    const { izq, der } = partirRenglon(l, corte);
     const todo = `${izq} ${der}`.trim();
-    if (!todo) return;
+    if (!todo || BASURA.test(todo)) return;
 
     // ¿Empieza una semana nueva?
     const f = fechaDe(izq) || (izq ? '' : fechaDe(der));
@@ -138,6 +185,17 @@ export function leerPrograma(lineas, kind = 'semana') {
     }
     if (!parte) return;
 
+    // Las canciones no llevan a nadie: no cuentan como «parte sin asignar»
+    const cancion = /^CANCION/.test(norm(parte));
+
+    // La oración va impresa en el mismo renglón que la canción («06:00 · Canción 33 | Oración:
+    // GABRIEL MADERA»), pero es otra parte: ese hermano ora, no canta.
+    if (esNombre && /^ORACION$/.test(norm(etiqueta)) && !/^ORACION/.test(norm(parte))) {
+      actual.parts.push({ k: claveDe(izq, i), t: parte, by: '', time: hora, sec: seccion, label: '', asig: !cancion });
+      actual.parts.push({ k: `oracion${i}`, t: 'Oración', by: nombres, time: '', sec: seccion, label: 'Oración', asig: true });
+      return;
+    }
+
     actual.parts.push({
       k: claveDe(izq, i),
       t: parte,
@@ -145,8 +203,7 @@ export function leerPrograma(lineas, kind = 'semana') {
       time: hora,
       sec: seccion,
       label: etiqueta && esNombre ? etiqueta : '',
-      // Las canciones no llevan a nadie: no cuentan como «parte sin asignar»
-      asig: !/^CANCION/.test(norm(parte)),
+      asig: !cancion,
     });
   });
   cerrar();
