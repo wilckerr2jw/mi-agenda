@@ -176,9 +176,15 @@ nada: el campo sigue siendo libre y puedes escribir cualquier nombre.
 | | Quién | Partes |
 |---|---|---|
 | `anciano` | Ancianos | Presidencia, palabras de introducción y de conclusión, Necesidades de la congregación, Estudio Bíblico de la Congregación |
-| `varon` | Hermanos | Las oraciones, la Lectura de la Biblia, los discursos y las partes de Tesoros y de Nuestra vida cristiana |
+| `nombrado` | Ancianos y siervos ministeriales | Tesoros de la Biblia, Busquemos perlas escondidas y las partes de Nuestra vida cristiana |
+| `varon` | Cualquier hermano | Las oraciones, la Lectura de la Biblia y los discursos |
 | `todos` | Hermanos y hermanas | Las demostraciones de Seamos mejores maestros |
 | — | Nadie | Las canciones y el tema del discurso |
+
+**Las demostraciones van en pareja y del mismo sexo.** El campo lleva los dos nombres
+(«FULANA / MENGANA»): en cuanto se reconoce a la primera persona, `parEditado()` cambia la lista de
+sugerencias a la de su mismo sexo, y al guardar `avisoParejas()` avisa si quedó un hermano con una
+hermana. Avisa, no lo impide.
 
 La regla está en `quienPuede()` (`js/programa.js`): primero mira la clave de la parte y, si no la
 conoce (las que vienen de un PDF llevan claves como `p4`), el nombre de la parte y su sección.

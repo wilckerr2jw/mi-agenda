@@ -181,8 +181,12 @@ test('programa: las partes de dirigir la reunión son de ancianos', () => {
 test('programa: las oraciones, la lectura y los discursos son de hermanos', () => {
   ['Oración', '3. Lectura de la Biblia (4 mins.)', '7. Discurso (4 mins.)']
     .forEach(t => assert.equal(Pg.quienPuede({ t }), 'varon', t));
-  // Las de Tesoros las da un anciano o un siervo ministerial
-  assert.equal(Pg.quienPuede({ t: '2. Busquemos perlas escondidas (10 mins.)', sec: 'tesoros' }), 'varon');
+});
+
+test('programa: Tesoros y Nuestra vida cristiana son de ancianos y siervos ministeriales', () => {
+  assert.equal(Pg.quienPuede({ t: '2. Busquemos perlas escondidas (10 mins.)', sec: 'tesoros' }), 'nombrado');
+  assert.equal(Pg.quienPuede({ t: '1. Tengamos un punto de vista equilibrado (10 mins.)', sec: 'tesoros' }), 'nombrado');
+  assert.equal(Pg.quienPuede({ t: '8. Jehová protege a las viudas (8 mins.)', sec: 'vida' }), 'nombrado');
 });
 
 test('programa: en las demostraciones también participan las hermanas', () => {
@@ -203,4 +207,22 @@ test('programa: un anciano cuenta como hermano aunque no lo hayan puesto en su f
   assert.equal(M.esVaron({ name: 'D', sex: 'm', role: 'Anciano' }), false, 'lo escrito en la ficha manda');
   assert.equal(M.esVaron({ name: 'E' }), false, 'sin dato no se supone nada');
   assert.equal(M.esHermana({ name: 'F', sex: 'm' }), true);
+});
+
+test('programa: avisa si una demostración junta a un hermano y a una hermana', () => {
+  limpiar();
+  try {
+    data.people.push(
+      { id: 'p1', name: 'YOVANNA RUBIO', sex: 'm' },
+      { id: 'p2', name: 'VIVIAN ALBORNOZ', sex: 'm' },
+      { id: 'p3', name: 'MIGUEL DIAZ', sex: 'h' },
+    );
+    const parte = by => ({ k: 'p4', t: '4. Empiece conversaciones (3 mins.)', sec: 'maestros', by });
+    assert.equal(Pg.avisoParejas([parte('YOVANNA RUBIO / VIVIAN ALBORNOZ')]), '', 'dos hermanas: bien');
+    assert.match(Pg.avisoParejas([parte('YOVANNA RUBIO / MIGUEL DIAZ')]), /hermano y una hermana/);
+    assert.equal(Pg.avisoParejas([parte('YOVANNA RUBIO')]), '', 'con uno solo no hay nada que revisar');
+    assert.equal(Pg.avisoParejas([parte('ALGUIEN / OTRO')]), '', 'si no los conoce, no inventa');
+    // La Lectura de la Biblia no es una demostración: ahí no se mira la pareja
+    assert.equal(Pg.avisoParejas([{ k: 'lectura', t: 'Lectura de la Biblia', by: 'MIGUEL DIAZ / YOVANNA RUBIO' }]), '');
+  } finally { limpiar(); }
 });

@@ -606,6 +606,7 @@ document.addEventListener('input', e => {
   if (e.target.form?.id === 'f') Bor.track(e.target.form);
   if (e.target.classList?.contains('fx-in')) e.target.classList.toggle('changed', e.target.value.trim() !== (e.target.defaultValue || '').trim());   // borrador por si la app se recarga antes de guardar
   if (e.target.id === 'q') { ui[ui.route].q = e.target.value; refreshList(); }
+  else if (e.target.dataset?.par) import('./programa.js').then(P => P.parEditado(e.target));   // demostraciones: la pareja, del mismo sexo
   else if (e.target.id === 'cat-name') S.catNameInput(e.target.value);
   else if (e.target.id === 'meca-text') Mc.textEdited(e.target);
   else if (e.target.id === 'past-text') Pa.textChanged();

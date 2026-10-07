@@ -1,10 +1,9 @@
 {
-  "version": "10.8.0",
+  "version": "10.8.1",
   "avisar": true,
   "notes": [
-    "👤 Nuevo en cada ficha de Personas: Hermano o Hermana",
-    "🎤 El programa ya sugiere solo a quien le puede tocar cada parte: ancianos para presidir y dirigir, hermanos para las oraciones, la lectura y los discursos",
-    "🤝 En las demostraciones de Seamos mejores maestros siguen saliendo todos",
-    "✍️ El navegador ya no rellena nombres por su cuenta en las hojas de Congregación"
+    "📖 Tesoros de la Biblia y Nuestra vida cristiana ahora sugieren ancianos y siervos ministeriales",
+    "👥 Las demostraciones van en pareja del mismo sexo: al escribir la primera, la lista se queda con las de su mismo sexo",
+    "⚠️ Al guardar, avisa si una demostración quedó con un hermano y una hermana juntos"
   ]
 }

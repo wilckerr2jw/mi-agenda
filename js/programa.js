@@ -76,12 +76,17 @@ export const huecos = s => (s.parts || [])
 
 // A quién le puede tocar cada parte. Solo sirve para SUGERIR: el campo sigue siendo libre y se
 // puede escribir cualquier nombre, esto no impide nada.
-//   anciano = presidir, dirigir la reunión y el Estudio Bíblico de la Congregación
-//   varon   = las oraciones, la Lectura de la Biblia, los discursos y las partes de enseñanza
-//   todos   = las demostraciones de Seamos mejores maestros, donde también participan las hermanas
+//   anciano  = presidir, dirigir la reunión y el Estudio Bíblico de la Congregación
+//   nombrado = ancianos y siervos ministeriales: Tesoros y las partes de Nuestra vida cristiana
+//   varon    = cualquier hermano: las oraciones, la Lectura de la Biblia y los discursos
+//   todos    = las demostraciones de Seamos mejores maestros, donde también participan las hermanas
+//
+// En las demostraciones van dos personas («FULANA / MENGANA») y han de ser del mismo sexo: en
+// cuanto se reconoce a la primera, la lista de sugerencias se queda solo con las de su mismo sexo
+// (ver parEditado) y, al guardar, se avisa si la pareja quedó mezclada.
 const POR_CLAVE = { presi: 'anciano', estudio: 'anciano', atalaya: 'anciano', ora1: 'varon', ora2: 'varon',
-  lectura: 'varon', lector: 'varon', tesoros: 'varon', perlas: 'varon', vida1: 'varon', discurso: 'varon',
-  maestros: 'todos', tema: '' };
+  lectura: 'varon', lector: 'varon', tesoros: 'nombrado', perlas: 'nombrado', vida1: 'nombrado',
+  discurso: 'varon', maestros: 'todos', tema: '' };
 
 export function quienPuede(p = {}) {
   if (p.k in POR_CLAVE) return POR_CLAVE[p.k];
@@ -90,19 +95,54 @@ export function quienPuede(p = {}) {
   if (/presidenc|palabras de (introduccion|conclusion)|necesidades de la congregacion|estudio biblico de la congregacion/.test(t)) return 'anciano';
   if (/oracion|lectura de la biblia|discurso|lector\b/.test(t)) return 'varon';
   if (p.sec === 'maestros') return 'todos';
-  if (p.sec === 'tesoros' || p.sec === 'vida') return 'varon';
+  if (p.sec === 'tesoros' || p.sec === 'vida') return 'nombrado';
   return 'todos';
 }
 
-const ETIQUETA_QUIEN = { anciano: 'ancianos', varon: 'hermanos' };
+const ETIQUETA_QUIEN = { anciano: 'ancianos', nombrado: 'ancianos y siervos', varon: 'hermanos' };
 
 // Las tres listas de sugerencias, de la más corta a la más larga
 function listasDeGente() {
-  const nombre = p => p.name;
   const orden = (a, b) => a.localeCompare(b, 'es');
-  const todos = data.people.filter(p => p.name);
-  const uno = l => [...new Set(l.map(nombre))].sort(orden);
-  return { anciano: uno(todos.filter(M.isElder)), varon: uno(todos.filter(M.esVaron)), todos: uno(todos) };
+  const gente = data.people.filter(p => p.name);
+  const uno = l => [...new Set(l.map(p => p.name))].sort(orden);
+  return {
+    anciano: uno(gente.filter(M.isElder)),
+    nombrado: uno(gente.filter(p => M.isElder(p) || M.isMinisterial(p))),
+    varon: uno(gente.filter(M.esVaron)),
+    hermano: uno(gente.filter(M.esVaron)),
+    hermana: uno(gente.filter(M.esHermana)),
+    todos: uno(gente),
+  };
+}
+
+// ───────────── Las demostraciones van en pareja, y del mismo sexo ─────────────
+// El campo lleva los dos nombres: «FULANA / MENGANA». Se busca a la primera para saber de qué
+// lista hay que sugerir la segunda.
+const buscarPersona = t => {
+  const q = norm(String(t || '').trim());
+  if (q.length < 3) return null;
+  return data.people.find(p => norm(p.name) === q)
+    || data.people.find(p => p.name && (norm(p.name).startsWith(q) || q.startsWith(norm(p.name))));
+};
+
+// Mientras se escribe: en cuanto se reconoce a la primera persona, la lista pasa a ser la de su sexo
+export function parEditado(input) {
+  const primera = buscarPersona(String(input.value || '').split('/')[0]);
+  const sexo = primera ? M.sexOf(primera) : '';
+  input.setAttribute('list', `pg-g-${sexo === 'h' ? 'hermano' : sexo === 'm' ? 'hermana' : 'todos'}`);
+}
+
+// Al guardar: si una demostración quedó con un hermano y una hermana, se avisa (no se impide)
+export function avisoParejas(parts) {
+  const malas = (parts || []).filter(p => {
+    if (quienPuede(p) !== 'todos') return false;
+    const [a, b] = String(p.by || '').split('/').map(x => buscarPersona(x));
+    if (!a || !b) return false;
+    const sa = M.sexOf(a), sb = M.sexOf(b);
+    return sa && sb && sa !== sb;
+  });
+  return malas.length ? `Revisa ${malas.length === 1 ? 'la pareja de' : 'las parejas de'} ${malas.map(p => p.t.replace(/\s*\(\d+\s*mins?\.\)/i, '')).join(' y ')}: están un hermano y una hermana juntos.` : '';
 }
 
 // ───────────── Pantalla ─────────────
@@ -169,7 +209,7 @@ export function sheet(open, id = '', kind = 'semana') {
           const quien = esTexto(p.k) ? '' : quienPuede(p);
           return `<label class="f pg-part">
           <span>${p.time ? `<i class="pg-h">${esc(p.time)}</i> ` : ''}${esc(p.t)}${ETIQUETA_QUIEN[quien] ? ` <i class="pg-q">${ETIQUETA_QUIEN[quien]}</i>` : ''}</span>
-          <input name="by_${i}" maxlength="120" value="${esc(p.by || '')}" placeholder="${esTexto(p.k) ? 'Tema del discurso' : 'Nombre'}" ${quien ? `list="pg-g-${quien}"` : ''}>
+          <input name="by_${i}" maxlength="120" value="${esc(p.by || '')}" placeholder="${esTexto(p.k) ? 'Tema del discurso' : 'Nombre'}" ${quien ? `list="pg-g-${quien}"` : ''}${quien === 'todos' ? ' data-par="1"' : ''}>
           <input type="hidden" name="k_${i}" value="${esc(p.k)}">
           <input type="hidden" name="t_${i}" value="${esc(p.t)}">
         </label>`;
@@ -198,7 +238,8 @@ export function save(form, close) {
   const id = String(f.id || '') || previa?.id || uid();
   store.upsert('programa', { ...(store.get('programa', id) || {}), id, date, kind, parts });
   close();
-  toast('Programa guardado');
+  const aviso = avisoParejas(parts);
+  toast(aviso || 'Programa guardado');
 }
 
 export function del(id, close) {
