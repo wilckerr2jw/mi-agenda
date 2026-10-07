@@ -74,6 +74,37 @@ export function misPartes(t = today(), dias = 21) {
 export const huecos = s => (s.parts || [])
   .filter(p => p.asig !== false && !esTexto(p.k) && !String(p.by || '').trim()).length;
 
+// A quién le puede tocar cada parte. Solo sirve para SUGERIR: el campo sigue siendo libre y se
+// puede escribir cualquier nombre, esto no impide nada.
+//   anciano = presidir, dirigir la reunión y el Estudio Bíblico de la Congregación
+//   varon   = las oraciones, la Lectura de la Biblia, los discursos y las partes de enseñanza
+//   todos   = las demostraciones de Seamos mejores maestros, donde también participan las hermanas
+const POR_CLAVE = { presi: 'anciano', estudio: 'anciano', atalaya: 'anciano', ora1: 'varon', ora2: 'varon',
+  lectura: 'varon', lector: 'varon', tesoros: 'varon', perlas: 'varon', vida1: 'varon', discurso: 'varon',
+  maestros: 'todos', tema: '' };
+
+export function quienPuede(p = {}) {
+  if (p.k in POR_CLAVE) return POR_CLAVE[p.k];
+  const t = norm(p.t || '');            // norm() de util.js devuelve minúsculas y sin acentos
+  if (/^\s*cancion/.test(t)) return '';
+  if (/presidenc|palabras de (introduccion|conclusion)|necesidades de la congregacion|estudio biblico de la congregacion/.test(t)) return 'anciano';
+  if (/oracion|lectura de la biblia|discurso|lector\b/.test(t)) return 'varon';
+  if (p.sec === 'maestros') return 'todos';
+  if (p.sec === 'tesoros' || p.sec === 'vida') return 'varon';
+  return 'todos';
+}
+
+const ETIQUETA_QUIEN = { anciano: 'ancianos', varon: 'hermanos' };
+
+// Las tres listas de sugerencias, de la más corta a la más larga
+function listasDeGente() {
+  const nombre = p => p.name;
+  const orden = (a, b) => a.localeCompare(b, 'es');
+  const todos = data.people.filter(p => p.name);
+  const uno = l => [...new Set(l.map(nombre))].sort(orden);
+  return { anciano: uno(todos.filter(M.isElder)), varon: uno(todos.filter(M.esVaron)), todos: uno(todos) };
+}
+
 // ───────────── Pantalla ─────────────
 function tarjetaSemana(s, t) {
   const falta = huecos(s);
@@ -124,22 +155,25 @@ export function sheet(open, id = '', kind = 'semana') {
   const s = id ? store.get('programa', id) : null;
   const tipo = s?.kind || (kind === 'finde' ? 'finde' : 'semana');
   const partes = s?.parts?.length ? s.parts : PARTES[tipo].map(p => ({ ...p, by: '' }));
-  // Para sugerir nombres mientras se escribe
-  const gente = [...new Set(data.people.map(p => p.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+  // Para sugerir nombres mientras se escribe, cada parte con los suyos
+  const listas = listasDeGente();
   open({
     title: s ? `${nombreTipo(tipo)} · ${fmtShort(s.date)}` : `Programa · ${nombreTipo(tipo)}`,
     body: `<form id="f" data-form="programa" autocomplete="off">
       <input type="hidden" name="id" value="${esc(s?.id || '')}">
       <input type="hidden" name="kind" value="${esc(tipo)}">
       <label class="f"><span>Día de la reunión</span><input type="date" name="date" value="${esc(s?.date || today())}" required></label>
-      <datalist id="pg-gente">${gente.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>
+      ${Object.entries(listas).map(([k, l]) => `<datalist id="pg-g-${k}">${l.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>`).join('')}
       <fieldset class="f"><legend>Partes</legend>
-        ${partes.map((p, i) => `<label class="f pg-part">
-          <span>${p.time ? `<i class="pg-h">${esc(p.time)}</i> ` : ''}${esc(p.t)}</span>
-          <input name="by_${i}" maxlength="120" value="${esc(p.by || '')}" placeholder="${esTexto(p.k) ? 'Tema del discurso' : 'Nombre'}" ${esTexto(p.k) ? '' : 'list="pg-gente"'}>
+        ${partes.map((p, i) => {
+          const quien = esTexto(p.k) ? '' : quienPuede(p);
+          return `<label class="f pg-part">
+          <span>${p.time ? `<i class="pg-h">${esc(p.time)}</i> ` : ''}${esc(p.t)}${ETIQUETA_QUIEN[quien] ? ` <i class="pg-q">${ETIQUETA_QUIEN[quien]}</i>` : ''}</span>
+          <input name="by_${i}" maxlength="120" value="${esc(p.by || '')}" placeholder="${esTexto(p.k) ? 'Tema del discurso' : 'Nombre'}" ${quien ? `list="pg-g-${quien}"` : ''}>
           <input type="hidden" name="k_${i}" value="${esc(p.k)}">
           <input type="hidden" name="t_${i}" value="${esc(p.t)}">
-        </label>`).join('')}
+        </label>`;
+        }).join('')}
       </fieldset>
       <p class="hint">Deja en blanco lo que no se sepa todavía: la app avisa de las partes que quedan sin asignar.</p>
       <div class="f-actions"><button type="submit" class="btn primary">Guardar</button>

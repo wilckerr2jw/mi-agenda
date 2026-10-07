@@ -169,3 +169,38 @@ test('congregación: las hojas llevan autocomplete="off"', async () => {
   });
   } finally { data.groups.length = 0; }
 });
+
+// ───────────── A quién le toca cada parte ─────────────
+// No bloquea nada: el campo sigue siendo libre. Solo decide a quién sugiere la app.
+test('programa: las partes de dirigir la reunión son de ancianos', () => {
+  ['Presidencia', 'Palabras de introducción (1 mins.)', 'Palabras de conclusión (3 mins.)',
+    '7. Necesidades de la congregación (15 mins.)', '8. Estudio Bíblico de la Congregación (30 mins.)']
+    .forEach(t => assert.equal(Pg.quienPuede({ t }), 'anciano', t));
+});
+
+test('programa: las oraciones, la lectura y los discursos son de hermanos', () => {
+  ['Oración', '3. Lectura de la Biblia (4 mins.)', '7. Discurso (4 mins.)']
+    .forEach(t => assert.equal(Pg.quienPuede({ t }), 'varon', t));
+  // Las de Tesoros las da un anciano o un siervo ministerial
+  assert.equal(Pg.quienPuede({ t: '2. Busquemos perlas escondidas (10 mins.)', sec: 'tesoros' }), 'varon');
+});
+
+test('programa: en las demostraciones también participan las hermanas', () => {
+  ['4. Empiece conversaciones (3 mins.)', '5. Haga revisitas (4 mins.)', '6. Haga discípulos (5 mins.)']
+    .forEach(t => assert.equal(Pg.quienPuede({ t, sec: 'maestros' }), 'todos', t));
+});
+
+test('programa: a las canciones no les toca nadie', () => {
+  assert.equal(Pg.quienPuede({ t: 'Canción 33' }), '');
+  assert.equal(Pg.quienPuede({ k: 'tema', t: 'Tema del discurso' }), '');
+});
+
+test('programa: un anciano cuenta como hermano aunque no lo hayan puesto en su ficha', async () => {
+  const M = await import('../js/model.js');
+  assert.equal(M.esVaron({ name: 'A', role: 'Anciano' }), true, 'por su relación');
+  assert.equal(M.esVaron({ name: 'B', privileges: ['Siervo ministerial'] }), true, 'por su privilegio');
+  assert.equal(M.esVaron({ name: 'C', sex: 'h' }), true);
+  assert.equal(M.esVaron({ name: 'D', sex: 'm', role: 'Anciano' }), false, 'lo escrito en la ficha manda');
+  assert.equal(M.esVaron({ name: 'E' }), false, 'sin dato no se supone nada');
+  assert.equal(M.esHermana({ name: 'F', sex: 'm' }), true);
+});

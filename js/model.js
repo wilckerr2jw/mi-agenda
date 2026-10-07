@@ -4,7 +4,7 @@ import { data, session, isCloud } from './store.js';
 import * as P from './perms.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '10.7.3';
+export const APP_VERSION = '10.8.0';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -639,6 +639,13 @@ export const isElder = p => [...String(p.role || '').split(','), ...(p.privilege
 export const helpedByName = p => personName(p.helpedById) || p.helpedByName || '';
 export const elders = () => data.people.filter(p => isElder(p)).sort((a, b) => a.name.localeCompare(b.name, 'es'));
 export const isMinisterial = p => [...String(p.role || '').split(','), ...(p.privileges || [])].some(x => /^\s*siervo ministerial/i.test(x));
+
+// Hermano o hermana. Se guarda en la ficha (sex: 'h' | 'm'); hace falta para saber qué partes del
+// programa le pueden tocar. Si no está puesto, los ancianos y los siervos ministeriales son
+// hermanos: eso la app ya lo sabe por sus privilegios, así que no hay que escribirlo otra vez.
+export const sexOf = p => (p?.sex === 'h' || p?.sex === 'm' ? p.sex : (isElder(p) || isMinisterial(p) ? 'h' : ''));
+export const esVaron = p => sexOf(p) === 'h';
+export const esHermana = p => sexOf(p) === 'm';
 // Mis grupos: si estoy en un grupo para el servicio del campo («Grupo 5»), solo ese; si no, todos los míos
 export function myGroupIds() {
   const me = data.people.find(p => p.isMe);

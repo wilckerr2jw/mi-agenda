@@ -768,6 +768,11 @@ export function personSheet(id, back) {
       ${avatarPicker('photo', esc(initials(v.name || '?')), v.photo)}
       ${fld('Nombre', `<input id="name" name="name" required maxlength="100" value="${esc(v.name)}" autocapitalize="words">`, 'name')}
       <label class="check"><input type="checkbox" id="isMe" name="isMe" ${v.isMe ? 'checked' : ''}> Esta persona soy yo</label>
+      ${fld('Hermano o hermana', `<select id="sex" name="sex">
+        <option value="" ${!v.sex ? 'selected' : ''}>Sin indicar</option>
+        <option value="h" ${v.sex === 'h' ? 'selected' : ''}>Hermano</option>
+        <option value="m" ${v.sex === 'm' ? 'selected' : ''}>Hermana</option>
+      </select><span class="hint">${M.isElder(v) || M.isMinisterial(v) ? 'Por sus privilegios, la app ya lo toma como hermano.' : 'Sirve para sugerir solo a quien le puede tocar cada parte del programa.'}</span>`, 'sex')}
       ${fld('Relación', `<input id="role" name="role" list="role-list" maxlength="60" value="${esc(v.role || '')}" placeholder="Ej. Estudiante bíblico"><datalist id="role-list">${M.ROLES.map(r => `<option value="${r}">`).join('')}</datalist>`, 'role')}
       <div class="f"><span class="lbl">Privilegios y responsabilidades <span class="hint">(toca para elegir)</span></span>
         <details class="priv-pick">
@@ -957,7 +962,7 @@ function savePerson(id, r, form) {
   const known = [...M.PRIVILEGES, ...M.savedTypes('privileges')].map(norm);
   const fresh = privileges.filter(x => !known.includes(norm(x)));
   if (fresh.length) store.upsert('profile', { ...M.profile(), id: 'me', customPrivileges: [...M.savedTypes('privileges'), ...fresh] });
-  const saved = store.upsert('people', { ...prev, id: id || uid(), name: r.name, role: r.role, phone: r.phone, address: r.address, notes: r.notes, groupIds: gids, groupLeftAt, isMe, photo: r.photo, aliases: r.aliases || '', privileges, ...accountFields(r, prev) }, { explicit: true });
+  const saved = store.upsert('people', { ...prev, id: id || uid(), name: r.name, role: r.role, sex: r.sex === 'h' || r.sex === 'm' ? r.sex : '', phone: r.phone, address: r.address, notes: r.notes, groupIds: gids, groupLeftAt, isMe, photo: r.photo, aliases: r.aliases || '', privileges, ...accountFields(r, prev) }, { explicit: true });
   if (backFn) closeOrBack(); else personDetail(saved.id);   // al crear, se muestra su ficha
 }
 

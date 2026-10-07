@@ -168,6 +168,27 @@ cargar todo el mundo. El trato es este:
 - **Se puede apagar por cuenta** desde Mi administración, con una función en `model.js`
   (`general.matrimonio`) que el módulo consulta con `M.featureOn(...)`.
 
+## A quién le toca cada parte del programa
+
+No todas las partes son para todos. La app lo sabe y **solo sugiere a quien encaja**, pero no impide
+nada: el campo sigue siendo libre y puedes escribir cualquier nombre.
+
+| | Quién | Partes |
+|---|---|---|
+| `anciano` | Ancianos | Presidencia, palabras de introducción y de conclusión, Necesidades de la congregación, Estudio Bíblico de la Congregación |
+| `varon` | Hermanos | Las oraciones, la Lectura de la Biblia, los discursos y las partes de Tesoros y de Nuestra vida cristiana |
+| `todos` | Hermanos y hermanas | Las demostraciones de Seamos mejores maestros |
+| — | Nadie | Las canciones y el tema del discurso |
+
+La regla está en `quienPuede()` (`js/programa.js`): primero mira la clave de la parte y, si no la
+conoce (las que vienen de un PDF llevan claves como `p4`), el nombre de la parte y su sección.
+
+**Quién es anciano** ya lo deducía la app de la relación y los privilegios de cada persona
+(`isElder` en `js/model.js`). **Quién es hermano o hermana** es un campo de la ficha (`sex: 'h' | 'm'`,
+en Personas). Si está en blanco, los ancianos y los siervos ministeriales cuentan como hermanos sin
+tener que escribirlo; para el resto hace falta ponerlo, porque del nombre de pila no se puede
+deducir con fiabilidad.
+
 ## Subir un PDF e imprimir
 
 **Leer un PDF o una foto.** El lector vive en `js/mecas.js` (`readFile`), usa `vendor/` (pdf.js y el

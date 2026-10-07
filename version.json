@@ -1,8 +1,10 @@
 {
-  "version": "10.7.3",
+  "version": "10.8.0",
   "avisar": true,
   "notes": [
-    "✍️ Las hojas de Congregación ya no dejan que el navegador rellene nombres por su cuenta: salían hermanos que el PDF dejó en blanco",
-    "🧩 Afecta al programa, al tablero, a la limpieza y a la asistencia"
+    "👤 Nuevo en cada ficha de Personas: Hermano o Hermana",
+    "🎤 El programa ya sugiere solo a quien le puede tocar cada parte: ancianos para presidir y dirigir, hermanos para las oraciones, la lectura y los discursos",
+    "🤝 En las demostraciones de Seamos mejores maestros siguen saliendo todos",
+    "✍️ El navegador ya no rellena nombres por su cuenta en las hojas de Congregación"
   ]
 }
