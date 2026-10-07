@@ -1,10 +1,11 @@
 {
-  "version": "10.7.1",
+  "version": "10.7.2",
+  "avisar": true,
   "notes": [
-    "📄 El lector del programa ahora acierta con el S-140 de verdad: cuatro semanas sin un solo error",
+    "🔄 Esta versión sí avisa: el arreglo del lector del programa no servía de nada si la app seguía con el anterior",
+    "📄 El lector del programa acierta con el S-140 de verdad: cuatro semanas sin un solo error",
     "🙏 La oración ya no se le atribuye a la canción: es su propia parte, al abrir y al cerrar",
     "✂️ Los nombres que el PDF parte en dos renglones se vuelven a juntar enteros",
-    "📐 Cada hoja coloca sus nombres en otro sitio, y ahora se calcula hoja por hoja",
-    "🧹 El pie de página ya no abre una semana con la fecha de impresión"
+    "📐 Cada hoja coloca sus nombres en otro sitio, y ahora se calcula hoja por hoja"
   ]
 }
