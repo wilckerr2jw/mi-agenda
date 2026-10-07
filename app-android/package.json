@@ -1,7 +1,7 @@
 {
   "name": "mi-agenda-android",
   "private": true,
-  "version": "10.7.2",
+  "version": "10.7.3",
   "description": "App de Android de Mi Agenda Teocr\u00e1tica (Capacitor). Abre la web publicada y agrega avisos nativos.",
   "dependencies": {
     "@capacitor/android": "^8.5.2",

@@ -146,3 +146,26 @@ test('programa: el texto para enviar trae cada parte y lo que falta', () => {
     assert.match(t, /Faltan 1 por asignar/);
   } finally { limpiar(); }
 });
+
+// ───────────── Las hojas no deben dejar que el navegador rellene por su cuenta ─────────────
+// Los campos de nombres son de OTRAS personas, no datos del que usa la app: si el navegador
+// los autocompleta, aparecen hermanos que el PDF dejó en blanco.
+test('congregación: las hojas llevan autocomplete="off"', async () => {
+  const As = await import('../js/asistencia.js');
+  const hojas = [
+    ['programa', o => Pg.sheet(o)],
+    ['tablero', o => Tb.sheet(o)],
+    ['limpieza · turno', o => Lp.turnoSheet(o)],
+    ['limpieza · repartir', o => Lp.generarSheet(o)],
+    ['asistencia', o => As.sheet(o)],
+  ];
+  data.groups.push({ id: 'g1', name: 'Grupo 1' });   // «Repartir turnos» no se abre sin grupos
+  try {
+  hojas.forEach(([nombre, abrir]) => {
+    let cap = null;
+    abrir(o => { cap = o; });
+    assert.ok(cap, `${nombre}: no abrió la hoja`);
+    assert.match(cap.body, /<form[^>]*autocomplete="off"/, `${nombre}: le falta autocomplete="off"`);
+  });
+  } finally { data.groups.length = 0; }
+});

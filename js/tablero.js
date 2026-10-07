@@ -159,7 +159,7 @@ export function sheet(open, id = '') {
   hojaId = d?.id || uid();
   open({
     title: d ? 'Documento del tablero' : 'Agregar al tablero',
-    body: `<form id="f" data-form="tablero">
+    body: `<form id="f" data-form="tablero" autocomplete="off">
       <input type="hidden" name="id" value="${esc(d?.id || '')}">
       <label class="f"><span>Qué es</span><input name="title" maxlength="80" required value="${esc(d?.title || '')}" placeholder="Ej. Programa de servicio del campo"></label>
       <label class="f"><span>Enlace (opcional)</span><input name="url" type="url" inputmode="url" maxlength="400" value="${esc(d?.url || '')}" placeholder="https://…"></label>

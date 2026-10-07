@@ -103,7 +103,7 @@ export function sheet(open, id = '') {
   const tipoSugerido = [0, 6].includes(d.getDay()) ? 'finde' : 'semana';
   open({
     title: r ? 'Asistencia' : 'Anotar asistencia',
-    body: `<form id="f" data-form="asistencia">
+    body: `<form id="f" data-form="asistencia" autocomplete="off">
       <input type="hidden" name="id" value="${esc(r?.id || '')}">
       <label class="f"><span>Fecha</span><input type="date" name="date" value="${esc(r?.date || hoy)}" required></label>
       <label class="f"><span>Reunión</span><select name="kind">${TIPOS.map(t => `<option value="${t.k}" ${(r?.kind || tipoSugerido) === t.k ? 'selected' : ''}>${t.n}</option>`).join('')}</select></label>

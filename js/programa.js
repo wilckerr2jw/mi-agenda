@@ -128,7 +128,7 @@ export function sheet(open, id = '', kind = 'semana') {
   const gente = [...new Set(data.people.map(p => p.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
   open({
     title: s ? `${nombreTipo(tipo)} · ${fmtShort(s.date)}` : `Programa · ${nombreTipo(tipo)}`,
-    body: `<form id="f" data-form="programa">
+    body: `<form id="f" data-form="programa" autocomplete="off">
       <input type="hidden" name="id" value="${esc(s?.id || '')}">
       <input type="hidden" name="kind" value="${esc(tipo)}">
       <label class="f"><span>Día de la reunión</span><input type="date" name="date" value="${esc(s?.date || today())}" required></label>

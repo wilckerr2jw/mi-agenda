@@ -93,7 +93,7 @@ export function turnoSheet(open, id = '') {
   const grupos = [...data.groups].sort((a, b) => a.name.localeCompare(b.name, 'es'));
   open({
     title: x ? 'Turno de limpieza' : 'Nuevo turno',
-    body: `<form id="f" data-form="lp-turno">
+    body: `<form id="f" data-form="lp-turno" autocomplete="off">
       <input type="hidden" name="id" value="${esc(x?.id || '')}">
       <label class="f"><span>Día</span><input type="date" name="date" value="${esc(x?.date || today())}" required></label>
       ${selTipo('tipo', x?.tipo || 'semanal')}
@@ -110,7 +110,7 @@ export function generarSheet(open) {
   if (!grupos.length) return toast('Primero crea los grupos en Personas → Grupos');
   open({
     title: 'Repartir turnos',
-    body: `<form id="f" data-form="lp-gen">
+    body: `<form id="f" data-form="lp-gen" autocomplete="off">
       ${selTipo('tipo', 'semanal')}
       <label class="f"><span>Empezar el</span><input type="date" name="desde" value="${esc(today())}" required></label>
       <label class="f"><span>Cada cuánto</span><select name="cada"><option value="7">Cada semana</option><option value="14">Cada dos semanas</option><option value="30">Cada mes</option><option value="365">Una vez al año</option></select></label>
