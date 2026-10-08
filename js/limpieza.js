@@ -28,7 +28,7 @@ export const turnos = () => [...(data.limpieza || [])]
   .sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
 const nombreGrupo = id => data.groups.find(g => g.id === id)?.name || '';
-export const proximos = (t = today(), n = 12) => turnos().filter(x => x.date >= t).slice(0, n);
+export const proximos = (t = today(), n = 12) => turnos().filter(x => (x.until || x.date) >= t).slice(0, n);
 export const proximoTurno = (t = today()) => proximos(t, 1)[0] || null;
 
 // Reparte los grupos, uno por turno, desde una fecha y cada «cadaDias» días.
@@ -43,9 +43,20 @@ export function repartir({ desde, cadaDias = 7, veces = 12, grupos = [], tipo = 
 }
 
 // ───────────── Pantalla ─────────────
+// «Del jueves 8 al sábado 10 de octubre» cuando el turno dura varios días.
+// Si los dos días caen en el mismo mes, el mes se dice una sola vez, al final.
+export function cuandoEs(x, t = today()) {
+  if (x.until && x.until > x.date) {
+    const mismoMes = x.until.slice(0, 7) === x.date.slice(0, 7);
+    const desde = mismoMes ? fmtLong(x.date).replace(/\s+de\s+\S+$/, '') : fmtLong(x.date);
+    return `Del ${desde} al ${fmtLong(x.until)}`;
+  }
+  return x.date === t ? 'Hoy' : x.date === addDays(t, 1) ? 'Mañana' : fmtLong(x.date);
+}
+
 function fila(x, t) {
   const g = nombreGrupo(x.groupId);
-  const cuando = x.date === t ? 'Hoy' : x.date === addDays(t, 1) ? 'Mañana' : fmtLong(x.date);
+  const cuando = cuandoEs(x, t);
   return `<button class="card mini lp-turno ${x.date < t ? 'pasado' : ''}" data-a="lp-turno" data-id="${esc(x.id)}">
     <strong>${emoji(x.tipo)} ${esc(cuando)}</strong>
     <span class="meta">${esc(nombreTipo(x.tipo))} · ${g ? esc(g) : '<b class="late">sin grupo</b>'}${x.notes ? ` · ${esc(x.notes)}` : ''}</span>
@@ -95,7 +106,10 @@ export function turnoSheet(open, id = '') {
     title: x ? 'Turno de limpieza' : 'Nuevo turno',
     body: `<form id="f" data-form="lp-turno" autocomplete="off">
       <input type="hidden" name="id" value="${esc(x?.id || '')}">
-      <label class="f"><span>Día</span><input type="date" name="date" value="${esc(x?.date || today())}" required></label>
+      <div class="two">
+        <label class="f"><span>Día</span><input type="date" name="date" value="${esc(x?.date || today())}" required></label>
+        <label class="f"><span>Hasta (si dura varios días)</span><input type="date" name="until" value="${esc(x?.until || '')}"></label>
+      </div>
       ${selTipo('tipo', x?.tipo || 'semanal')}
       <label class="f"><span>Grupo</span><select name="groupId">${grupos.length ? `<option value="">Sin asignar</option>${grupos.map(g => `<option value="${esc(g.id)}" ${x?.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}` : '<option value="">Primero crea grupos en Personas</option>'}</select></label>
       <label class="f"><span>Nota (opcional)</span><input name="notes" maxlength="80" value="${esc(x?.notes || '')}" placeholder="Ej. incluye los baños"></label>
@@ -129,8 +143,10 @@ export function saveTurno(form, close) {
   const date = String(f.date || '').slice(0, 10);
   if (!date) return toast('Pon el día');
   const id = String(f.id || '') || uid();
+  const until = String(f.until || '').slice(0, 10);
   store.upsert('limpieza', {
     ...(store.get('limpieza', id) || {}), id, date,
+    until: until > date ? until : '',
     tipo: TIPOS.some(x => x.k === f.tipo) ? String(f.tipo) : 'semanal',
     groupId: String(f.groupId || ''), notes: String(f.notes || '').slice(0, 80),
   });
@@ -224,6 +240,92 @@ export function leerTurnos(lineas, tipo = 'semanal') {
   return out;
 }
 
+// ───────────── Leer el programa tal como llega por mensaje ─────────────
+// Muchas congregaciones lo pasan por WhatsApp, no en PDF, y con los días escritos a mano:
+//
+//   Octubre:
+//   8-10 grupo 3
+//   22 nosotros 24 general
+//
+// El mes manda sobre los números: «8-10» son los días 8 al 10 de octubre, no el 8 de octubre.
+// Una línea puede traer dos turnos («22 nosotros 24 general»), y lo que no empieza por un número
+// se ignora («Aquí esperamos por la otra fecha general»).
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const sinTildes = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+// ¿La línea es el nombre de un mes? Devuelve 0-11, o -1
+function mesDe(linea) {
+  const t = sinTildes(linea).replace(/[:.]+$/, '').replace(/\s*(de\s*)?\d{4}$/, '').trim();
+  return MESES.findIndex(m => m === t || sinTildes(m) === t);
+}
+
+// Dónde empieza cada turno de una línea: un día (o «8-10») seguido de a quién le toca.
+// El número del final de «grupo 3» no abre un turno nuevo porque no lo sigue ninguna palabra.
+function turnosDeLinea(linea) {
+  const re = /(?:^|\s)(\d{1,2})(?:\s*(?:[-–—/]|\s+al\s+)\s*(\d{1,2}))?\s+(?=[a-záéíóúñ])/gi;
+  const marcas = [];
+  let m;
+  while ((m = re.exec(linea))) marcas.push({ i: m.index, fin: re.lastIndex, d1: Number(m[1]), d2: Number(m[2] || 0) });
+  return marcas.map((x, n) => ({
+    ...x,
+    quien: linea.slice(x.fin, n + 1 < marcas.length ? marcas[n + 1].i : linea.length).trim().replace(/[.;,]+$/, ''),
+  }));
+}
+
+// Mi grupo, para cuando el mensaje dice «nosotros»
+function miGrupo() {
+  const yo = data.people.find(x => x.isMe);
+  const mios = (yo?.groupIds || []).map(id => data.groups.find(g => g.id === id)).filter(Boolean);
+  return (mios.find(g => /^grupo\b/i.test(g.name)) || mios[0])?.id || '';
+}
+
+const iso = (a, m, d) => `${a}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+/**
+ * Lee el programa de limpieza de un texto pegado.
+ * @param {string} texto  el mensaje tal cual
+ * @param {object} opts   { tipo, hoy }  tipo = la clase de limpieza por defecto
+ * @returns {Array} [{ date, until, groupId, tipo, texto }]
+ */
+export function leerMensaje(texto, { tipo = 'semanal', hoy = today() } = {}) {
+  const grupos = data.groups.map(g => ({ id: g.id, n: normG(g.name) })).filter(g => g.n);
+  const mio = miGrupo();
+  const [anioHoy, mesHoy] = [Number(hoy.slice(0, 4)), Number(hoy.slice(5, 7)) - 1];
+  let mes = -1, anio = anioHoy, previo = -1;
+  const out = [];
+
+  String(texto || '').split(/\r?\n/).forEach(linea => {
+    const m = mesDe(linea);
+    if (m >= 0) {
+      // El año no viene escrito. Para el primer mes: el de hoy, salvo que ya haya pasado hace más
+      // de un mes (entonces hablan del que viene). Después, cada vez que el mes retrocede es que
+      // se cruzó el fin de año: de diciembre a enero.
+      if (previo < 0) anio = m < mesHoy - 1 ? anioHoy + 1 : anioHoy;
+      else if (m < previo) anio++;
+      mes = m;
+      previo = m;
+      return;
+    }
+    if (mes < 0) return;                      // todavía no se sabe de qué mes se habla
+    turnosDeLinea(linea).forEach(t => {
+      if (t.d1 < 1 || t.d1 > 31) return;
+      const quien = normG(t.quien);
+      if (!quien) return;
+      const general = /\bgeneral(es)?\b|\ba fondo\b/.test(quien);
+      const nuestro = /\bnosotros\b|\bnuestro grupo\b|\bnos toca\b/.test(quien);
+      const g = grupos.filter(x => quien.includes(x.n)).sort((a, b) => b.n.length - a.n.length)[0];
+      out.push({
+        date: iso(anio, mes, t.d1),
+        until: t.d2 && t.d2 > t.d1 && t.d2 <= 31 ? iso(anio, mes, t.d2) : '',
+        groupId: g?.id || (nuestro ? mio : ''),
+        tipo: general ? 'anual' : tipo,
+        texto: t.quien,
+      });
+    });
+  });
+  return out;
+}
+
 let archivo = null;   // el PDF o la foto que se eligió, por si se quiere guardar también
 
 export async function importSheet(open) {
@@ -231,8 +333,12 @@ export async function importSheet(open) {
   archivo = null;
   open({
     title: 'Subir el programa de limpieza',
-    body: `<p class="hint">Elige el PDF o una foto del programa que está en el tablero. Se lee aquí mismo, en tu teléfono.</p>
-      <label class="btn primary block" for="lp-file">📄 Elegir PDF o foto</label>
+    body: `<p class="hint">Si te llegó por mensaje, pégalo aquí. Si está en PDF o en una foto del tablero, elígelo abajo. Todo se lee aquí mismo, en tu teléfono.</p>
+      <label class="f"><span>Pega el mensaje</span>
+        <textarea id="lp-texto" rows="6" placeholder="Octubre:&#10;8-10 grupo 3&#10;15-17 grupo 4&#10;22 nosotros 24 general"></textarea></label>
+      <button type="button" class="btn primary block" data-a="lp-leer-texto">Leer el mensaje</button>
+      <p class="hint sep-o">o</p>
+      <label class="btn ghost block" for="lp-file">📄 Elegir PDF o foto</label>
       <input id="lp-file" type="file" accept="application/pdf,.pdf,image/*" hidden>
       ${selTipo('tipoImport', 'semanal')}
       <p class="hint" id="lp-step"></p>
@@ -241,6 +347,20 @@ export async function importSheet(open) {
 }
 
 const paso = t => { const el = document.getElementById('lp-step'); if (el) el.textContent = t; };
+
+// «Leer el mensaje»: lo pegado se interpreta igual que un PDF, y se revisa antes de guardar
+export function textoPegado() {
+  const t = document.getElementById('lp-texto')?.value || '';
+  if (!t.trim()) return paso('Pega primero el mensaje');
+  const tipo = document.querySelector('[name="tipoImport"]')?.value || 'semanal';
+  const turnos = leerMensaje(t, { tipo });
+  if (!turnos.length) return paso('No encontré ningún turno. Hace falta el nombre del mes («Octubre:») y debajo los días («8-10 grupo 3»).');
+  archivo = null;                       // esto no vino de un archivo
+  leido = turnos;
+  const sinGrupo = turnos.filter(x => !x.groupId && x.tipo !== 'anual').length;
+  paso(`Listo: ${turnos.length} ${turnos.length === 1 ? 'turno' : 'turnos'}${sinGrupo ? ` (${sinGrupo} sin reconocer el grupo)` : ''}.`);
+  revisar();
+}
 
 export async function fileChosen(input) {
   const f = input.files?.[0];
@@ -270,7 +390,7 @@ function revisar() {
   box.innerHTML = `<h3 class="sub-h">Lo que le\u00ed</h3>
     <p class="hint">Quita la marca de lo que no quieras guardar y corrige el grupo donde haga falta.</p>
     <div class="stack">${leido.map((x, i) => `<label class="card mini tb-pick"><input type="checkbox" name="lp-w" value="${i}" checked>
-      <span><strong>${esc(fmtLong(x.date))}</strong>
+      <span><strong>${esc(cuandoEs(x))}</strong>${x.tipo === 'anual' ? ' <i class="pg-q">a fondo</i>' : ''}
       <select name="lp-g-${i}"><option value="">Sin grupo</option>${grupos.map(g => `<option value="${esc(g.id)}" ${x.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></span></label>`).join('')}</div>
     ${guardarArchivoHtml('lp')}
     <button type="button" class="btn primary block" data-a="lp-import-save">Guardar lo marcado</button>`;
@@ -286,7 +406,7 @@ export function guardarImportado(close) {
     const x = leido[i];
     const g = document.querySelector(`[name="lp-g-${i}"]`)?.value || '';
     const p = previos.get(`${x.date}|${x.tipo}`);
-    store.upsert('limpieza', { ...(p || {}), id: ids[n], date: x.date, tipo: x.tipo, groupId: g, notes: p?.notes || '' });
+    store.upsert('limpieza', { ...(p || {}), id: ids[n], date: x.date, until: x.until || '', tipo: x.tipo, groupId: g, notes: p?.notes || '' });
   });
   // El archivo va detrás, sin hacer esperar: una sola copia para todos los turnos que salieron de él
   guardarArchivoLuego('lp', 'limpieza', ids, archivo);

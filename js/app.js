@@ -409,6 +409,7 @@ document.addEventListener('click', e => {
     case 'pg-print': return import('./programa.js').then(P => P.imprimir(id || ''));
     case 'lp-import': return S.lpImport();
     case 'lp-import-save': return S.lpImportSave();
+    case 'lp-leer-texto': return import('./limpieza.js').then(L => L.textoPegado());
     case 'lp-print': return import('./limpieza.js').then(L => L.imprimir());
     case 'as-print': return import('./asistencia.js').then(A => A.imprimir(v));
     case 'tb-print': return import('./tablero.js').then(T => T.imprimir());

@@ -195,6 +195,33 @@ en Personas). Si está en blanco, los ancianos y los siervos ministeriales cuent
 tener que escribirlo; para el resto hace falta ponerlo, porque del nombre de pila no se puede
 deducir con fiabilidad.
 
+## Leer el programa de limpieza de un mensaje
+
+Muchas congregaciones lo pasan por WhatsApp, no en PDF, y con los días escritos a mano:
+
+```
+Octubre:
+8-10 grupo 3
+22 nosotros 24 general
+```
+
+`leerMensaje()` (`js/limpieza.js`) lo entiende. Lo importante: **el mes manda sobre los números**.
+«8-10» son los días 8 al 10 de octubre, no el 8 de octubre; por eso hace falta la línea del mes.
+El año no se escribe nunca, así que se toma el de hoy, y si el mes ya pasó hace más de un mes se
+entiende que hablan del que viene; cuando la lista retrocede de mes (de diciembre a enero), se
+cambia de año.
+
+Otros detalles que salieron del mensaje real:
+
+- Una línea puede traer dos turnos: `22 nosotros 24 general`.
+- El número del final de «grupo 3» **no** abre un turno nuevo: solo cuenta un número al que le
+  sigue una palabra.
+- `general` es la limpieza a fondo y no es de ningún grupo; `nosotros` es mi propio grupo.
+- Lo que no empieza por un número se ignora («Aquí esperamos por la otra fecha general»).
+
+Los turnos que duran varios días llevan `until` además de `date`, siguen saliendo en la lista
+mientras duran y se leen como «Del jueves 8 al sábado 10 de octubre».
+
 ## Subir un PDF e imprimir
 
 **Leer un PDF o una foto.** El lector vive en `js/mecas.js` (`readFile`), usa `vendor/` (pdf.js y el

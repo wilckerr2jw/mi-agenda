@@ -75,7 +75,7 @@ export const FEATURES = {
     { id: 'congregacion.nombramientos', n: 'Nombramientos y cargas', d: 'Ancianos, siervos y precursores; asignaciones por hermano', a: ['load-g'] },
     { id: 'congregacion.asistencia', n: 'Asistencia a las reuniones', d: 'En el Salón y por videoconferencia, con el promedio del mes y del año', a: ['as-new', 'as-save', 'as-del', 'as-mes', 'as-share', 'as-print'] },
     { id: 'congregacion.tablero', n: 'Tablero de anuncios', d: 'Los papeles del tablero, a mano y siempre al día', a: ['tb-new', 'tb-del', 'tb-sugeridos', 'tb-share', 'tb-print', 'tb-pick', 'tb-quitar', 'tb-file-quitar'] },
-    { id: 'congregacion.limpieza', n: 'Limpieza del Salón', d: 'Turnos de limpieza repartidos entre los grupos', a: ['lp-turno', 'lp-del', 'lp-gen', 'lp-share', 'lp-print', 'lp-import', 'lp-import-save'] },
+    { id: 'congregacion.limpieza', n: 'Limpieza del Salón', d: 'Turnos de limpieza repartidos entre los grupos', a: ['lp-turno', 'lp-del', 'lp-gen', 'lp-share', 'lp-print', 'lp-import', 'lp-import-save', 'lp-leer-texto'] },
     { id: 'congregacion.programa', n: 'Programa de las reuniones', d: 'Quién tiene cada parte entre semana y el fin de semana', a: ['pg-new', 'pg-del', 'pg-share', 'pg-print', 'pg-import', 'pg-import-save'] },
   ],
 };

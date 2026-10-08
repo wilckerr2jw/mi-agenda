@@ -1306,6 +1306,10 @@ fieldset.ro input, fieldset.ro select, fieldset.ro textarea { opacity: .75; }
 
 /* ───────────── Congregación · Tablero, limpieza y programa ───────────── */
 /* Fila con su tarjeta y, al lado, el botón de abrir o de marcar hecho */
+/* El «o» que separa pegar el mensaje de elegir un archivo */
+.sep-o { display: flex; align-items: center; gap: 10px; margin: 14px 0; text-align: center; }
+.sep-o::before, .sep-o::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
 /* A quién le toca cada parte del programa: ancianos, hermanos… */
 .pg-q { font-style: normal; font-size: .78em; font-weight: 600; color: var(--muted); text-transform: lowercase; }
 .pg-q::before { content: '· '; }

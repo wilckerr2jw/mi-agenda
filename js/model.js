@@ -4,7 +4,7 @@ import { data, session, isCloud } from './store.js';
 import * as P from './perms.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '10.8.1';
+export const APP_VERSION = '10.9.0';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.

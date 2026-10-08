@@ -11,7 +11,7 @@
 // Al añadir archivos nuevos a la app, agrégalos a SHELL y sube el número de VERSION
 // (node herramientas/version.mjs revisa que todo js/*.js esté en SHELL y que cada archivo exista).
 
-const VERSION = 'agenda-v10.8.1';
+const VERSION = 'agenda-v10.9.0';
 const CDN = 'agenda-cdn';
 const VENDOR = 'vendor-v1';
 const SHARED = 'agenda-compartido';
