@@ -1,9 +1,10 @@
 {
-  "version": "10.10.2",
+  "version": "10.11.0",
   "avisar": true,
   "notes": [
-    "👁 El tablero de anuncios y la asistencia ya no salen de fábrica: si los usas, se encienden en Ajustes → A mi medida",
-    "🧹 La limpieza del Salón te enseña solo los turnos de TU grupo (se puede quitar)",
-    "📌 Nada se borra al apagar un bloque: lo guardado sigue ahí y vuelve con un clic"
+    "✨ Rediseño completo: esquinas redondeadas, botones en píldora y todo con más aire",
+    "🎨 Las superficies se tiñen del color que elijas: cambiar el color repinta la app entera",
+    "🪶 Sombras suaves en vez de bordes, y las cosas responden al tocarlas",
+    "📱 La barra de abajo, flotante y con la píldora del apartado en que estás"
   ]
 }

@@ -1582,3 +1582,165 @@ body.cg-ro .sheet:has(form[data-form="dept"], form[data-form="group"]) .sheet-f 
 .tb-leer-of { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 11px 13px; background: color-mix(in srgb, var(--primary) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--line)); border-radius: var(--radius); }
 .tb-leer-of > span { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .tb-leer-of small { font-size: 12.5px; color: var(--ink-2); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v10.11 · Rediseño: Material 3 expresivo
+
+   Va al final a propósito: así manda sobre lo de arriba y el cambio entero se
+   puede leer (o quitar) de una pieza, sin tocar las 1584 líneas anteriores.
+   No hace falta cambiar ni un HTML: todo cuelga de las clases que ya existían.
+
+   Las cuatro ideas:
+     · FORMA   esquinas muy redondeadas y botones en píldora
+     · COLOR   las superficies se tiñen del color de la app, como en Material 3
+     · PESO    sombras suaves en vez de bordes de 1px
+     · VIDA    las cosas responden al tocarlas, con una curva con rebote
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Forma ── */
+  --radius: 22px;
+  --r-xs: 12px;
+  --r-sm: 16px;
+  --r-lg: 28px;
+  --r-xl: 34px;
+  --pill: 999px;
+
+  /* ── Superficies teñidas del color de la app ──
+     Material 3 no usa grises neutros: tiñe cada nivel con el color principal.
+     Es lo que hace que la app se vea de una pieza y no como cajas sueltas. */
+  --surface: light-dark(color-mix(in srgb, var(--primary) 4%, #FFFFFF), color-mix(in srgb, var(--primary) 10%, #121A1C));
+  --surface-2: light-dark(color-mix(in srgb, var(--primary) 10%, #FFFFFF), color-mix(in srgb, var(--primary) 16%, #162023));
+  --surface-3: light-dark(color-mix(in srgb, var(--primary) 16%, #FFFFFF), color-mix(in srgb, var(--primary) 22%, #1A262A));
+  --bg: light-dark(color-mix(in srgb, var(--primary) 7%, #F6F8F6), color-mix(in srgb, var(--primary) 6%, #0B1214));
+  --line: light-dark(color-mix(in srgb, var(--primary) 18%, #DDE4E2), color-mix(in srgb, var(--primary) 20%, #2A3A3D));
+
+  /* ── Sombras: tres alturas, teñidas también ── */
+  --sh-1: 0 1px 2px color-mix(in srgb, var(--primary) 14%, transparent), 0 1px 3px 1px color-mix(in srgb, var(--primary) 8%, transparent);
+  --sh-2: 0 1px 2px color-mix(in srgb, var(--primary) 16%, transparent), 0 2px 6px 2px color-mix(in srgb, var(--primary) 10%, transparent);
+  --sh-3: 0 4px 8px 3px color-mix(in srgb, var(--primary) 12%, transparent), 0 1px 3px color-mix(in srgb, var(--primary) 18%, transparent);
+
+  /* ── Movimiento: una curva con un pelín de rebote ── */
+  --muelle: cubic-bezier(.2, .9, .3, 1.3);
+  --suave: cubic-bezier(.2, 0, 0, 1);
+}
+
+/* El fondo decorativo, más discreto: ahora el color ya da carácter */
+body::before { opacity: .03; }
+
+/* ───── Encabezados: más grandes y más apretados ───── */
+.top h1 { font-size: 32px; letter-spacing: -.02em; }
+.hero .dow { font-size: clamp(34px, 10vw, 46px); letter-spacing: -.03em; }
+/* El saludo, como etiqueta pequeña: en mayúsculas ocupa más, así que baja de tamaño
+   para que «Buenas tardes, Wilcker» quepa en una línea en un teléfono estrecho. */
+.hello-t { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hero .hello .dm { white-space: nowrap; }
+.hello-t, .hero .hello .dm { max-width: 100%; }
+.sec-h h2 { font-size: 21px; letter-spacing: -.01em; }
+.sec-h { margin: 30px 0 12px; }
+
+/* ───── Botones en píldora ───── */
+.btn { border-radius: var(--pill); min-height: 48px; padding: 0 22px; transition: transform .12s var(--muelle), background .15s var(--suave), box-shadow .15s var(--suave); }
+.btn:active { transform: scale(.96); }
+.btn.primary { box-shadow: var(--sh-1); }
+.btn.primary:active { box-shadow: var(--sh-2); }
+.btn.ghost { box-shadow: inset 0 0 0 1.5px var(--line); }
+.btn.small { min-height: 40px; padding: 0 18px; }
+.icon-btn { border-radius: var(--pill); transition: background .15s var(--suave), transform .12s var(--muelle); }
+.icon-btn:active { transform: scale(.92); background: var(--surface-2); }
+
+/* ───── Tarjetas: sin borde, con peso ───── */
+.row, .card {
+  border: 0; border-radius: var(--radius); background: var(--surface); box-shadow: var(--sh-1);
+  transition: transform .14s var(--muelle), box-shadow .16s var(--suave);
+}
+.card { padding: 15px 17px; }
+.card.mini { padding: 13px 16px; }
+button.card:active, .row:active { transform: scale(.985); box-shadow: var(--sh-2); }
+.stack { gap: 10px; }
+.empty { border: 0; background: var(--surface); border-radius: var(--r-lg); padding: 30px 22px; box-shadow: var(--sh-1); }
+.empty-ic { width: 72px; height: 72px; }
+
+/* ───── «Hoy»: las fichas de números, con su color de fondo ───── */
+.tiles { gap: 10px; margin-bottom: 20px; }
+.tile {
+  border: 0; border-radius: var(--r-lg); padding: 16px 18px; box-shadow: none;
+  background: color-mix(in srgb, var(--c, var(--primary)) 14%, var(--surface));
+  color: color-mix(in srgb, var(--c, var(--primary)) 55%, var(--ink));
+  transition: transform .14s var(--muelle), background .15s var(--suave);
+}
+.tile:active { transform: scale(.97); background: color-mix(in srgb, var(--c, var(--primary)) 22%, var(--surface)); }
+.tile-n { font-size: 30px; color: var(--c, var(--primary)); letter-spacing: -.02em; }
+.tile-n.sm { font-size: 23px; }
+
+/* El botón grande de «ahora mismo» y las tarjetas de aviso de Hoy */
+.log-now, .junta-now { border-radius: var(--r-lg); padding: 16px 18px; transition: transform .14s var(--muelle); }
+.log-now:active, .junta-now:active { transform: scale(.98); }
+
+/* ───── Barra de abajo: flotante, con la píldora de Material ───── */
+#tabs {
+  border-top: 0;
+  background: light-dark(color-mix(in srgb, var(--primary) 9%, #FFFFFF), color-mix(in srgb, var(--primary) 14%, #141E21));
+  box-shadow: 0 -1px 0 color-mix(in srgb, var(--primary) 12%, transparent), 0 -8px 24px color-mix(in srgb, var(--primary) 8%, transparent);
+  padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+  backdrop-filter: blur(12px);
+}
+.tab { gap: 4px; font-size: 11.5px; }
+.tab .pill {
+  width: min(64px, 100%); height: 34px; border-radius: var(--pill);
+  transition: background .22s var(--suave), transform .22s var(--muelle);
+}
+.tab[aria-current="page"] .pill { background: color-mix(in srgb, var(--sec, var(--primary)) 24%, transparent); transform: scale(1.04); }
+.tab[aria-current="page"] .pill .ic { transform: scale(1.12); }
+.tab > span:last-child { font-size: 11.5px; font-weight: 600; }
+
+/* ───── Botón flotante: más grande y con más presencia ───── */
+.fab {
+  width: 64px; height: 64px; border-radius: var(--r-lg);
+  box-shadow: var(--sh-3), 0 8px 24px color-mix(in srgb, var(--primary) 32%, transparent);
+  transition: transform .16s var(--muelle), box-shadow .16s var(--suave);
+}
+.fab:active { transform: scale(.9) rotate(-8deg); }
+.fab .ic { width: 28px; height: 28px; }
+/* El botón creció, así que hay que dejarle más aire abajo para que no tape la última fila */
+#view { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 112px); }
+
+/* ───── Hojas inferiores: más redondas, con asa ───── */
+.sheet { border-radius: var(--r-xl) var(--r-xl) 0 0; box-shadow: 0 -8px 40px rgba(0, 0, 0, .3); animation: rise .3s var(--muelle); }
+.sheet-h { padding: 20px 12px 6px 22px; }
+.sheet-h h2 { font-size: 23px; letter-spacing: -.01em; }
+/* El asa de arrastrar ya existía (.sheet-h::before): solo se engorda un poco */
+.sheet-h::before { width: 42px; height: 5px; margin-left: -21px; background: var(--ink-2); opacity: .32; }
+.sheet-b { padding: 10px 22px 22px; }
+.sheet-f { padding: 14px 22px 16px; border-top: 1px solid var(--line); }
+.scrim { background: rgba(6, 14, 16, .6); backdrop-filter: blur(3px); }
+@keyframes rise { from { transform: translateY(40px); opacity: 0; } }
+
+/* ───── Formularios ───── */
+input, select, textarea { border-radius: var(--r-sm); background: var(--surface-2); border-color: transparent; padding: 14px 16px; transition: background .15s var(--suave); }
+input:focus, select:focus, textarea:focus { background: var(--surface); outline: 2.5px solid var(--primary); }
+.check input { width: 23px; height: 23px; }
+.check { padding: 4px 0; }
+
+/* ───── Avisos y notas ───── */
+.notice, .shared-note { border-radius: var(--r-lg); padding: 14px 16px; }
+.toast { border-radius: var(--pill); box-shadow: var(--sh-3); }
+
+/* ───── Línea de tiempo del día ───── */
+.tl-item { border-radius: var(--r-sm); transition: background .15s var(--suave); }
+.bar { border-radius: var(--pill); }
+
+/* ───── Bloques plegables de Congregación y menú «Más» ───── */
+.csec-wrap > .csec { border: 0; border-radius: var(--r-lg); box-shadow: var(--sh-1); padding: 4px 16px 16px; }
+.more-item { border: 0; background: var(--surface); box-shadow: var(--sh-1); border-radius: var(--r-lg); min-height: 58px; transition: transform .14s var(--muelle); }
+.more-item:active { transform: scale(.98); }
+.more-item .pill { width: 42px; height: 38px; border-radius: var(--r-xs); }
+
+/* ───── Botones segmentados ───── */
+.seg { border-radius: var(--pill); overflow: hidden; }
+
+/* Quien prefiera menos movimiento, que no lo tenga */
+@media (prefers-reduced-motion: reduce) {
+  .btn, .card, .row, .tile, .fab, .log-now, .junta-now, .more-item, .icon-btn, .sheet, .tab .pill { transition: none; animation: none; }
+  .btn:active, .fab:active, .tile:active, .card:active, .row:active, .icon-btn:active { transform: none; }
+}
