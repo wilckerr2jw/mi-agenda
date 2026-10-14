@@ -23,6 +23,7 @@ export const SECTION_LIST = [
 export const MODULE_IDS = SECTION_LIST.filter(s => !s.always).map(s => s.id);
 
 // Funciones. a = acciones (data-a, o «acción:valor») que se bloquean; q = accesos rápidos; sel = otros elementos que se ocultan.
+// ocultoAlPrincipio = se puede usar, pero no se enseña hasta que la enciendas (Ajustes → A mi medida).
 // shep = viene apagada si la plantilla oculta la categoría «pastoreo» de Mi Informe (como hacían Publicador y Precursor).
 export const FEATURES = {
   general: [
@@ -75,8 +76,8 @@ export const FEATURES = {
     { id: 'congregacion.comite', n: 'Panel Cuerpo de ancianos', d: 'Pendientes para la reunión de ancianos y su resumen', a: ['comite-share'] },
     { id: 'congregacion.enlace', n: 'Enlace para los ancianos', d: 'Enlace cifrado con organigrama, acuerdos y programa', a: ['sh-open', 'sh-create', 'sh-save', 'sh-rekey', 'sh-rekey-go', 'sh-off', 'sh-off-go', 'sh-copy', 'sh-send'] },
     { id: 'congregacion.nombramientos', n: 'Nombramientos y cargas', d: 'Ancianos, siervos y precursores; asignaciones por hermano', a: ['load-g'] },
-    { id: 'congregacion.asistencia', n: 'Asistencia a las reuniones', d: 'En el Salón y por videoconferencia, con el promedio del mes y del año', a: ['as-new', 'as-save', 'as-del', 'as-mes', 'as-share', 'as-print', 'as-send'] },
-    { id: 'congregacion.tablero', n: 'Tablero de anuncios', d: 'Los papeles del tablero, a mano y siempre al día', a: ['tb-new', 'tb-del', 'tb-sugeridos', 'tb-share', 'tb-print', 'tb-pick', 'tb-quitar', 'tb-file-quitar', 'tb-leer'] },
+    { id: 'congregacion.asistencia', n: 'Asistencia a las reuniones', ocultoAlPrincipio: true, d: 'En el Salón y por videoconferencia, con el promedio del mes y del año', a: ['as-new', 'as-save', 'as-del', 'as-mes', 'as-share', 'as-print', 'as-send'] },
+    { id: 'congregacion.tablero', n: 'Tablero de anuncios', ocultoAlPrincipio: true, d: 'Los papeles del tablero, a mano y siempre al día', a: ['tb-new', 'tb-del', 'tb-sugeridos', 'tb-share', 'tb-print', 'tb-pick', 'tb-quitar', 'tb-file-quitar', 'tb-leer'] },
     { id: 'congregacion.limpieza', n: 'Limpieza del Salón', d: 'Turnos de limpieza repartidos entre los grupos', a: ['lp-turno', 'lp-del', 'lp-gen', 'lp-share', 'lp-print', 'lp-import', 'lp-import-save', 'lp-leer-texto', 'lp-solo-mio'] },
     { id: 'congregacion.programa', n: 'Programa de las reuniones', d: 'Quién tiene cada parte entre semana y el fin de semana', a: ['pg-new', 'pg-del', 'pg-share', 'pg-print', 'pg-import', 'pg-import-save', 'pg-choque', 'pg-avisar', 'pg-avisar-a'] },
   ],

@@ -1,9 +1,9 @@
 {
-  "version": "10.10.1",
+  "version": "10.10.2",
   "avisar": true,
   "notes": [
+    "👁 El tablero de anuncios y la asistencia ya no salen de fábrica: si los usas, se encienden en Ajustes → A mi medida",
     "🧹 La limpieza del Salón te enseña solo los turnos de TU grupo (se puede quitar)",
-    "👁 Puedes apagar los bloques de Congregación que no uses: Ajustes → A mi medida",
-    "📌 Nada se borra al apagarlos: lo guardado sigue ahí y vuelven con un clic"
+    "📌 Nada se borra al apagar un bloque: lo guardado sigue ahí y vuelve con un clic"
   ]
 }

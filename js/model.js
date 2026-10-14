@@ -4,7 +4,7 @@ import { data, session, isCloud } from './store.js';
 import * as P from './perms.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '10.10.1';
+export const APP_VERSION = '10.10.2';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -382,7 +382,13 @@ export const isModuleVisible = id => moduleAllowed(id) && !(profile().hiddenModu
 // `featureOn` dice si el administrador te lo dejó usar; esto dice si TÚ quieres verlo.
 // Hacen falta las dos: siendo administrador lo tienes todo permitido, y sin esto no podrías
 // quitarte de la vista lo que no usas. Se guarda en `profile.hiddenFeatures`.
-export const featureHidden = id => (profile().hiddenFeatures || []).includes(id);
+// Lo que no se enseña de fábrica (perms.js → ocultoAlPrincipio). En cuanto tocas una casilla en
+// Ajustes → A mi medida se guarda tu lista entera, y a partir de ahí manda la tuya.
+const OCULTAS_DE_FABRICA = P.FEATURE_LIST.filter(f => f.ocultoAlPrincipio).map(f => f.id);
+export const featureHidden = id => {
+  const mias = profile().hiddenFeatures;
+  return Array.isArray(mias) ? mias.includes(id) : OCULTAS_DE_FABRICA.includes(id);
+};
 export const featureVisible = id => featureOn(id) && !featureHidden(id);
 export const visibleModules = () => MODULES.filter(m => isModuleVisible(m.id));
 

@@ -695,7 +695,9 @@ document.addEventListener('change', e => {
   }
   if (t.matches?.('input[data-a="toggle-feature"]')) {
     const id = t.dataset.v;
-    const cur = new Set(M.profile().hiddenFeatures || []);
+    // Se guarda la foto completa, no solo el cambio: si hasta ahora valían los valores de fábrica,
+    // aquí quedan fijados y lo que mandes tú no se pisa con una actualización de la app.
+    const cur = new Set(M.FEATURE_LIST.filter(f => M.featureHidden(f.id)).map(f => f.id));
     t.checked ? cur.delete(id) : cur.add(id);
     store.patchProfile({ hiddenFeatures: [...cur] });
     return;

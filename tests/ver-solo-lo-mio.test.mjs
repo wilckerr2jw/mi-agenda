@@ -16,10 +16,24 @@ const limpia = () => {
 
 // ───────────── Apagar bloques para ti ─────────────
 
-test('de fábrica se ve todo lo que tienes permitido', () => {
+test('de fábrica no se enseñan los bloques marcados como ocultos', () => {
   limpia();
-  assert.equal(M.featureHidden('congregacion.tablero'), false);
-  assert.equal(M.featureVisible('congregacion.tablero'), M.featureOn('congregacion.tablero'));
+  assert.equal(M.featureHidden('congregacion.tablero'), true, 'el tablero no viene a la vista');
+  assert.equal(M.featureHidden('congregacion.asistencia'), true, 'la asistencia tampoco');
+  assert.equal(M.featureVisible('congregacion.tablero'), false);
+});
+
+test('de fábrica el resto de bloques sí se ven', () => {
+  limpia();
+  assert.equal(M.featureHidden('congregacion.limpieza'), false);
+  assert.equal(M.featureVisible('congregacion.limpieza'), M.featureOn('congregacion.limpieza'));
+});
+
+test('aunque no se vean, el permiso sigue estando: puedes encenderlos', () => {
+  limpia();
+  assert.equal(M.featureOn('congregacion.tablero'), true);
+  perfil().hiddenFeatures = [];          // los enciendes tú
+  assert.equal(M.featureVisible('congregacion.tablero'), true);
 });
 
 test('lo que apagas deja de verse, pero el permiso sigue intacto', () => {
@@ -45,10 +59,18 @@ test('volver a encenderlo lo devuelve', () => {
   assert.equal(M.featureVisible('congregacion.tablero'), true);
 });
 
-test('una lista rara no revienta nada', () => {
+test('una lista rara no revienta: se vuelve a los valores de fábrica', () => {
   limpia();
   perfil().hiddenFeatures = null;
-  assert.equal(M.featureVisible('congregacion.tablero'), true);
+  assert.equal(M.featureVisible('congregacion.limpieza'), true);
+  assert.equal(M.featureVisible('congregacion.tablero'), false);
+});
+
+test('en cuanto guardas tu lista, manda la tuya y no los valores de fábrica', () => {
+  limpia();
+  perfil().hiddenFeatures = ['congregacion.limpieza'];   // solo escondes la limpieza
+  assert.equal(M.featureVisible('congregacion.limpieza'), false);
+  assert.equal(M.featureVisible('congregacion.tablero'), true, 'el tablero vuelve, porque tu lista no lo esconde');
 });
 
 // ───────────── La limpieza, solo mi grupo ─────────────
