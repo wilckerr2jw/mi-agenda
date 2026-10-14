@@ -2956,6 +2956,9 @@ function settingsSection(id) {
       <h3 class="sub-h">Secciones visibles</h3>
       <p class="hint">Apaga las que no uses; siempre puedes volver a activarlas aquí. «Hoy» siempre está disponible.</p>
       <div class="stack pad">${M.MODULES.filter(m => M.moduleAllowed(m.id)).map(m => `<label class="check"><input type="checkbox" data-a="toggle-module" data-v="${esc(m.id)}" ${M.isModuleVisible(m.id) ? 'checked' : ''}> ${esc(m.n)}</label>`).join('')}</div>
+      ${M.isModuleVisible('congregacion') ? `<h3 class="sub-h">Bloques de Congregación</h3>
+      <p class="hint">Dentro de Congregación hay varios apartados. Apaga los que no uses: se quitan de la vista, pero lo que tengas guardado se queda.</p>
+      <div class="stack pad">${M.FEATURES.congregacion.filter(f => M.featureOn(f.id)).map(f => `<label class="check"><input type="checkbox" data-a="toggle-feature" data-v="${esc(f.id)}" ${M.featureHidden(f.id) ? '' : 'checked'}> ${esc(f.n)}</label>`).join('')}</div>` : ''}
       ${typesSettingsHtml()}
       ${(M.profile().sharedHidden || []).length ? `<h3 class="sub-h">Eventos compartidos</h3><p class="hint">Quitaste ${M.profile().sharedHidden.length} de tu agenda.</p><div class="stack pad"><button class="btn" data-a="shared-unhide">Volver a mostrarlos</button></div>` : ''}`,
     datos: () => `<p class="hint">Haz un respaldo de vez en cuando: guarda una copia de todo en un archivo. En el teléfono, «Guardar en Google Drive» abre Compartir: elige <b>Drive</b> y toca Guardar.${(() => { try { const d = localStorage.getItem('miagenda.ultimoRespaldo'); return d ? ` Tu último respaldo desde este teléfono: <b>${esc(fmtShort(d))}</b>.` : ''; } catch { return ''; } })()}</p>

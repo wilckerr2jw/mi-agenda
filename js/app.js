@@ -688,6 +688,18 @@ document.addEventListener('change', e => {
   if (t.matches?.('select[data-a="notif-num"]')) { N.setPref(t.dataset.v, Number(t.value)); return S.settings('avisos'); }
   if (t.name === 'notif-sound') { N.setPref('sound', t.value); N.playSound(t.value); return; }
   // Secciones protegidas con el PIN (Ajustes → Privacidad)
+  // Bloques de Congregación que quieres ver (Ajustes → A mi medida)
+  // Limpieza: ver solo los turnos de mi grupo
+  if (t.matches?.('input[data-a="lp-solo-mio"]')) {
+    return import('./limpieza.js').then(L => { L.verSoloMiGrupo(t.checked); render(); });
+  }
+  if (t.matches?.('input[data-a="toggle-feature"]')) {
+    const id = t.dataset.v;
+    const cur = new Set(M.profile().hiddenFeatures || []);
+    t.checked ? cur.delete(id) : cur.add(id);
+    store.patchProfile({ hiddenFeatures: [...cur] });
+    return;
+  }
   if (t.matches?.('input[data-a="lock-sec"]')) {
     const id = t.dataset.v;
     const cur = new Set(Lock.sections());

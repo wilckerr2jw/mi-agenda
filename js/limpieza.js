@@ -30,6 +30,19 @@ export const turnos = () => [...(data.limpieza || [])]
 
 const nombreGrupo = id => data.groups.find(g => g.id === id)?.name || '';
 export const proximos = (t = today(), n = 12) => turnos().filter(x => (x.until || x.date) >= t).slice(0, n);
+
+// ¿Quieres ver solo los turnos de tu grupo? Se guarda en el perfil, junto a lo demás.
+// Viene encendido: lo normal es que te importe cuándo te toca a ti, no a los demás.
+export const soloMiGrupo = () => M.profile().lpSoloMiGrupo !== false;
+export const verSoloMiGrupo = v => store.patchProfile({ lpSoloMiGrupo: !!v });
+
+/** Los que vienen, ya filtrados si has pedido ver solo los tuyos. */
+export function proximosVisibles(t = today(), n = 12) {
+  const todos = turnos().filter(x => (x.until || x.date) >= t);
+  const mio = miGrupo();
+  const mios = mio && soloMiGrupo() ? todos.filter(x => x.groupId === mio) : todos;
+  return { lista: mios.slice(0, n), total: todos.length, filtrando: mios.length !== todos.length };
+}
 export const proximoTurno = (t = today()) => proximos(t, 1)[0] || null;
 
 // Reparte los grupos, uno por turno, desde una fecha y cada «cadaDias» días.
@@ -70,13 +83,18 @@ const conArchivo = lista => lista.map(x => x.file).filter(f => f?.url)
 
 export function limpiezaSection() {
   const t = today();
-  const prox = proximos(t);
+  const { lista: prox, total, filtrando } = proximosVisibles(t);
   const sig = prox[0];
+  const mio = miGrupo();
+  const nombreMio = nombreGrupo(mio);
   return `<section><div class="sec-h"><h2>${ic('hammer')}Limpieza del Salón</h2>${prox.length ? `<span class="hint">${prox.length} por venir</span>` : ''}</div>
+    ${mio ? `<div class="pad"><label class="check"><input type="checkbox" data-a="lp-solo-mio" ${soloMiGrupo() ? 'checked' : ''}> Ver solo los turnos de ${esc(nombreMio || 'mi grupo')}</label>
+      ${filtrando ? `<p class="hint">De ${total} turnos, ${prox.length === 1 ? 'te toca 1' : `te tocan ${prox.length}`}.</p>` : ''}</div>` : ''}
     ${sig ? `<div class="card lp-next"><span class="meta">${esc(nombreTipo(sig.tipo))} · le toca a</span><strong>${esc(nombreGrupo(sig.groupId) || 'Sin grupo')}</strong>
       <span class="meta">${sig.date === t ? 'hoy' : sig.date === addDays(t, 1) ? 'mañana' : esc(fmtLong(sig.date))}</span></div>` : ''}
     ${prox.length ? `<div class="stack">${prox.map(x => fila(x, t)).join('')}</div>`
-    : `<p class="hint pad">El Salón se limpia según un programa que se pone en el tablero. Reparte los turnos entre los grupos para el servicio del campo y después cambia los que haga falta.</p>`}
+    : total ? `<p class="hint pad">No te toca ninguno de los ${total} turnos que vienen. Quita la marca de arriba para verlos todos.</p>`
+      : `<p class="hint pad">El Salón se limpia según un programa que se pone en el tablero. Reparte los turnos entre los grupos para el servicio del campo y después cambia los que haga falta.</p>`}
     <div class="org-tools">
       <button class="btn small ${prox.length ? 'ghost' : 'primary'}" data-a="lp-gen">${ic('users', 'sm')} Repartir turnos</button>
       <button class="btn small ghost" data-a="lp-turno">${ic('plus', 'sm')} Un turno</button>
@@ -274,7 +292,7 @@ function turnosDeLinea(linea) {
 }
 
 // Mi grupo, para cuando el mensaje dice «nosotros»
-function miGrupo() {
+export function miGrupo() {
   const yo = data.people.find(x => x.isMe);
   const mios = (yo?.groupIds || []).map(id => data.groups.find(g => g.id === id)).filter(Boolean);
   return (mios.find(g => /^grupo\b/i.test(g.name)) || mios[0])?.id || '';

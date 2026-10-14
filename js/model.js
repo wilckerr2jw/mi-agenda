@@ -4,7 +4,7 @@ import { data, session, isCloud } from './store.js';
 import * as P from './perms.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '10.10.0';
+export const APP_VERSION = '10.10.1';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -377,6 +377,13 @@ export const quickActions = () => {
 export const moduleAllowed = id => perms().modules.has(id) || !P.MODULE_IDS.includes(id);
 export const quickAllowed = id => { const f = P.quickFeature(id); return !f || featureOn(f); };
 export const isModuleVisible = id => moduleAllowed(id) && !(profile().hiddenModules || []).includes(id);
+
+// Apagar un bloque para TI, aunque lo tengas permitido.
+// `featureOn` dice si el administrador te lo dejó usar; esto dice si TÚ quieres verlo.
+// Hacen falta las dos: siendo administrador lo tienes todo permitido, y sin esto no podrías
+// quitarte de la vista lo que no usas. Se guarda en `profile.hiddenFeatures`.
+export const featureHidden = id => (profile().hiddenFeatures || []).includes(id);
+export const featureVisible = id => featureOn(id) && !featureHidden(id);
 export const visibleModules = () => MODULES.filter(m => isModuleVisible(m.id));
 
 // ───── Asignaciones por hermano: en cuántos departamentos está cada uno ─────

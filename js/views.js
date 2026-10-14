@@ -172,7 +172,7 @@ function assignmentsHoy() {
 }
 // Hoy: tus asignaciones mecánicas de las próximas 2 semanas (del programa importado)
 function mecasHoy() {
-  if (!M.isModuleVisible('congregacion') || !M.featureOn('congregacion.mecanicas')) return '';
+  if (!M.isModuleVisible('congregacion') || !M.featureVisible('congregacion.mecanicas')) return '';
   const list = myMecas(14);
   if (!list.length) return '';
   const t = today();
@@ -183,7 +183,7 @@ function mecasHoy() {
 }
 // Hoy: capacitaciones del organigrama que toca revisar (desde 3 días antes)
 function reviewsHoy() {
-  if (!M.isModuleVisible('congregacion') || !M.featureOn('congregacion.organigrama')) return '';
+  if (!M.isModuleVisible('congregacion') || !M.featureVisible('congregacion.organigrama')) return '';
   const list = M.reviewsDue();
   if (!list.length) return '';
   return `<section><div class="sec-h"><h2>${ic('school')}Capacitación por revisar</h2></div><div class="stack">${list.map(d => `<button class="card mini asg-card prep" data-a="dept" data-id="${esc(d.id)}">
@@ -281,7 +281,7 @@ export function hoy() {
     Nat.state.update ? `<button class="log-now apk-up" data-a="apk-update">📲 <span><b>Hay una actualización de la app</b><small>Versión ${esc(Nat.state.update.name)}. Toca para descargarla e instalarla.</small></span></button>` : '',
     Nat.isNative && Nat.state.exact && Nat.state.exact !== 'granted' ? `<button class="log-now" data-a="nat-exact-hoy">🔔 <span><b>Permite los avisos exactos</b><small>Sin este permiso, Android puede atrasar los avisos de tus eventos y tareas. Toca para activarlo.</small></span></button>` : '',
     Nat.isNative && Nat.state.health?.channelsOff?.length ? `<button class="log-now" data-a="phone-set" data-v="channel" data-ch="${esc(Nat.state.health.channelsOffIds[0])}">🔕 <span><b>Tienes apagados unos avisos en el teléfono</b><small>${esc(Nat.state.health.channelsOff.join(', '))}: por eso no te llegan. Toca para encenderlos.</small></span></button>` : '',
-    (() => { const vn = M.isModuleVisible('congregacion') && M.featureOn('congregacion.visita') ? visitNotice() : null; return vn ? `<button class="log-now visit-now" data-a="visita-open" data-id="${esc(vn.v.id)}">🧳 <span><b>Visita del superintendente de circuito ${vn.days > 1 ? `en ${vn.days} días` : vn.days === 1 ? 'mañana' : vn.days === 0 ? 'hoy' : 'esta semana'}</b><small>${vn.pend ? `Faltan ${vn.pend} cosas por tener listas` : '✓ Todo listo'}${vn.next ? ` · ${esc(vn.next.it.t.split(' (')[0])} ${vn.next.date < today() ? 'venció el' : 'antes del'} ${esc(fmtShort(vn.next.date))}` : ''}</small></span></button>` : ''; })(),
+    (() => { const vn = M.isModuleVisible('congregacion') && M.featureVisible('congregacion.visita') ? visitNotice() : null; return vn ? `<button class="log-now visit-now" data-a="visita-open" data-id="${esc(vn.v.id)}">🧳 <span><b>Visita del superintendente de circuito ${vn.days > 1 ? `en ${vn.days} días` : vn.days === 1 ? 'mañana' : vn.days === 0 ? 'hoy' : 'esta semana'}</b><small>${vn.pend ? `Faltan ${vn.pend} cosas por tener listas` : '✓ Todo listo'}${vn.next ? ` · ${esc(vn.next.it.t.split(' (')[0])} ${vn.next.date < today() ? 'venció el' : 'antes del'} ${esc(fmtShort(vn.next.date))}` : ''}</small></span></button>` : ''; })(),
     ...Ah.hoyNotices(),
     ...Cp.hoyNotices(),
     ...Pg.hoyNotices(),
@@ -762,16 +762,16 @@ export function congregacion(ui) {
   return `${head('Congregación', actions())}
   ${ro ? '' : congreCard}
   ${Cp.congreBanner()}
-  ${M.featureOn('congregacion.comite') ? foldable('comite', comiteSection()) : ''}
-  ${M.featureOn('congregacion.visita') ? foldable('visita', visitaSection()) : ''}
-  ${M.featureOn('congregacion.nombramientos') ? foldable('nombramientos', rosterHtml) : ''}
-  ${M.featureOn('congregacion.nombramientos') ? foldable('cargas', loadHtml) : ''}
-  ${M.featureOn('congregacion.mecanicas') ? foldable('mecas', mecaSection(st)) : ''}
-  ${M.featureOn('congregacion.programa') ? foldable('programa', Pg.programaSection()) : ''}
-  ${M.featureOn('congregacion.asistencia') ? foldable('asistencia', asistenciaSection(st)) : ''}
-  ${M.featureOn('congregacion.limpieza') ? foldable('limpieza', Lp.limpiezaSection()) : ''}
-  ${M.featureOn('congregacion.tablero') ? foldable('tablero', Tb.tableroSection(st)) : ''}
-  ${!M.featureOn('congregacion.organigrama') ? '' : foldable('organigrama', `<section><div class="sec-h"><h2>${ic('building')}Organigrama</h2>${empty_ ? '' : `<span class="hint">${all.length} departamentos${noHead ? ` · ${noHead} sin responsable` : ''}</span>`}</div>
+  ${M.featureVisible('congregacion.comite') ? foldable('comite', comiteSection()) : ''}
+  ${M.featureVisible('congregacion.visita') ? foldable('visita', visitaSection()) : ''}
+  ${M.featureVisible('congregacion.nombramientos') ? foldable('nombramientos', rosterHtml) : ''}
+  ${M.featureVisible('congregacion.nombramientos') ? foldable('cargas', loadHtml) : ''}
+  ${M.featureVisible('congregacion.mecanicas') ? foldable('mecas', mecaSection(st)) : ''}
+  ${M.featureVisible('congregacion.programa') ? foldable('programa', Pg.programaSection()) : ''}
+  ${M.featureVisible('congregacion.asistencia') ? foldable('asistencia', asistenciaSection(st)) : ''}
+  ${M.featureVisible('congregacion.limpieza') ? foldable('limpieza', Lp.limpiezaSection()) : ''}
+  ${M.featureVisible('congregacion.tablero') ? foldable('tablero', Tb.tableroSection(st)) : ''}
+  ${!M.featureVisible('congregacion.organigrama') ? '' : foldable('organigrama', `<section><div class="sec-h"><h2>${ic('building')}Organigrama</h2>${empty_ ? '' : `<span class="hint">${all.length} departamentos${noHead ? ` · ${noHead} sin responsable` : ''}</span>`}</div>
   ${empty_ ? empty('Arma el organigrama de tu congregación: quién atiende cada departamento y quiénes le ayudan.', `<div class="stack"><button class="btn primary" data-a="dept-suggest">Cargar departamentos sugeridos</button><button class="btn" data-a="dept-new">Empezar desde cero</button></div>`, 'users')
     : pick ? `<div class="org-tools pick-bar"><span class="grow"><b>${pick.size}</b> elegidos</span><button class="btn small ghost" data-a="org-pick-all">Todos</button><button class="btn small ghost" data-a="org-pick">Cancelar</button><button class="btn small danger" data-a="org-del" ${pick.size ? '' : 'disabled'}>Eliminar</button></div>
       <p class="hint pad">Marca los departamentos que no aplican en tu congregación. Los que dependían de ellos suben un nivel.</p>
