@@ -25,7 +25,14 @@ const db = getFirestore();
 const log = { info: (...a) => console.log(...a), warn: (...a) => console.warn(...a), error: (...a) => console.error(...a) };
 
 const DEFAULTS = { hour: 7, tasks: true, events: true, junta: true, supervise: true, shared: true, updates: true, weekly: true, details: false,
-  before: 10, logAt: 1230, soon: true, routine: true, routineLast: true, streak: true, taskTime: true, taskDay: true, taskHour: 9, meetingSoon: true, partner: true, tomorrow: true, report: true, assign: true, follow: true };
+  before: 10, logAt: 1230, soon: true, routine: true, routineLast: true, streak: true, taskTime: true, taskDay: true, taskHour: 9, meetingSoon: true, partner: true, tomorrow: true, report: true, assign: true, follow: true,
+  // Para que los avisos no sean invasivos (ver js/avisos-plan.js): horas de silencio, juntar los
+  // cercanos en uno solo y un tope por día. Valores de fábrica; cada quien los cambia en Ajustes.
+  silencio: true, silencioDe: 2200, silencioA: 700, juntar: 45, maxDia: 4, log: true };
+
+// La política vive en js/avisos-plan.js (módulo ES) y la comparten el servidor y la app de Android
+let politicaMod = null;
+const politica = async () => (politicaMod ||= await import('../js/avisos-plan.js'));
 const CATCH_UP_HOURS = 3;          // si una hora falla, lo intenta en las 3 siguientes
 const SUPERVISE_DAYS = 7;
 
@@ -427,9 +434,9 @@ async function buildPlan(uid, p, now) {
     const tmr = events.filter(e => occursOn(e, tomorrow) && e.time).sort((a, b) => a.time.localeCompare(b.time));
     if (tmr.length) add(21 * 60 + 30, `tm:${today}`, `🌙 Mañana: ${plural(tmr.length, 'evento', 'eventos')}; el primero, ${tmr[0].title} a las ${fmtTime(tmr[0].time)}.`, 'tomorrow');
   }
-  // Aviso importante de cada noche: registra tu actividad (horas y cursos) antes de que termine el día.
-  // Siempre sale (no se puede apagar), salvo que la sección «Mi Informe» esté oculta.
-  if (!(prof.hiddenModules || []).includes('informe') && !(prof.noActivityDays || []).includes(today)) {
+  // Aviso de cada noche: registra tu actividad (horas y cursos) antes de que termine el día.
+  // Se puede apagar (Ajustes → Avisos → «Registro de la noche»), y tampoco sale si «Mi Informe» está oculto.
+  if (p.log !== false && !(prof.hiddenModules || []).includes('informe') && !(prof.noActivityDays || []).includes(today)) {
     const hoy = docs(await user.collection('entries').where('date', '==', today).get());
     const mins = hoy.reduce((a, e) => a + (Number(e.minutes) || 0), 0);
     const cursos = hoy.reduce((a, e) => a + (Array.isArray(e.studyNames) ? e.studyNames.length : Number(e.studies) || 0), 0);
@@ -445,7 +452,9 @@ async function buildPlan(uid, p, now) {
     const had = !(await user.collection('entries').where('date', '>=', `${prev}-01`).where('date', '<=', `${prev}-31`).limit(1).get()).empty;
     if (had) add(Number(p.hour || 7) * 60 + 30, `rp:${prev}`, `📊 Recuerda enviar tu informe de ${MESES[Number(prev.slice(5)) - 1]}. Ábrelo en Mi Informe → Enviar.`, 'report');
   }
-  return items.sort((a, b) => a.at - b.at);
+  // Último paso: horas de silencio, juntar los cercanos y tope del día (js/avisos-plan.js)
+  const { aplicar } = await politica();
+  return aplicar(items.sort((a, b) => a.at - b.at), p);
 }
 
 async function dayReminders(uid, allDevices) {

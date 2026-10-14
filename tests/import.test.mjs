@@ -71,3 +71,47 @@ test('importPlan: cuenta nuevos, reemplazos y descartados por colección', () =>
   const notes = plan.find(r => r.col === 'notes');
   assert.deepEqual({ add: notes.add, replace: notes.replace, bad: notes.bad }, { add: 1, replace: 1, bad: 1 });
 });
+
+// ───────────── Firma del archivo (idea de la app de S. Servicio) ─────────────
+
+test('un respaldo de Mi Agenda se reconoce, con quién lo hizo y cuándo', () => {
+  const r = store.revisarArchivo(JSON.stringify({ app: 'mi-agenda-teocrática', version: 1.4, exportedAt: '2026-10-13T10:00:00Z', de: 'Luis', data: {} }));
+  assert.equal(r.ok, true);
+  assert.equal(r.de, 'Luis');
+  assert.equal(r.cuando, '2026-10-13');
+});
+
+test('un archivo de otra app se rechaza diciendo de cuál es', () => {
+  const r = store.revisarArchivo(JSON.stringify({ app: 'territorio', data: {} }));
+  assert.equal(r.ok, false);
+  assert.match(r.porque, /otra app/);
+  assert.match(r.porque, /territorio/);
+});
+
+test('algo que no es JSON se rechaza sin reventar', () => {
+  assert.equal(store.revisarArchivo('esto no es json {{{').ok, false);
+  assert.equal(store.revisarArchivo('').ok, false);
+  assert.equal(store.revisarArchivo('[1,2,3]').ok, false);
+});
+
+test('un JSON cualquiera no cuela como respaldo', () => {
+  const r = store.revisarArchivo(JSON.stringify({ hola: 'mundo' }));
+  assert.equal(r.ok, false);
+  assert.match(r.porque, /no es un respaldo de Mi Agenda/);
+});
+
+test('un respaldo de una versión más nueva avisa de que hay que actualizar', () => {
+  const r = store.revisarArchivo(JSON.stringify({ app: 'mi-agenda-teocrática', version: 99, data: {} }));
+  assert.equal(r.ok, false);
+  assert.match(r.porque, /más nueva/);
+});
+
+test('los respaldos antiguos, que no traían firma, se siguen aceptando', () => {
+  assert.equal(store.revisarArchivo(JSON.stringify({ data: { tasks: [] } })).ok, true, 'con envoltorio data');
+  assert.equal(store.revisarArchivo(JSON.stringify({ tasks: [{ id: 't1' }] })).ok, true, 'o con las colecciones sueltas');
+});
+
+test('lo que exporta la app pasa su propia revisión', () => {
+  const r = store.revisarArchivo(store.exportAll());
+  assert.equal(r.ok, true);
+});

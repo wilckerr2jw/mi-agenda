@@ -145,6 +145,8 @@ function permStyle() {
 
 function go(route) {
   if (!ROUTES.includes(route) || (route !== 'hoy' && !M.isModuleVisible(route))) route = 'hoy';
+  // Secciones protegidas con el PIN: se pide antes de entrar (js/lock.js)
+  if (Lock.isSectionLocked(route)) { Lock.askSection(route, () => go(route)); return; }
   const changed = ui.route !== route;
   ui.route = route;
   history.replaceState(history.state, '', `#/${route}`);
@@ -388,6 +390,8 @@ document.addEventListener('click', e => {
     case 'as-new': return S.asistenciaSheet(id || '');
     case 'as-del': return S.asistenciaDel(id);
     case 'as-share': return import('./asistencia.js').then(A => A.compartirMes(v));
+    case 'as-send': return import('./asistencia.js').then(A => A.mandarPendientes());
+    case 'nb-del': return import('./nombres.js').then(N => { N.desenlazar(v); S.settings('nombres'); });
     // Congregacion · Tablero de anuncios
     case 'tb-new': return S.tableroSheet(id || '');
     case 'tb-del': return S.tableroDel(id);
@@ -404,6 +408,9 @@ document.addEventListener('click', e => {
     case 'pg-new': return S.programaSheet(id || '', v || 'semana');
     case 'pg-del': return S.programaDel(id);
     case 'pg-share': return import('./programa.js').then(P => P.compartir(id));
+    case 'pg-choque': return import('./programa.js').then(P => { P.avisarDelChoque(id); render(); });
+    case 'pg-avisar': return S.programaAvisar(id);
+    case 'pg-avisar-a': return import('./programa.js').then(P => P.avisarA(id, v));
     case 'pg-import': return S.programaImport();
     case 'pg-import-save': return S.programaImportSave();
     case 'pg-print': return import('./programa.js').then(P => P.imprimir(id || ''));
@@ -413,6 +420,7 @@ document.addEventListener('click', e => {
     case 'lp-print': return import('./limpieza.js').then(L => L.imprimir());
     case 'as-print': return import('./asistencia.js').then(A => A.imprimir(v));
     case 'tb-print': return import('./tablero.js').then(T => T.imprimir());
+    case 'tb-leer': return import('./tablero.js').then(T => T.leerArchivo());
     case 'tb-file-quitar': return import('./tablero.js').then(T => T.quitarArchivo());
     case 'tb-pick': ui.congre = { ...ui.congre, tbPick: !ui.congre.tbPick }; return render();
     case 'tb-quitar': return import('./tablero.js').then(T => { if (T.quitarMarcados()) { ui.congre = { ...ui.congre, tbPick: false }; render(); } });
@@ -676,7 +684,17 @@ document.addEventListener('change', e => {
   if (t.id === 'notif-before') { N.setPref('before', Number(t.value)); return; }
   if (t.id === 'notif-taskhour') { N.setPref('taskHour', Number(t.value)); return; }
   if (t.id === 'notif-logat') { N.setPref('logAt', Number(t.value)); return; }
+  // Tranquilidad: horas de silencio, juntar los cercanos y tope del día (se repinta para ver la frase al día)
+  if (t.matches?.('select[data-a="notif-num"]')) { N.setPref(t.dataset.v, Number(t.value)); return S.settings('avisos'); }
   if (t.name === 'notif-sound') { N.setPref('sound', t.value); N.playSound(t.value); return; }
+  // Secciones protegidas con el PIN (Ajustes → Privacidad)
+  if (t.matches?.('input[data-a="lock-sec"]')) {
+    const id = t.dataset.v;
+    const cur = new Set(Lock.sections());
+    t.checked ? cur.add(id) : cur.delete(id);
+    Lock.setSections([...cur]);
+    return;
+  }
   if (t.matches?.('input[data-a="notif-pref"]')) { N.setPref(t.dataset.v, t.checked); if (t.dataset.v === 'details') S.settings(); return; }
   if (t.matches?.('input[data-a="ag-pick"]')) return S.agendaTogglePick(t.dataset.id);
   if (t.matches?.('select[data-admin-uid]')) return S.adminSetType(t.dataset.adminUid, t.value, t);

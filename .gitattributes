@@ -1,0 +1,14 @@
+# Los binarios NO se tocan: sin esto, Git les cambia los saltos de línea al sacarlos
+# en Windows y los PDF, los Word y las imágenes se corrompen.
+*.pdf   binary
+*.docx  binary
+*.xlsx  binary
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.mp3   binary
+*.ttf   binary
+*.otf   binary
+*.gz    binary
+*.wasm  binary
+*.rar   binary

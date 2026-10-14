@@ -108,7 +108,14 @@ y la versión del pie.
 | `js/programa.js` | 🎤 Programa de las reuniones: quién tiene cada parte (complementa `js/mecas.js`, que son las mecánicas) |
 | `js/programa-s140.js` | Lee el programa impreso (S-140) de un PDF o una foto: separa las dos columnas y saca fechas, partes y nombres |
 | `js/imprimir.js` | Hoja para imprimir o guardar como PDF, compartida por las secciones de Congregación |
+| `js/por-resolver.js` | 🗂 Lo que una importación no entiende queda apartado (`profile.porResolver`) en vez de perderse |
+| `js/lectores.js` | 🔎 El hueco donde el módulo Papeles se apunta para que el tablero pueda ofrecer «leer este PDF» sin depender de él |
+| `js/nombres.js` | 👥 Enlazar nombres: que «J. Pérez» y «Jorge Pérez» sean el mismo hermano (`profile.alias`) |
+| `js/avisos-plan.js` | 🤫 Que los avisos no sean invasivos: horas de silencio, juntar los cercanos y tope del día (lo usan el servidor y el teléfono) |
+| `modulos/_nucleo.js` | 🧩 El enchufe de los módulos: los pone en los menús y en Hoy, atiende `#/<id>` y desconecta solo al que falle |
 | `modulos/matrimonio/` | 💑 Módulo aparte; se activa con una línea en `index.html` y se quita borrando esa línea y la carpeta |
+| `modulos/papeles/` | 📄 Sube el PDF del S-147 del mes y salen las tareas; cada formulario en su propio `papel-XXX.js` |
+| `modulos/LEEME.md` | Cómo se hace un módulo, las tres reglas y el orden para ir pasando a módulos lo que ya está hecho |
 
 Ejemplos de cambios sencillos:
 
@@ -150,8 +157,11 @@ Si agregas archivos nuevos a `js/` o `css/`, añádelos también a la lista `SHE
 
 ## Módulos aparte (el patrón de `modulos/`)
 
-`modulos/matrimonio/` es la plantilla a seguir para cualquier añadido grande que no tenga que
-cargar todo el mundo. El trato es este:
+`modulos/matrimonio/` y `modulos/papeles/` son la plantilla a seguir para cualquier añadido grande
+que no tenga que cargar todo el mundo. Lo que los dos comparten está en `modulos/_nucleo.js`:
+un módulo se declara con `registrarModulo({ id, nombre, icono, feature, css, abrir, tarjetaHoy })`
+y el núcleo se encarga del resto (menús, tarjeta en Hoy, dirección `#/<id>` y desconectarlo si falla).
+El detalle completo está en **`modulos/LEEME.md`**. El trato es este:
 
 - **Se activa con una línea** en `index.html`:
   `<script type="module" src="modulos/<nombre>/<nombre>.js"></script>`
@@ -450,6 +460,29 @@ Los avisos de eventos compartidos y el de versión nueva llegan en la siguiente 
 
 Datos: `users/{uid}/devices/{id}` (`token`, `tz`) guarda la dirección de cada teléfono; `users/{uid}/meta/notif`
 anota el último día avisado; `profile.notif` guarda la hora y qué incluir. Los teléfonos que ya no existen se borran solos.
+
+### Que los avisos no sean invasivos (`js/avisos-plan.js`)
+
+Hay **dos** sitios que arman la lista de avisos del día: `avisos/run.js` → `buildPlan()` (servidor) y
+`js/native.js` → `planFor()` (la app de Android los programa ella misma). Los dos terminan pasando la
+lista por `aplicar()` de `js/avisos-plan.js`, para que el resultado sea el mismo por los dos caminos.
+
+Tres reglas, en este orden:
+
+1. **Horas de silencio** — lo que cae de noche no suena. No se mueve de hora: simplemente no sale.
+2. **Juntar los cercanos** — los avisos a menos de 45 min se convierten en uno con varias líneas.
+   (Así «hoy vencen 3 tareas» y «2 tareas atrasadas», que salían con un minuto de diferencia, llegan juntos.)
+3. **Tope del día** — si aún quedan demasiados, se quedan los más importantes.
+
+La importancia está en `PRIORIDAD`. Dos garantías: el **resumen de la mañana** (`daily`) nunca se recorta,
+porque ahí sale lo que no sonó; y lo **urgente** (`soon`, `meeting`) tampoco.
+
+De fábrica: silencio de 10:00 p. m. a 7:00 a. m., juntar a menos de 45 min, tope de 4 al día. Un día cargado
+pasa de ~10 avisos a 4. Se cambia en **Ajustes → Avisos → 🤫 Tranquilidad**; los valores viven en `profile.notif`
+junto a los demás, así que **las cuentas que ya existían reciben los valores nuevos** sin tener que tocar nada.
+
+El recordatorio de las 12:30 («Registra tu actividad») **ya se puede apagar** (`notif.log`); antes era el único
+que no se podía. El archivo es puro: se prueba con `node --test tests/avisos-plan.test.mjs`.
 
 ## Novedades de la v3.14: confidencial de verdad, fecha tope y referencias
 

@@ -82,3 +82,48 @@ test('meses con datos: los más recientes primero y sin repetir', () => {
     assert.deepEqual(A.mesesConDatos(), ['2026-10', '2026-09']);
   } finally { limpia(); }
 });
+
+// ───────────── Mandarla al secretario (idea de MeetingCounter) ─────────────
+
+test('sinEnviar: solo las que todavía no has mandado, de la más vieja a la más nueva', () => {
+  limpia();
+  data.asistencia.push({ id: 'a', date: '2026-10-15', kind: 'semana', presencial: 90, online: 10 });
+  data.asistencia.push({ id: 'b', date: '2026-10-08', kind: 'semana', presencial: 88, online: 12, enviado: '2026-10-09T10:00:00Z' });
+  data.asistencia.push({ id: 'c', date: '2026-10-11', kind: 'finde', presencial: 120, online: 20 });
+  assert.deepEqual(A.sinEnviar().map(r => r.id), ['c', 'a'], 'la enviada no sale; las otras, por fecha');
+});
+
+test('sinEnviar: se puede pedir solo las de un mes', () => {
+  limpia();
+  data.asistencia.push({ id: 'a', date: '2026-10-15', kind: 'semana', presencial: 90 });
+  data.asistencia.push({ id: 'b', date: '2026-09-15', kind: 'semana', presencial: 80 });
+  assert.deepEqual(A.sinEnviar('2026-10').map(r => r.id), ['a']);
+});
+
+test('sinEnviar: sin nada anotado, no hay nada pendiente', () => {
+  limpia();
+  assert.deepEqual(A.sinEnviar(), []);
+});
+
+test('textoDe: el mensaje trae el total y el desglose', () => {
+  const t = A.textoDe([{ date: '2026-10-15', kind: 'semana', presencial: 90, online: 10 }]);
+  assert.match(t, /Entre semana/);
+  assert.match(t, /Total: 100/);
+  assert.match(t, /En el Salón: 90/);
+  assert.match(t, /videoconferencia: 10/);
+});
+
+test('textoDe: varias reuniones van separadas en un solo mensaje', () => {
+  const t = A.textoDe([
+    { date: '2026-10-11', kind: 'finde', presencial: 120, online: 20 },
+    { date: '2026-10-15', kind: 'semana', presencial: 90, online: 10 },
+  ]);
+  assert.equal(t.split('\n\n').length, 2);
+  assert.match(t, /Total: 140/);
+  assert.match(t, /Total: 100/);
+});
+
+test('textoDe: la nota de la reunión se incluye si la hay', () => {
+  const t = A.textoDe([{ date: '2026-10-15', kind: 'semana', presencial: 90, online: 10, notes: 'semana de la visita' }]);
+  assert.match(t, /\(semana de la visita\)/);
+});

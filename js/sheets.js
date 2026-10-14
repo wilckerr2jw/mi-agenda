@@ -12,6 +12,7 @@ import * as Bor from './borrador.js';
 import { guideGroups, guideAudience } from './guide.js';
 import * as A from './agenda.js';
 import * as Lock from './lock.js';
+import * as Nombres from './nombres.js';
 import * as R from './reports.js';
 import * as J from './junta.js';
 import { hhmm } from './weekcal.js';
@@ -2887,6 +2888,7 @@ const SETTINGS_SECS = [
   { id: 'medida', ic: '🧩', n: 'La app a mi medida', d: 'Secciones, accesos rápidos y tipos propios', k: 'secciones accesos rápidos tipos ocultar módulos compartidos' },
   { id: 'datos', ic: '💾', n: 'Mis datos', d: 'Respaldo, restaurar e importar', k: 'respaldo restaurar importar keep exportar datos cerrar sesión' },
   { id: 'novedades', ic: '📰', n: 'Novedades', d: 'Lo nuevo de la app (se actualiza sola, sin avisos)', k: 'novedades versión cambios nuevo actualización actualizar' },
+  { id: 'nombres', ic: '👥', n: 'Nombres enlazados', d: 'Cómo se escriben en los papeles y a quién son', k: 'nombres enlazar alias apodos importar reconocer personas' },
   { id: 'ayuda', ic: '❓', n: 'Ayuda', d: 'Guía, recorrido e instalar en el teléfono', k: 'ayuda guía recorrido instalar' },
   { id: 'admin', ic: '🛡️', n: 'Administración', d: 'Aprobar cuentas, sus funciones y plantillas', k: 'administrar usuarios cuentas aprobar funciones permisos plantillas', admin: true },
 ];
@@ -2933,11 +2935,20 @@ function settingsSection(id) {
       <p class="hint pad">El color de cada evento se elige dentro del evento.</p>`;
     },
     avisos: () => notifSettingsHtml(),
+    nombres: () => {
+      const l = Nombres.enlaces();
+      return `<p class="hint">Cuando subes un PDF, una foto o un mensaje, los nombres no siempre vienen como los tienes en Personas. La app reconoce sola las abreviaturas («J. Pérez» → Jorge Pérez); aquí quedan los que enlazaste tú a mano.</p>
+      ${l.length ? `<div class="stack pad">${l.map(x => `<div class="nb-row"><span><b>${esc(x.texto)}</b><small>es ${esc(x.persona.name)}</small></span><button type="button" class="link" data-a="nb-del" data-v="${esc(x.texto)}">Quitar</button></div>`).join('')}</div>`
+      : '<p class="hint pad">Todavía no has enlazado ninguno. Cuando una importación no reconozca un nombre, te lo preguntará y lo recordará aquí.</p>'}`;
+    },
     privacidad: () => Lock.isEnabled()
       ? `<p class="hint">La app pide tu PIN al abrirla${Lock.delay() ? ` y al volver después de ${Lock.delay()} min` : ' y cada vez que vuelves a ella'}.</p>
          <div class="stack pad"><label class="mini-f"><span>Pedir el PIN al volver después de</span><select id="pin-delay">${[0, 1, 5, 15, 30].map(n => `<option value="${n}" ${n === Lock.delay() ? 'selected' : ''}>${n ? `${n} min` : 'Siempre'}</option>`).join('')}</select></label>
          <label class="check" id="bio-row" hidden><input type="checkbox" id="bio-toggle" ${Lock.bioEnabled() ? 'checked' : ''}> Desbloquear también con la huella</label>
-         <button class="btn" data-a="pin" data-v="change">Cambiar PIN</button><button class="btn ghost danger" data-a="pin" data-v="off">Quitar el PIN</button></div>`
+         <button class="btn" data-a="pin" data-v="change">Cambiar PIN</button><button class="btn ghost danger" data-a="pin" data-v="off">Quitar el PIN</button></div>
+         <h3 class="sub-h">Secciones con PIN</h3>
+         <p class="hint">Marca las que quieras proteger aparte: la app se abre normal y el PIN se pide al entrar en ellas. Útil para lo que no quieres que vea quien te pida el teléfono un momento.</p>
+         <div class="stack pad">${M.MODULES.filter(m => M.moduleAllowed(m.id) && M.isModuleVisible(m.id)).map(m => `<label class="check"><input type="checkbox" data-a="lock-sec" data-v="${esc(m.id)}" ${Lock.sections().includes(m.id) ? 'checked' : ''}> ${esc(m.n)}</label>`).join('')}</div>`
       : `<p class="hint">Protege lo que guardas si alguien toma tu teléfono: la app pedirá un PIN al abrirla. Después podrás usar también la huella.</p><div class="stack pad"><button class="btn" data-a="pin" data-v="on">🔒 Activar bloqueo con PIN</button></div>`,
     medida: () => `<h3 class="sub-h">Accesos rápidos</h3>
       <p class="hint">Botones que aparecen en Hoy para lo que más usas.</p>
@@ -2981,6 +2992,37 @@ function settingsSection(id) {
   if (id === 'privacidad') settingsBio();
 }
 
+// Avisar uno a uno de su parte del programa (idea tomada de la app de Conferencia)
+export async function programaAvisar(id) {
+  const P = await import('./programa.js');
+  const gente = P.aQuienAvisar(id);
+  if (!gente.length) return toast('Esa semana todavía no tiene a nadie asignado');
+  open({
+    title: '🎤 Avisar a cada uno',
+    body: `<p class="hint">Un mensaje para cada hermano, con lo suyo y pidiéndole que confirme. Si tienes su teléfono, se abre WhatsApp; si no, se comparte para que lo pegues donde quieras.</p>
+      <div class="stack pad">${gente.map(x => `<div class="nb-row">
+        <span><b>${esc(x.nombre)}</b><small>${esc(x.partes.join(' · '))}${x.persona?.phone ? '' : ' · sin teléfono'}</small></span>
+        <button type="button" class="btn small primary" data-a="pg-avisar-a" data-id="${esc(id)}" data-v="${esc(x.nombre)}">${x.persona?.phone ? 'WhatsApp' : 'Compartir'}</button>
+      </div>`).join('')}</div>`,
+  });
+}
+
+// 🤫 Tranquilidad: lo que evita que los avisos sean invasivos. Es el mismo bloque para la web y para
+// la app de Android, porque la regla es la misma en los dos sitios (js/avisos-plan.js).
+function calmaHtml(p, opt) {
+  const horas = Array.from({ length: 24 }, (_, h) => h * 100);
+  const hh = m => { const h = Math.floor(m / 100); return `${h % 12 || 12}:00 ${h < 12 ? 'a. m.' : 'p. m.'}`; };
+  const sel = (id, valores, actual, texto) => `<select data-a="notif-num" data-v="${esc(id)}">${valores.map(v => `<option value="${v}" ${v === Number(actual) ? 'selected' : ''}>${esc(texto(v))}</option>`).join('')}</select>`;
+  return `<p class="hint pick-h"><b>🤫 Tranquilidad</b></p>
+    <p class="hint ok">${esc(N.resumenPolitica())}</p>
+    ${opt('silencio', 'Horas de silencio (de noche no suena nada)')}
+    <label class="mini-f"><span>Desde</span>${sel('silencioDe', horas, p.silencioDe, hh)}</label>
+    <label class="mini-f"><span>Hasta</span>${sel('silencioA', horas, p.silencioA, hh)}</label>
+    <label class="mini-f"><span>Juntar los avisos cercanos</span>${sel('juntar', [0, 15, 30, 45, 60, 90], p.juntar, v => (v ? `A menos de ${v} min` : 'No juntarlos'))}</label>
+    <label class="mini-f"><span>Como mucho, al día</span>${sel('maxDia', [0, 2, 3, 4, 5, 6, 8], p.maxDia, v => (v ? `${v} ${v === 1 ? 'aviso' : 'avisos'}` : 'Sin tope'))}</label>
+    <p class="hint">Lo que no suena no se pierde: sigue en la app y sale en el resumen de la mañana. Lo urgente (un evento que empieza, una reunión en una hora) nunca se queda fuera por el tope.</p>`;
+}
+
 // Avisos en la app de Android: los programa el propio teléfono (exactos, sin internet, con sonidos por tipo)
 function nativeNotifHtml() {
   const p = N.prefs();
@@ -2994,7 +3036,9 @@ function nativeNotifHtml() {
       <p class="hint pick-h"><b>Resumen de la mañana</b></p>
       <label class="mini-f"><span>Hora del resumen</span><select id="notif-hour">${hours.map(h => `<option value="${h}" ${h === Number(p.hour) ? 'selected' : ''}>${hh(h)}</option>`).join('')}</select></label>
       ${opt('tasks', 'Tareas para hoy y atrasadas')}${opt('events', 'Compromisos de hoy')}${opt('junta', 'Reuniones de hoy')}${opt('assign', 'Mis asignaciones por preparar')}${opt('follow', 'Lunes: cursos bíblicos y pastoreo pendientes')}
-      <p class="hint pick-h"><b>📝 Registro de la noche (importante)</b></p>
+      ${calmaHtml(p, opt)}
+      <p class="hint pick-h"><b>📝 Registro de la noche</b></p>
+      ${opt('log', 'Recordarme registrar mis horas y cursos')}
       <label class="mini-f"><span>Hora del recordatorio</span><select id="notif-logat">${[1140, 1170, 1200, 1230, 1260, 1290, 1320].map(m => `<option value="${m}" ${m === Number(p.logAt) ? 'selected' : ''}>${Math.floor(m / 60) - 12}:${String(m % 60).padStart(2, '0')} p. m.</option>`).join('')}</select></label>
       <p class="hint pick-h"><b>Durante el día</b></p>
       ${opt('soon', 'Antes de cada evento')}
@@ -3088,8 +3132,10 @@ function notifSettingsHtml() {
         ${opt('follow', 'Lunes: cursos bíblicos y pastoreo pendientes')}
         ${opt('supervise', 'Los lunes: tareas que supervisas')}
         ${opt('weekly', 'Los domingos: resumen de la semana y lo que viene')}
-        <p class="hint pick-h"><b>📝 Registro de la noche (importante)</b></p>
-        <p class="hint">Cada noche te recuerda registrar tus horas y cursos del día para que no se te pase ninguno. Este aviso siempre está activo; solo eliges la hora.</p>
+        ${calmaHtml(p, opt)}
+        <p class="hint pick-h"><b>📝 Registro de la noche</b></p>
+        <p class="hint">Cada noche te recuerda registrar tus horas y cursos del día para que no se te pase ninguno.</p>
+        ${opt('log', 'Recordarme registrar mis horas y cursos')}
         <label class="mini-f"><span>Hora del recordatorio</span><select id="notif-logat">${[1140, 1170, 1200, 1230, 1260, 1290, 1320].map(m => `<option value="${m}" ${m === Number(p.logAt) ? 'selected' : ''}>${Math.floor(m / 60) - 12}:${String(m % 60).padStart(2, '0')} p. m.</option>`).join('')}</select></label>
         <p class="hint pick-h"><b>Durante el día</b></p>
         ${opt('soon', 'Antes de cada evento')}
@@ -3334,9 +3380,10 @@ export function adminSetType(uid, type, select) {
 
 let importPending = null;
 export function importPreview(txt, opts = {}) {
-  let parsed;
-  try { parsed = JSON.parse(txt); } catch { importPending = null; return toast('El archivo no es un respaldo válido'); }
-  if (!parsed || typeof parsed !== 'object') { importPending = null; return toast('El archivo no es un respaldo válido'); }
+  // Antes de nada, la firma del archivo: así se dice qué pasa en vez de «no trajo nada»
+  const firma = store.revisarArchivo(txt);
+  if (!firma.ok) { importPending = null; return toast(firma.porque); }
+  const parsed = JSON.parse(txt);
   const src = parsed.data || parsed;
   const dupPeople = (Array.isArray(src.people) ? src.people : []).filter(x => x && x.id && store.isDuplicatePerson(x)).length;
   const plan = store.importPlan(parsed);
@@ -3353,7 +3400,9 @@ export function importPreview(txt, opts = {}) {
   const names = { notes: 'notas', events: 'eventos', tasks: 'tareas', people: 'personas', groups: 'grupos', meetings: 'reuniones', entries: 'registros de tiempo', profile: 'perfil', weeks: 'semanas con objetivos', depts: 'departamentos', mecas: 'arreglos de asignaciones', visitas: 'visitas del superintendente' };
   open({
     title: opts.title || 'Restaurar respaldo', back: opts.title ? null : settings,
-    body: `${opts.intro ? `<p class="hint">${esc(opts.intro)}</p>` : ''}<p>${opts.title ? 'Trae' : 'El archivo trae'} <b>${total}</b> elementos:</p>
+    body: `${opts.intro ? `<p class="hint">${esc(opts.intro)}</p>` : ''}
+      ${firma.de || firma.cuando ? `<p class="hint ok">✓ Respaldo de Mi Agenda${firma.de ? `, hecho por <b>${esc(firma.de)}</b>` : ''}${firma.cuando ? ` el ${esc(fmtShort(firma.cuando))}` : ''}.</p>` : ''}
+      <p>${opts.title ? 'Trae' : 'El archivo trae'} <b>${total}</b> elementos:</p>
       <ul class="steps">${plan.filter(r => r.add + r.replace).map(r => `<li><b>${r.add + r.replace}</b> ${names[r.col]}${r.replace ? ` <span class="hint">(${r.add ? `${r.add} nuevos, ` : ''}${r.replace} ya los tienes y se reemplazan)</span>` : ' <span class="hint">(nuevos)</span>'}</li>`).join('')}</ul>
       ${bad ? `<p class="hint pad">⚠️ ${bad} ${bad === 1 ? 'elemento no es válido y se deja' : 'elementos no son válidos y se dejan'} por fuera.</p>` : ''}
       ${plan.some(r => r.col === 'profile' && r.add + r.replace) ? '<p class="hint pad">Tu enlace para los ancianos, Google Calendar y los avisos de este teléfono se quedan como los tienes.</p>' : ''}

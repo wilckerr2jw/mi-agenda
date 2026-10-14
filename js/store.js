@@ -132,10 +132,39 @@ export function remove(col, id) {
 export const restore = (col, item) => write(col, item);
 
 // ---------- Respaldo ----------
+// Firma del archivo: qué app lo hizo, qué versión y quién. Así, al restaurar, la app puede decir
+// claramente «esto no es un respaldo de Mi Agenda» en vez de intentarlo y no traer nada.
+// (La idea es de la app de S. Servicio, que marca cada archivo con su origen y su fecha.)
+export const APP_TAG = 'mi-agenda-teocrática';
+export const FILE_VERSION = 1.4;
+
 export function exportAll() {
   const own = { ...data, events: data.events.filter(e => !e.sharedId), tasks: data.tasks.filter(t => !t.assignedFrom && !t.sharedItemId), notes: data.notes.filter(n => !n.sharedItemId), ...cgOwnData() };   // los compartidos y las tareas recibidas son de otra colección
-  return JSON.stringify({ app: 'mi-agenda-teocrática', version: 1.3, exportedAt: new Date().toISOString(), data: own }, null, 2);
+  return JSON.stringify({ app: APP_TAG, version: FILE_VERSION, exportedAt: new Date().toISOString(), de: myName(), data: own }, null, 2);
 }
+
+/**
+ * Mira la firma de un archivo antes de tocar nada.
+ * @returns {{ ok: boolean, porque: string, de: string, cuando: string, version: number }}
+ */
+export function revisarArchivo(txt) {
+  const no = porque => ({ ok: false, porque, de: '', cuando: '', version: 0 });
+  let p;
+  try { p = typeof txt === 'string' ? JSON.parse(txt) : txt; } catch { return no('Ese archivo no se puede leer: no es un respaldo.'); }
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return no('Ese archivo no se puede leer: no es un respaldo.');
+
+  const app = String(p.app || '');
+  // Los respaldos de antes no traían firma: se aceptan si tienen pinta de serlo (para no dejar a nadie fuera)
+  const viejoSinFirma = !app && (p.data || store_cols_presentes(p));
+  if (app && app !== APP_TAG) return no(`Ese archivo es de otra app («${app.slice(0, 40)}»), no de Mi Agenda.`);
+  if (!app && !viejoSinFirma) return no('Ese archivo no es un respaldo de Mi Agenda.');
+
+  const version = Number(p.version) || 0;
+  if (version > FILE_VERSION) return no('Ese respaldo es de una versión más nueva de la app. Actualiza Mi Agenda y vuelve a intentarlo.');
+
+  return { ok: true, porque: '', de: String(p.de || '').slice(0, 60), cuando: String(p.exportedAt || '').slice(0, 10), version };
+}
+const store_cols_presentes = p => COLS.some(c => Array.isArray(p[c]));
 
 // Personas que ya tienes con el mismo nombre (así un archivo de personas no las duplica)
 const nameKey = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();

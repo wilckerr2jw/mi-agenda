@@ -1,9 +1,16 @@
 {
-  "version": "10.9.0",
+  "version": "10.10.0",
   "avisar": true,
   "notes": [
-    "💬 El programa de limpieza se puede pegar tal como llega por mensaje: «Octubre:» y debajo «8-10 grupo 3»",
-    "📆 Entiende los rangos de días, «nosotros» como tu grupo y «general» como la limpieza a fondo",
-    "🗓 Los turnos que duran varios días se ven como «Del jueves 8 al sábado 10» y siguen saliendo mientras duran"
+    "📌 En el tablero, adjunta el PDF y la app te ofrece sacarle los datos sola",
+    "🧹 Lee la tabla de limpieza del Salón: cada semana, su grupo y su tipo de limpieza",
+    "📊 Lee el S-3 de asistencia: los del Salón y los conectados, semana por semana",
+    "👥 Sube las tarjetas del grupo (S-21) y se ponen al día TODOS los publicadores de una vez",
+    "📝 Lee el S-140 en Word y llena el programa de las reuniones",
+    "📄 Papeles: sube el S-147 y salen las tareas; eliges cuáles quieres, apartado por apartado",
+    "🤫 Los avisos dejan de ser invasivos: horas de silencio, los cercanos en uno solo y un tope al día",
+    "🗂 Por resolver: lo que una importación no entiende ya no se pierde",
+    "🔒 Puedes pedir el PIN solo para algunas secciones, sin bloquear la app entera",
+    "🎤 Si esa semana hay asamblea, avisa de que el programa no va y crea la tarea de avisarles"
   ]
 }

@@ -11,6 +11,7 @@ import * as M from './model.js';
 import { ic, esc, uid, today, toast, fmtShort, fmtLong, diffDays, shareText } from './util.js';
 import { printDoc } from './imprimir.js';
 import * as A from './archivos.js';
+import * as Lectores from './lectores.js';
 
 // Los de siempre, en el orden en que suelen estar en el tablero. «every» = meses que duran.
 export const SUGERIDOS = [
@@ -131,6 +132,8 @@ export async function fileChosen(input) {
   const f = input.files?.[0];
   input.value = '';
   if (!f) return;
+  // Guardar el archivo necesita Almacenamiento; leerlo, no: eso pasa en el teléfono
+  if (!A.disponible()) return ofrecerLectura(f);
   const motivo = A.valida(f);
   if (motivo) return paso(motivo);
   paso('Guardando el archivo…');
@@ -138,12 +141,37 @@ export async function fileChosen(input) {
     subido = await A.subir('tablero', hojaId, f, paso);
     pintaFicha(subido);
     toast('Archivo guardado');
+    ofrecerLectura(f);      // ¿es un papel que sabemos leer? (js/lectores.js)
   } catch (e) {
     paso(e?.message === 'sin-almacen'
       ? 'No se pudo guardar el archivo: revisa la conexión o que el Almacenamiento esté activado.'
       : 'No se pudo guardar el archivo. Inténtalo otra vez.');
     console.warn(e);
   }
+}
+
+// Si el archivo es un papel conocido (S-140, S-21, S-147…), se ofrece sacarle los datos.
+// Quien sabe leerlo es el módulo Papeles; aquí solo se pregunta y se enseña el botón.
+let paraLeer = null;
+
+async function ofrecerLectura(file) {
+  paraLeer = null;
+  if (!Lectores.hayLector()) return;
+  paso('Mirando si puedo leer lo que trae…');
+  const titulo = document.querySelector('#f input[name="title"]')?.value || '';
+  const hallado = await Lectores.reconocer(file, titulo);
+  const caja = document.getElementById('tb-leer');
+  if (!hallado) { paso(''); if (caja) caja.innerHTML = ''; return; }
+  paraLeer = hallado;
+  paso('');
+  if (caja) caja.innerHTML = `<div class="tb-leer-of"><span><b>${esc(hallado.nombre)}</b><small>Lo reconozco: puedo sacarle los datos y ponerlos en su sitio.</small></span>
+    <button type="button" class="btn small primary" data-a="tb-leer">Leer lo que trae</button></div>`;
+}
+
+/** «Leer lo que trae»: se lo pasa al módulo que lo reconoció. */
+export function leerArchivo() {
+  if (!paraLeer) return toast('Primero elige el archivo');
+  paraLeer.leer();
 }
 
 export function quitarArchivo() {
@@ -156,6 +184,7 @@ export function sheet(open, id = '') {
   const d = id ? store.get('tablero', id) : null;
   const meses = [0, 1, 2, 3, 6, 12];
   subido = undefined;                       // undefined = no se tocó el archivo en esta hoja
+  paraLeer = null;
   hojaId = d?.id || uid();
   open({
     title: d ? 'Documento del tablero' : 'Agregar al tablero',
@@ -166,8 +195,11 @@ export function sheet(open, id = '') {
       <label class="f"><span>Puesto o cambiado el</span><input type="date" name="date" value="${esc(d?.date || today())}"></label>
       <label class="f"><span>Se renueva</span><select name="every">${meses.map(m => `<option value="${m}" ${Number(d?.every || 0) === m ? 'selected' : ''}>${m === 0 ? 'No caduca' : m === 1 ? 'Cada mes' : `Cada ${m} meses`}</option>`).join('')}</select></label>
       <label class="f"><span>Nota (opcional)</span><input name="notes" maxlength="100" value="${esc(d?.notes || '')}" placeholder="Ej. lo imprime el hermano encargado"></label>
-      ${A.disponible() ? `<div class="ar-box" id="tb-arch">${fichaHtml(d?.file)}</div>
-        <input id="tb-file" type="file" accept="application/pdf,.pdf,image/*" hidden>` : ''}
+      ${A.disponible() ? `<div class="ar-box" id="tb-arch">${fichaHtml(d?.file)}</div>` : ''}
+      ${A.disponible() || Lectores.hayLector() ? `<input id="tb-file" type="file" accept="application/pdf,.pdf,.docx,image/*" hidden>` : ''}
+      ${!A.disponible() && Lectores.hayLector() ? `<label class="btn ghost block" for="tb-file">📄 Elegir un PDF o un Word</label>
+        <p class="hint" id="tb-step">Se lee aquí mismo, en tu teléfono; el archivo no se guarda.</p>` : ''}
+      ${Lectores.hayLector() ? '<div id="tb-leer"></div>' : ''}
       <p class="hint">El enlace puede ser a la carpeta compartida, a jw.org o a un PDF. Si no hay enlace, sirve igual para saber cuándo toca cambiarlo.</p>
       <div class="f-actions"><button type="submit" class="btn primary">Guardar</button>
         ${d ? `<button type="button" class="btn ghost danger" data-a="tb-del" data-id="${esc(d.id)}">Eliminar</button>` : ''}</div>

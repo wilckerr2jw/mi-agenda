@@ -7,6 +7,7 @@ import * as store from './store.js';
 import * as M from './model.js';
 import { visitNotice } from './visita.js';
 import { today, addDays, fmtTime, toast } from './util.js';
+import * as Plan from './avisos-plan.js';
 
 const C = window.Capacitor;
 export const isNative = !!C?.isNativePlatform?.();
@@ -170,7 +171,7 @@ function run() {
 }
 
 function prefs() {
-  return { hour: 7, tasks: true, events: true, junta: true, before: 10, logAt: 1230, soon: true, routine: true, routineLast: true, streak: true, taskTime: true, taskDay: true, taskHour: 9, meetingSoon: true, tomorrow: true, report: true, details: false, ...(M.profile().notif || {}) };
+  return { hour: 7, tasks: true, events: true, junta: true, before: 10, logAt: 1230, soon: true, routine: true, routineLast: true, streak: true, taskTime: true, taskDay: true, taskHour: 9, meetingSoon: true, tomorrow: true, report: true, details: false, ...Plan.POLITICA, ...(M.profile().notif || {}) };
 }
 
 // Rutinas: primer aviso media hora después de que termina (o 1 h 30 después de empezar si no tiene hora de fin)
@@ -292,7 +293,29 @@ function planFor(iso, p, errs = []) {
       : '📝 Registra tu actividad de hoy: aún no guardaste horas ni cursos. Hazlo antes de que termine el día.';
     add(Number(p.logAt) || 1230, 'lg', body, 'registro', { kind: 'log' }, 'Importante · Mi Agenda');
   });
-  return out;
+  return conPolitica(out, p);
+}
+
+// Horas de silencio, juntar los cercanos y tope del día. La regla es la misma que usa el servidor
+// (js/avisos-plan.js), para que los avisos lleguen igual por el teléfono y por la web.
+function conPolitica(out, p) {
+  if (!out.length) return out;
+  const porId = new Map(out.map(n => [String(n.id), n]));
+  const items = out.map(n => ({
+    at: new Date(n.extra.at).getHours() * 60 + new Date(n.extra.at).getMinutes(),
+    key: String(n.id),
+    title: n.title,
+    body: n.body,
+    kind: n.extra.kind || '',
+    eid: n.extra.eid || '',
+  }));
+  return Plan.aplicar(items, p).map(r => {
+    const base = porId.get(r.de || r.key);
+    if (!base) return null;
+    if (!r.juntos) return base;
+    // Varios en uno: se queda el aviso del más importante (su sonido y su botón) con todas las líneas
+    return { ...base, id: hash(r.key), body: r.body };
+  }).filter(Boolean);
 }
 
 // ───── Avisos que manda el servidor (eventos compartidos, rutinas de la familia, versión nueva) ─────

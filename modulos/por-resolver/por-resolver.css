@@ -1,0 +1,43 @@
+/* 🗂 Por resolver · estilos del módulo (solo clases pr2-…, usa los colores de la app)
+   Mismo estilo A que Papeles: esquinas muy redondeadas, icono en círculo y filas unidas. */
+
+.pr2, .pr2-hoy { --pr2: light-dark(#9A5B0C, #E0A050); --pr2-r: 28px; }
+
+/* ── Cabecera ── */
+.pr2-cab { display: flex; align-items: center; gap: 13px; margin: 0 0 18px; }
+.pr2-cab .ic { display: grid; place-items: center; width: 46px; height: 46px; flex: none;
+  font-size: 21px; background: color-mix(in srgb, var(--pr2) 20%, var(--surface)); border-radius: 50%; }
+.pr2-cab b { display: block; font: 600 19px/1.25 var(--serif); }
+.pr2-cab small { display: block; font-size: 13px; color: var(--ink-2); }
+
+/* ── Textos ── */
+.pr2-resumen { margin: 0 0 16px; padding: 16px 18px; font-size: 14.5px;
+  background: color-mix(in srgb, var(--pr2) 15%, var(--surface)); border-radius: var(--pr2-r); }
+.pr2-vacio { margin: 10px 0 8px; padding: 18px; font-size: 16px; text-align: center; color: var(--primary);
+  background: var(--primary-soft); border-radius: var(--pr2-r); }
+.pr2-ayuda { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
+
+/* ── Filtros, como los botones segmentados de Material ── */
+.pr2-chips { display: flex; flex-wrap: wrap; margin-bottom: 16px; border: 1px solid var(--line);
+  border-radius: 999px; overflow: hidden; }
+.pr2-chips .btn { flex: 1; min-width: 0; padding: 10px 8px; font-size: 13px; color: var(--ink);
+  background: none; border: 0; border-radius: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pr2-chips .btn + .btn { border-left: 1px solid var(--line); }
+.pr2-chips .btn.primary { color: var(--ink); background: var(--primary-soft); font-weight: 600; }
+
+/* ── Listas ── */
+.pr2-lista { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.pr2-item { display: grid; gap: 3px; padding: 14px 16px; border: 0; border-radius: 8px;
+  background: color-mix(in srgb, var(--pr2) 9%, var(--surface)); }
+.pr2-lista > :first-child { border-radius: var(--pr2-r) var(--pr2-r) 8px 8px; }
+.pr2-lista > :last-child { border-radius: 8px 8px var(--pr2-r) var(--pr2-r); }
+.pr2-lista > :only-child { border-radius: var(--pr2-r); }
+.pr2-de { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--pr2); }
+.pr2-item b { font-weight: 600; font-size: 14.5px; overflow-wrap: anywhere; }
+.pr2-item small { font-size: 12.5px; line-height: 1.4; color: var(--ink-2); }
+.pr2-acc { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 7px; }
+
+.pr2-foot { margin-top: 24px; text-align: center; }
+
+/* ── Tarjeta en Hoy ── */
+.pr2-hoy { background: color-mix(in srgb, var(--pr2) 13%, var(--surface)); border: 0; border-radius: 20px; }

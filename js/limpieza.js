@@ -13,6 +13,7 @@ import { data } from './store.js';
 import * as M from './model.js';
 import { ic, esc, uid, today, toast, fmtLong, addDays, shareText } from './util.js';
 import { printDoc } from './imprimir.js';
+import * as PR from './por-resolver.js';
 import { guardarArchivoHtml, guardarArchivoLuego, borrar as borrarArchivo } from './archivos.js';
 
 export const TIPOS = [
@@ -284,10 +285,12 @@ const iso = (a, m, d) => `${a}-${String(m + 1).padStart(2, '0')}-${String(d).pad
 /**
  * Lee el programa de limpieza de un texto pegado.
  * @param {string} texto  el mensaje tal cual
- * @param {object} opts   { tipo, hoy }  tipo = la clase de limpieza por defecto
+ * @param {object} opts   { tipo, hoy, dudas }  tipo = la clase de limpieza por defecto.
+ *   `dudas` es una lista opcional: si se pasa, ahí se apuntan las líneas que parecían un turno pero
+ *   no se pudieron usar, para que no se pierdan (van a la bandeja «Por resolver»).
  * @returns {Array} [{ date, until, groupId, tipo, texto }]
  */
-export function leerMensaje(texto, { tipo = 'semanal', hoy = today() } = {}) {
+export function leerMensaje(texto, { tipo = 'semanal', hoy = today(), dudas = null } = {}) {
   const grupos = data.groups.map(g => ({ id: g.id, n: normG(g.name) })).filter(g => g.n);
   const mio = miGrupo();
   const [anioHoy, mesHoy] = [Number(hoy.slice(0, 4)), Number(hoy.slice(5, 7)) - 1];
@@ -306,11 +309,21 @@ export function leerMensaje(texto, { tipo = 'semanal', hoy = today() } = {}) {
       previo = m;
       return;
     }
-    if (mes < 0) return;                      // todavía no se sabe de qué mes se habla
+    if (mes < 0) {
+      // Todavía no se sabe de qué mes se habla. Si la línea traía turnos, no se tira: se aparta.
+      if (dudas && turnosDeLinea(linea).length) dudas.push({ texto: linea, porque: 'No sé de qué mes es: el mensaje no decía el mes antes de esta línea.' });
+      return;
+    }
     turnosDeLinea(linea).forEach(t => {
-      if (t.d1 < 1 || t.d1 > 31) return;
+      if (t.d1 < 1 || t.d1 > 31) {
+        if (dudas) dudas.push({ texto: linea, porque: `El día ${t.d1} no existe.` });
+        return;
+      }
       const quien = normG(t.quien);
-      if (!quien) return;
+      if (!quien) {
+        if (dudas) dudas.push({ texto: linea, porque: 'No entendí a quién le toca ese turno.' });
+        return;
+      }
       const general = /\bgeneral(es)?\b|\ba fondo\b/.test(quien);
       const nuestro = /\bnosotros\b|\bnuestro grupo\b|\bnos toca\b/.test(quien);
       const g = grupos.filter(x => quien.includes(x.n)).sort((a, b) => b.n.length - a.n.length)[0];
@@ -353,12 +366,15 @@ export function textoPegado() {
   const t = document.getElementById('lp-texto')?.value || '';
   if (!t.trim()) return paso('Pega primero el mensaje');
   const tipo = document.querySelector('[name="tipoImport"]')?.value || 'semanal';
-  const turnos = leerMensaje(t, { tipo });
-  if (!turnos.length) return paso('No encontré ningún turno. Hace falta el nombre del mes («Octubre:») y debajo los días («8-10 grupo 3»).');
+  const dudas = [];
+  const turnos = leerMensaje(t, { tipo, dudas });
+  // Lo que parecía un turno pero no se entendió no se tira: va a «Por resolver»
+  const apartados = dudas.length ? PR.anotar('limpieza', dudas) : 0;
+  if (!turnos.length) return paso(`No encontré ningún turno. Hace falta el nombre del mes («Octubre:») y debajo los días («8-10 grupo 3»).${apartados ? ` ${PR.resumen(0, apartados)}` : ''}`);
   archivo = null;                       // esto no vino de un archivo
   leido = turnos;
   const sinGrupo = turnos.filter(x => !x.groupId && x.tipo !== 'anual').length;
-  paso(`Listo: ${turnos.length} ${turnos.length === 1 ? 'turno' : 'turnos'}${sinGrupo ? ` (${sinGrupo} sin reconocer el grupo)` : ''}.`);
+  paso(`Listo: ${turnos.length} ${turnos.length === 1 ? 'turno' : 'turnos'}${sinGrupo ? ` (${sinGrupo} sin reconocer el grupo)` : ''}.${apartados ? ` ${PR.resumen(turnos.length, apartados)}` : ''}`);
   revisar();
 }
 

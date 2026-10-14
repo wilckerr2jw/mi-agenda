@@ -66,8 +66,8 @@ function tarjetaTipo(ym, t) {
 function fila(r) {
   const t = total(r);
   return `<button class="card mini as-row" data-a="as-new" data-id="${esc(r.id)}">
-    <strong>${esc(fmtShort(r.date))} · ${esc(nombreTipo(r.kind))}</strong>
-    <span class="meta"><b>${t}</b> en total · ${Number(r.presencial) || 0} en el Salón · ${Number(r.online) || 0} por videoconferencia${r.notes ? ` · ${esc(r.notes)}` : ''}</span>
+    <strong>${esc(fmtShort(r.date))} · ${esc(nombreTipo(r.kind))}${r.enviado ? ' ✓' : ''}</strong>
+    <span class="meta"><b>${t}</b> en total · ${Number(r.presencial) || 0} en el Salón · ${Number(r.online) || 0} por videoconferencia${r.notes ? ` · ${esc(r.notes)}` : ''}${r.enviado ? '' : ' · <b>sin enviar</b>'}</span>
   </button>`;
 }
 
@@ -79,7 +79,13 @@ export function asistenciaSection(st = {}) {
   const delMesOrdenadas = delMes(ym).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const anio = promedioAnio();
   const opciones = [...new Set([actual, ...meses])].sort().reverse();
+  const pend = sinEnviar();
   return `<section><div class="sec-h"><h2>${ic('chart')}Asistencia</h2>${delMesOrdenadas.length ? `<span class="hint">${delMesOrdenadas.length} este mes</span>` : ''}</div>
+    ${pend.length ? `<div class="pad"><div class="as-pend">
+      <span><b>${pend.length === 1 ? 'Tienes 1 asistencia sin enviar' : `Tienes ${pend.length} asistencias sin enviar`}</b>
+      <small>${esc(pend.map(r => fmtShort(r.date)).slice(0, 4).join(' · '))}${pend.length > 4 ? '…' : ''}</small></span>
+      <button class="btn small primary" data-a="as-send">${ic('chat', 'sm')} Mandarlas</button>
+    </div></div>` : ''}
     <div class="pad"><label class="mini-f"><span>Mes</span><select id="as-mes">${opciones.map(o => {
       const [yy, mm] = o.split('-').map(Number);
       return `<option value="${esc(o)}" ${o === ym ? 'selected' : ''}>${esc(fmtMonth(yy, mm))}</option>`;
@@ -142,7 +148,44 @@ export function del(id, close) {
   toast('Anotación eliminada');
 }
 
-export const compartirMes = ym => shareText(textoMes(ym), { title: 'Asistencia', copied: 'Promedio copiado' });
+// ───────────── Mandarla al secretario (idea de MeetingCounter) ─────────────
+// El problema que resuelve: anotar la asistencia y que se te olvide pasarla. Cada anotación recuerda
+// si ya la mandaste (`enviado`), y mientras haya alguna sin mandar la pantalla te lo dice.
+
+/** Las anotaciones que todavía no le has pasado a nadie, de la más vieja a la más nueva. */
+export const sinEnviar = (ym = '') => lista()
+  .filter(r => !r.enviado && (!ym || String(r.date || '').startsWith(ym)))
+  .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+const marcarEnviadas = ids => {
+  const cuando = new Date().toISOString();
+  ids.forEach(id => { const r = store.get('asistencia', id); if (r) store.upsert('asistencia', { ...r, enviado: cuando }); });
+};
+
+/** Texto de una o varias reuniones sueltas, listo para mandar por mensaje. */
+export function textoDe(registros) {
+  const uno = r => [
+    `*Asistencia · ${fmtShort(r.date)} · ${nombreTipo(r.kind)}*`,
+    `Total: ${total(r)}`,
+    `En el Salón: ${Number(r.presencial) || 0}  ·  Por videoconferencia: ${Number(r.online) || 0}`,
+    r.notes ? `(${r.notes})` : '',
+  ].filter(Boolean).join('\n');
+  return registros.map(uno).join('\n\n');
+}
+
+/** Manda las que falten y las marca como enviadas. */
+export async function mandarPendientes() {
+  const pend = sinEnviar();
+  if (!pend.length) return toast('No tienes asistencias sin mandar');
+  await shareText(textoDe(pend), { title: 'Asistencia', copied: 'Asistencia copiada' });
+  marcarEnviadas(pend.map(r => r.id));
+  toast(pend.length === 1 ? 'Marcada como enviada' : `${pend.length} marcadas como enviadas`);
+}
+
+export async function compartirMes(ym) {
+  await shareText(textoMes(ym), { title: 'Asistencia', copied: 'Promedio copiado' });
+  marcarEnviadas(delMes(ym).map(r => r.id));
+}
 
 // Hoja para el tablero: el informe de asistencia del mes
 export function imprimir(ym) {

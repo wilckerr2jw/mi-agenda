@@ -9,9 +9,10 @@
 import * as store from './store.js';
 import { data } from './store.js';
 import * as M from './model.js';
-import { ic, esc, uid, today, toast, fmtShort, fmtLong, norm, addDays, shareText } from './util.js';
+import { ic, esc, uid, today, toast, fmtShort, fmtLong, norm, addDays, shareText, waLink } from './util.js';
 import { leerPrograma, SECCIONES } from './programa-s140.js';
 import { printDoc } from './imprimir.js';
+import * as Nombres from './nombres.js';
 import { guardarArchivoHtml, guardarArchivoLuego, borrar as borrarArchivo } from './archivos.js';
 
 // Las partes de siempre. Sirven de punto de partida: cada semana se puede cambiar, quitar o añadir.
@@ -119,11 +120,10 @@ function listasDeGente() {
 // ───────────── Las demostraciones van en pareja, y del mismo sexo ─────────────
 // El campo lleva los dos nombres: «FULANA / MENGANA». Se busca a la primera para saber de qué
 // lista hay que sugerir la segunda.
+// Reconoce a la persona aunque el nombre venga abreviado («J. Pérez») o enlazado a mano (js/nombres.js)
 const buscarPersona = t => {
-  const q = norm(String(t || '').trim());
-  if (q.length < 3) return null;
-  return data.people.find(p => norm(p.name) === q)
-    || data.people.find(p => p.name && (norm(p.name).startsWith(q) || q.startsWith(norm(p.name))));
+  const { id } = Nombres.quienEs(t);
+  return id ? data.people.find(p => p.id === id) || null : null;
 };
 
 // Mientras se escribe: en cuanto se reconoce a la primera persona, la lista pasa a ser la de su sexo
@@ -143,6 +143,69 @@ export function avisoParejas(parts) {
     return sa && sb && sa !== sb;
   });
   return malas.length ? `Revisa ${malas.length === 1 ? 'la pareja de' : 'las parejas de'} ${malas.map(p => p.t.replace(/\s*\(\d+\s*mins?\.\)/i, '')).join(' y ')}: están un hermano y una hermana juntos.` : '';
+}
+
+// ───────────── El evento manda sobre el programa ─────────────
+//
+// Idea tomada de la app de Conferencia: si esa semana hay una asamblea, un congreso o la visita del
+// superintendente, la reunión normal no va. El programa no se borra (puede que lo muevas), pero la app
+// te lo dice y te deja crear la tarea de avisar a los que tenían parte, que es lo que de verdad se olvida.
+
+const OCUPA = /\basamblea\b|\bcongreso\b|\bconvenci[oó]n\b|visita del superintendente|semana de la visita/i;
+
+/** ¿Qué evento tuyo ocupa esa fecha? Devuelve el evento, o null. */
+export function eventoQueOcupa(fecha) {
+  return M.agendaFor(fecha).events.find(e => OCUPA.test(String(e.title || ''))) || null;
+}
+
+/**
+ * Las semanas programadas que chocan con un evento que manda sobre ellas.
+ * @returns {Array<{ semana, evento, conGente: string[] }>}
+ */
+export function choques(t = today(), dias = 60) {
+  const hasta = addDays(t, dias);
+  return lista()
+    .filter(s => s.date >= t && s.date <= hasta)
+    .map(semana => {
+      const evento = eventoQueOcupa(semana.date);
+      if (!evento) return null;
+      const conGente = [...new Set((semana.parts || []).map(p => String(p.by || '').trim()).filter(Boolean)
+        .flatMap(by => by.split('/').map(x => x.trim()).filter(Boolean)))];
+      return { semana, evento, conGente };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.semana.date.localeCompare(b.semana.date));
+}
+
+/** Crea la tarea de avisar a los que tenían parte esa semana. */
+export function avisarDelChoque(semanaId) {
+  const ch = choques().find(x => x.semana.id === semanaId);
+  if (!ch) return toast('Ese choque ya no existe');
+  const { semana, evento, conGente } = ch;
+  const quienes = conGente.length ? conGente.join(', ') : 'los que tenían parte';
+  store.upsert('tasks', {
+    id: uid(),
+    title: `Avisar que el programa del ${fmtShort(semana.date)} no va`.slice(0, 90),
+    kind: 'llamada',
+    personId: '', companionId: '',
+    due: addDays(semana.date, -7) >= today() ? addDays(semana.date, -7) : today(),
+    dueTime: '',
+    status: 'pendiente',
+    notes: `Esa fecha hay «${evento.title}», así que la reunión normal no va.\n\nHay que avisar a: ${quienes}.`,
+    responsibleIds: [], responsibles: [], mine: true,
+    deptId: '', priority: 'alta', log: [], repeat: '', doneAt: '',
+  });
+  toast('Tarea creada: avisar a los que tenían parte');
+}
+
+function avisoChoquesHtml(t) {
+  const ch = choques(t);
+  if (!ch.length) return '';
+  return ch.map(({ semana, evento, conGente }) => `<div class="pg-choque">
+    <span><b>El ${esc(fmtLong(semana.date))} hay «${esc(evento.title)}»</b>
+    <small>Esa semana el programa no va. ${conGente.length ? `Tenían parte: ${esc(conGente.slice(0, 5).join(', '))}${conGente.length > 5 ? '…' : ''}.` : 'Todavía no hay nadie asignado.'}</small></span>
+    ${conGente.length ? `<button class="btn small primary" data-a="pg-choque" data-id="${esc(semana.id)}">Avisarles</button>` : ''}
+  </div>`).join('');
 }
 
 // ───────────── Pantalla ─────────────
@@ -165,6 +228,7 @@ export function programaSection() {
   const prox = proximas(t);
   const mias = misPartes(t);
   return `<section><div class="sec-h"><h2>${ic('mic')}Programa de las reuniones</h2>${prox.length ? `<span class="hint">${prox.length} ${prox.length === 1 ? 'próxima' : 'próximas'}</span>` : ''}</div>
+    ${avisoChoquesHtml(t)}
     ${mias.length ? `<div class="card pg-mine"><strong>${ic('flag', 'sm')} Te toca</strong>
       ${mias.map(({ semana, parte }) => `<span class="meta">${esc(parte.t)} · ${esc(fmtLong(semana.date))}</span>`).join('')}</div>` : ''}
     ${prox.length ? `<div class="stack">${prox.map(s => tarjetaSemana(s, t)).join('')}</div>`
@@ -175,7 +239,8 @@ export function programaSection() {
       <button class="btn small ghost" data-a="pg-import">${ic('clip', 'sm')} Subir un PDF</button>
       ${conArchivo(prox) ? `<a class="btn small ghost" href="${esc(conArchivo(prox))}" target="_blank" rel="noopener">📄 Ver el PDF</a>` : ''}
       ${prox.length ? `<button class="btn small ghost" data-a="pg-print">🖨 Imprimir</button>
-        <button class="btn small ghost" data-a="pg-share" data-id="${esc(prox[0].id)}">${ic('chat', 'sm')} Compartir la próxima</button>` : ''}
+        <button class="btn small ghost" data-a="pg-share" data-id="${esc(prox[0].id)}">${ic('chat', 'sm')} Compartir la próxima</button>
+        <button class="btn small ghost" data-a="pg-avisar" data-id="${esc(prox[0].id)}">${ic('phone', 'sm')} Avisar a cada uno</button>` : ''}
     </div>
   </section>`;
 }
@@ -266,6 +331,50 @@ export function texto(id) {
 }
 
 export const compartir = id => shareText(texto(id), { title: 'Programa de la reunión', copied: 'Programa copiado' });
+
+// ───────────── Avisar a cada uno por separado (idea de la app de Conferencia) ─────────────
+// Compartir el programa entero está bien para el grupo, pero al hermano que tiene una parte hay que
+// decírselo a él, y que confirme. Esto arma un mensaje por persona, con lo suyo y con el enlace de
+// WhatsApp si tienes su teléfono.
+
+/** A quién hay que avisar de esa semana: [{ nombre, persona, partes: [...] }] */
+export function aQuienAvisar(id) {
+  const s = store.get('programa', id);
+  if (!s) return [];
+  const porNombre = new Map();
+  (s.parts || []).forEach(p => {
+    String(p.by || '').split('/').map(x => x.trim()).filter(Boolean).forEach(nombre => {
+      if (!porNombre.has(nombre)) porNombre.set(nombre, { nombre, persona: buscarPersona(nombre), partes: [] });
+      porNombre.get(nombre).partes.push(p.t);
+    });
+  });
+  return [...porNombre.values()];
+}
+
+/** El mensaje que se le manda a esa persona. */
+export function mensajePara(id, nombre) {
+  const s = store.get('programa', id);
+  const quien = aQuienAvisar(id).find(x => x.nombre === nombre);
+  if (!s || !quien) return '';
+  const partes = quien.partes.length === 1 ? `la parte *${quien.partes[0]}*` : `estas partes: ${quien.partes.map(t => `*${t}*`).join(', ')}`;
+  return [
+    `Hola, ${quien.nombre.split(' ')[0]}.`,
+    '',
+    `En la reunión ${nombreTipo(s.kind).toLowerCase()} del *${fmtLong(s.date)}* te toca ${partes}.`,
+    '',
+    '¿Me confirmas que puedes, por favor?',
+  ].join('\n');
+}
+
+/** Abre WhatsApp con el mensaje, o lo comparte si no hay teléfono. */
+export function avisarA(id, nombre) {
+  const texto = mensajePara(id, nombre);
+  if (!texto) return toast('No encontré esa parte');
+  const quien = aQuienAvisar(id).find(x => x.nombre === nombre);
+  const tel = quien?.persona?.phone;
+  if (tel) { window.open(`${waLink(tel)}?text=${encodeURIComponent(texto)}`, '_blank'); return; }
+  shareText(texto, { title: 'Aviso de la parte', copied: 'Mensaje copiado' });
+}
 
 // ───────────── Subir el programa impreso (PDF o foto) ─────────────
 // El PDF se lee en el propio telefono con el lector que ya trae la app (js/mecas.js):

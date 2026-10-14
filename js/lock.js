@@ -8,6 +8,30 @@ let unlocked = false;
 
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } };
 export const isEnabled = () => !!read()?.hash;
+
+// ───── Bloqueo por sección (idea tomada de la app de Secretaria) ─────
+// Además de bloquear la app entera, se pueden proteger solo algunas secciones (p. ej. Mi Informe):
+// la app se abre normal y el PIN se pide al entrar en esa sección. Se guarda junto al PIN, en este
+// teléfono: es una protección de ESTE dispositivo, igual que el PIN.
+const abiertas = new Set();   // secciones desbloqueadas en esta sesión
+
+/** Las secciones protegidas con el PIN. */
+export const sections = () => (read()?.sections || []).filter(Boolean);
+
+export function setSections(lista) {
+  const v = read(); if (!v) return;
+  localStorage.setItem(KEY, JSON.stringify({ ...v, sections: [...new Set(lista)].filter(Boolean).slice(0, 20) }));
+  abiertas.clear();
+}
+
+/** ¿Hay que pedir el PIN para entrar aquí ahora mismo? */
+export const isSectionLocked = id => isEnabled() && sections().includes(id) && !abiertas.has(id);
+
+/** Pide el PIN para una sección. Si lo acierta, llama a `alEntrar`. */
+export function askSection(id, alEntrar, onForgot) {
+  if (!isSectionLocked(id)) { alEntrar?.(); return; }
+  show(onForgot, { seccion: id, sub: 'Escribe tu PIN para entrar', alEntrar });
+}
 export const delay = () => Number(read()?.delay) || 0;   // minutos fuera de la app antes de volver a pedirlo
 
 async function digest(pin, salt) {
@@ -81,8 +105,9 @@ async function check(pin) {
 }
 
 // Pantalla del PIN (teclado numérico grande, cómodo con el pulgar)
-function show(onForgot) {
+function show(onForgot, opts = {}) {
   if (document.getElementById('lock')) return;
+  const entrar = () => { if (opts.seccion) { abiertas.add(opts.seccion); hide(); opts.alEntrar?.(); } else { unlocked = true; hide(); } };
   document.body.classList.add('locked');
   const el = document.createElement('div');
   el.id = 'lock';
@@ -91,7 +116,7 @@ function show(onForgot) {
   el.setAttribute('aria-label', 'App bloqueada');
   el.innerHTML = `<div class="lock-card">
     <h2>Mi Agenda</h2>
-    <p class="sub">Escribe tu PIN</p>
+    <p class="sub">${opts.sub || 'Escribe tu PIN'}</p>
     <div class="lock-dots" aria-live="polite"></div>
     <p class="err lock-err" role="alert"></p>
     <div class="lock-keys">${[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '⌫'].map(k => k === '' ? '<span></span>' : `<button type="button" data-k="${k}" aria-label="${k === '⌫' ? 'Borrar' : k}">${k}</button>`).join('')}</div>
@@ -108,7 +133,7 @@ function show(onForgot) {
     if (pin.length < len) return;
     const left = waitLeft();
     if (left) { err.textContent = `Demasiados intentos. Espera ${waitText(left)} y vuelve a probar.`; pin = ''; paint(); return; }
-    if (await check(pin)) { writeFails(null); unlocked = true; hide(); }
+    if (await check(pin)) { writeFails(null); entrar(); }
     else { const w = failed(); err.textContent = w ? `PIN incorrecto. Espera ${waitText(w)} antes de volver a probar.` : 'PIN incorrecto'; pin = ''; paint(); navigator.vibrate?.(120); }
   };
   el.addEventListener('click', e => {
@@ -119,7 +144,7 @@ function show(onForgot) {
       paint(); tryPin();
     }
     if (e.target.closest('.lock-forgot')) onForgot?.();
-    if (e.target.closest('.lock-bio')) bioUnlock().then(ok => { if (ok) { writeFails(null); unlocked = true; hide(); } else err.textContent = 'No se pudo con la huella: usa tu PIN'; });
+    if (e.target.closest('.lock-bio')) bioUnlock().then(ok => { if (ok) { writeFails(null); entrar(); } else err.textContent = 'No se pudo con la huella: usa tu PIN'; });
   });
   el.addEventListener('keydown', e => {
     if (/^\d$/.test(e.key) && pin.length < 6) { if (!waitLeft()) err.textContent = ''; pin += e.key; paint(); tryPin(); }
@@ -127,7 +152,7 @@ function show(onForgot) {
   });
   el.tabIndex = -1; el.focus();
   paint();
-  if (read()?.bio) setTimeout(() => bioUnlock().then(ok => { if (ok) { unlocked = true; hide(); } }), 300);   // la pide sola al aparecer
+  if (read()?.bio) setTimeout(() => bioUnlock().then(ok => { if (ok) entrar(); }), 300);   // la pide sola al aparecer
 }
 function hide() { document.getElementById('lock')?.remove(); document.body.classList.remove('locked'); }
 
@@ -138,6 +163,6 @@ export function init(onForgot) {
     if (!isEnabled()) return;
     if (document.hidden) { lastHidden = Date.now(); document.body.classList.add('privacy'); return; }
     document.body.classList.remove('privacy');
-    if (Date.now() - lastHidden >= delay() * 60000) { unlocked = false; show(onForgot); }
+    if (Date.now() - lastHidden >= delay() * 60000) { unlocked = false; abiertas.clear(); show(onForgot); }
   });
 }

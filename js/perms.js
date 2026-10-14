@@ -30,6 +30,8 @@ export const FEATURES = {
     { id: 'general.buscar', n: 'Buscar en todo', d: 'Lupa para buscar en eventos, tareas, personas y notas', a: ['search'], q: ['search'] },
     // off = no viene encendida en ninguna plantilla: el administrador la activa solo a quien quiera
     { id: 'general.matrimonio', n: '💑 Matrimonio', d: 'Planear actividades con su cónyuge (solo a quien se la actives)', a: [], off: true },
+        { id: 'general.porresolver', n: '🗂 Por resolver', d: 'Lo que una importación no entendió queda apartado para arreglarlo a mano', a: [], off: true },
+    { id: 'general.papeles', n: '📄 Papeles', d: 'Subir el PDF del S-147 y que salgan solas las tareas del mes', a: [], off: true },
   ],
   agenda: [
     { id: 'agenda.compartir', n: 'Compartir eventos con otras cuentas', d: '«Compartir con» en el evento y compartir varios a la vez', a: ['ev-bulk-share', 'bulk-share-go'] },
@@ -73,10 +75,10 @@ export const FEATURES = {
     { id: 'congregacion.comite', n: 'Panel Cuerpo de ancianos', d: 'Pendientes para la reunión de ancianos y su resumen', a: ['comite-share'] },
     { id: 'congregacion.enlace', n: 'Enlace para los ancianos', d: 'Enlace cifrado con organigrama, acuerdos y programa', a: ['sh-open', 'sh-create', 'sh-save', 'sh-rekey', 'sh-rekey-go', 'sh-off', 'sh-off-go', 'sh-copy', 'sh-send'] },
     { id: 'congregacion.nombramientos', n: 'Nombramientos y cargas', d: 'Ancianos, siervos y precursores; asignaciones por hermano', a: ['load-g'] },
-    { id: 'congregacion.asistencia', n: 'Asistencia a las reuniones', d: 'En el Salón y por videoconferencia, con el promedio del mes y del año', a: ['as-new', 'as-save', 'as-del', 'as-mes', 'as-share', 'as-print'] },
-    { id: 'congregacion.tablero', n: 'Tablero de anuncios', d: 'Los papeles del tablero, a mano y siempre al día', a: ['tb-new', 'tb-del', 'tb-sugeridos', 'tb-share', 'tb-print', 'tb-pick', 'tb-quitar', 'tb-file-quitar'] },
+    { id: 'congregacion.asistencia', n: 'Asistencia a las reuniones', d: 'En el Salón y por videoconferencia, con el promedio del mes y del año', a: ['as-new', 'as-save', 'as-del', 'as-mes', 'as-share', 'as-print', 'as-send'] },
+    { id: 'congregacion.tablero', n: 'Tablero de anuncios', d: 'Los papeles del tablero, a mano y siempre al día', a: ['tb-new', 'tb-del', 'tb-sugeridos', 'tb-share', 'tb-print', 'tb-pick', 'tb-quitar', 'tb-file-quitar', 'tb-leer'] },
     { id: 'congregacion.limpieza', n: 'Limpieza del Salón', d: 'Turnos de limpieza repartidos entre los grupos', a: ['lp-turno', 'lp-del', 'lp-gen', 'lp-share', 'lp-print', 'lp-import', 'lp-import-save', 'lp-leer-texto'] },
-    { id: 'congregacion.programa', n: 'Programa de las reuniones', d: 'Quién tiene cada parte entre semana y el fin de semana', a: ['pg-new', 'pg-del', 'pg-share', 'pg-print', 'pg-import', 'pg-import-save'] },
+    { id: 'congregacion.programa', n: 'Programa de las reuniones', d: 'Quién tiene cada parte entre semana y el fin de semana', a: ['pg-new', 'pg-del', 'pg-share', 'pg-print', 'pg-import', 'pg-import-save', 'pg-choque', 'pg-avisar', 'pg-avisar-a'] },
   ],
 };
 export const FEATURE_LIST = Object.entries(FEATURES).flatMap(([s, list]) => list.map(f => ({ ...f, s })));
