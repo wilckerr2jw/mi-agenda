@@ -605,7 +605,7 @@ export function taskSheet(id, preset = {}, back) {
   const t = id ? store.get('tasks', id) : null;
   if (t?.assignedFrom) return assignedSheet(id, back);
   if (t?.sharedItemId) return sharedItemSheet(t.sharedItemId, back || null);   // 👥 compartida por otra cuenta: se ve y se comenta
-  const v = t || { title: preset.title || '', kind: preset.kind || 'visita', personId: preset.personId || '', companionId: '', due: preset.due || '', dueTime: '', status: 'pendiente', notes: preset.notes || '', log: [], meetingId: preset.meetingId || '', fromAgreement: preset.fromAgreement || '', responsibles: preset.responsibles || [], responsibleIds: preset.responsibleIds || [], mine: preset.mine !== false, repeat: preset.repeat || '', deptId: preset.deptId || '' };
+  const v = t || { title: preset.title || '', kind: preset.kind || 'visita', personId: preset.personId || '', companionId: '', due: preset.due || '', dueTime: '', status: 'pendiente', notes: preset.notes || '', log: [], meetingId: preset.meetingId || '', fromAgreement: preset.fromAgreement || '', responsibles: preset.responsibles || [], responsibleIds: preset.responsibleIds || [], mine: preset.mine !== false, repeat: preset.repeat || '', repeatEvery: '', repeatUntil: '', repeatTimes: '', deptId: preset.deptId || '' };
   const meeting = v.meetingId ? store.get('meetings', v.meetingId) : null;
   const meetings = [...data.meetings].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const meetingSelect = `<select id="meetingId" name="meetingId"><option value="">Ninguna</option>${meetings.map(m => `<option value="${esc(m.id)}" ${m.id === v.meetingId ? 'selected' : ''}>${esc(m.title)} — ${fmtShort(m.date)}</option>`).join('')}</select>`;
@@ -639,8 +639,16 @@ export function taskSheet(id, preset = {}, back) {
         ${fld('Fecha límite', `<input id="due" name="due" type="date" value="${esc(v.due || '')}">`, 'due')}
         ${fld('Hora', `<input id="dueTime" name="dueTime" type="time" value="${esc(v.dueTime || '')}">`, 'dueTime')}
       </div>
-      ${fld('🔁 Repetir', `<select id="repeat" name="repeat">${Object.entries(M.TASK_REPEATS).map(([k, n]) => `<option value="${esc(k)}" ${k === (v.repeat || '') ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`, 'repeat')}
+      ${fld('🔁 Repetir', `<select id="repeat" name="repeat">${options(M.TASK_REPEATS, v.repeat || '')}</select>`, 'repeat')}
+      <div id="repeat-box" ${v.repeat ? '' : 'hidden'}>
+        <div id="repeat-every" ${v.repeat === 'dias' ? '' : 'hidden'}>${fld('¿Cada cuántos días?', `<input id="repeatEvery" name="repeatEvery" type="number" min="1" max="365" value="${esc(v.repeatEvery || 10)}">`, 'repeatEvery')}</div>
+        ${fld('🔚 Hasta cuándo', `<select id="repeatEnd" name="repeatEnd">${options(M.REPEAT_ENDS, M.repeatEnd(v))}</select>`, 'repeatEnd')}
+        <div id="repeat-until" ${M.repeatEnd(v) === 'fecha' ? '' : 'hidden'}>${fld('Última fecha', `<input id="repeatUntil" name="repeatUntil" type="date" value="${esc(v.repeatUntil || '')}">`, 'repeatUntil')}</div>
+        <div id="repeat-times" ${M.repeatEnd(v) === 'veces' ? '' : 'hidden'}>${fld('¿Cuántas veces más? (contando esta)', `<input id="repeatTimes" name="repeatTimes" type="number" min="1" max="99" value="${esc(v.repeatTimes || 2)}">`, 'repeatTimes')}</div>
+      </div>
       <p class="hint" id="repeat-hint" ${v.repeat ? '' : 'hidden'}>${v.repeat ? `${esc(M.repeatLabel(v.repeat, v.due, v))}. Al marcarla como hecha se crea la siguiente.` : ''}</p>
+      ${t && t.repeat && !t.repeatDone && t.status !== 'hecha' ? `<p class="hint"><button type="button" class="link sm" data-a="skip-task" data-id="${esc(t.id)}">⏭ Esta vez no: saltar a la siguiente</button></p>` : ''}
+      ${repHist(t)}
       ${fld('Notas', `<textarea id="notes" name="notes" rows="3">${esc(v.notes || '')}</textarea>${micButton('notes')}`, 'notes')}
       ${meetings.length ? fld('Viene de la reunión…', meetingSelect, 'meetingId') : ''}
       ${v.fromAgreement && meeting ? `<p class="hint">Sale de un acuerdo de «${esc(meeting.title)}».</p>` : ''}
@@ -714,7 +722,19 @@ function collectTask(form, id) {
   const prev = id ? store.get('tasks', id) : null;
   const t = { ...(prev || {}), id: id || uid(), title: r.title, kind, personId: r.personId, companionId: r.companionId, due: r.due, dueTime: r.due ? r.dueTime : '', status: r.status, notes: r.notes, meetingId: r.meetingId || '', fromAgreement: r.meetingId ? (r.fromAgreement || '') : '', ...responsiblesFrom(form), deptId: r.deptId ?? prev?.deptId ?? '', deptNone: form.querySelector('select#deptId') ? !r.deptId && !!M.guessDept(readResponsibles(form).ids) : !!prev?.deptNone, priority: r.priority || prev?.priority || 'normal', log: prev?.log || [], repeat: r.repeat || '' };
   t.doneAt = t.status === 'hecha' ? (prev?.doneAt || today()) : '';
+  // Cada cuánto y hasta cuándo se repite (lo que no aplique se guarda vacío, para no dejar restos)
+  const fin = t.repeat ? (r.repeatEnd || '') : '';
+  t.repeatEvery = t.repeat === 'dias' ? Math.min(365, Math.max(1, Number(r.repeatEvery) || 10)) : '';
+  t.repeatUntil = fin === 'fecha' ? (r.repeatUntil || '') : '';
+  t.repeatTimes = fin === 'veces' ? Math.min(99, Math.max(1, Number(r.repeatTimes) || 1)) : '';
   return t;
+}
+
+// «La has hecho 7 veces · 5 a tiempo, 2 tarde · desde junio», siguiendo la cadena hacia atrás
+function repHist(t) {
+  if (!t || !t.repeat) return '';
+  const txt = M.repeatHistoryText(M.repeatHistory(t));
+  return txt ? `<p class="hint rep-hist">🔁 ${esc(txt)}</p>` : '';
 }
 
 function saveTask(id, form) {
@@ -731,7 +751,11 @@ function saveTask(id, form) {
   const prev = id ? store.get('tasks', id) : null;
   const again = t.status === 'hecha' && prev?.status !== 'hecha' ? M.repeatNext(t, uid()) : null;
   if (again) t.repeatDone = true;
+  // Si aquí la vuelves a abrir, deja de estar saltada y la siguiente que nació de ella sobra
+  const sobra = prev?.status === 'hecha' && t.status !== 'hecha' ? M.repeatChild(prev) : null;
+  if (prev?.status === 'hecha' && t.status !== 'hecha') { delete t.skipped; if (sobra) t.repeatDone = false; }
   store.upsert('tasks', t);
+  if (sobra) { store.remove('tasks', sobra.id); toast(`Vuelve a estar pendiente. Se quitó la del ${fmtShort(sobra.due)}`); }
   if (again) { store.upsert('tasks', again); toast(`Hecha. La próxima queda para el ${fmtShort(again.due)}`); }
   closeOrBack();
 }

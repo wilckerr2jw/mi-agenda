@@ -1744,3 +1744,12 @@ input:focus, select:focus, textarea:focus { background: var(--surface); outline:
   .btn, .card, .row, .tile, .fab, .log-now, .junta-now, .more-item, .icon-btn, .sheet, .tab .pill { transition: none; animation: none; }
   .btn:active, .fab:active, .tile:active, .card:active, .row:active, .icon-btn:active { transform: none; }
 }
+
+/* ───── v10.12 · Tareas que se repiten: saltar y historial ───── */
+/* «Saltada»: cerrada sin hacerla. En gris cálido, para que no se confunda con una hecha. */
+.skip-tag { color: var(--warn); font-weight: 650; }
+/* El resumen de la cadena, debajo del formulario de la tarea */
+.rep-hist { margin: 4px 0 14px; font-weight: 600; color: var(--ink-2); }
+/* Lo de «cada cuántos días» y «hasta cuándo» va sangrado: se lee como parte del 🔁 de arriba */
+#repeat-box { margin: -6px 0 0 14px; padding-left: 12px; border-left: 2px solid var(--line); }
+#repeat-box[hidden] { display: none; }

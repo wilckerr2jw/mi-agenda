@@ -1,10 +1,11 @@
 {
-  "version": "10.11.0",
+  "version": "10.12.0",
   "avisar": true,
   "notes": [
-    "✨ Rediseño completo: esquinas redondeadas, botones en píldora y todo con más aire",
-    "🎨 Las superficies se tiñen del color que elijas: cambiar el color repinta la app entera",
-    "🪶 Sombras suaves en vez de bordes, y las cosas responden al tocarlas",
-    "📱 La barra de abajo, flotante y con la píldora del apartado en que estás"
+    "⏭ Tareas que se repiten: «Esta vez no» salta a la siguiente sin tener que marcarla hecha",
+    "⏰ Si la marcas tarde, la siguiente ya no nace vencida: salta los ciclos que pasaron",
+    "🔚 Ahora puedes decir hasta cuándo se repite: una fecha o un número de veces",
+    "🔁 Ritmos nuevos: cada tantos días, cada 2, 3 o 6 meses",
+    "📈 Cada tarea que se repite te dice cuántas veces la has hecho, a tiempo o tarde"
   ]
 }

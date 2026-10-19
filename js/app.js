@@ -178,12 +178,39 @@ function toggleTask(id, o = {}) {
   const next = { ...t, status: wasDone ? ((t.log || []).length ? 'seguimiento' : 'pendiente') : 'hecha', doneAt: wasDone ? '' : today() };
   const again = !wasDone ? M.repeatNext(t, uid()) : null;
   if (again) next.repeatDone = true;
+  // Al volver a abrirla: deja de estar saltada, y la siguiente que había nacido de ella sobra
+  const sobra = wasDone ? M.repeatChild(t) : null;
+  if (wasDone) { delete next.skipped; if (sobra) next.repeatDone = false; }
   // Si se repite y está compartida, la compartida pasa a la siguiente; la hecha queda solo tuya
   if (again && t.shareId) { delete next.shareId; delete next.shareWith; delete next.shareNames; }
   store.upsert('tasks', next);
   if (again) store.upsert('tasks', again);
+  if (sobra) store.remove('tasks', sobra.id);
   if (o.quiet) return;
-  if (!wasDone) toast(again ? `Tarea completada. La próxima: ${fmtShort(again.due)}` : 'Tarea completada', 'Deshacer', () => { store.upsert('tasks', t); if (again) store.remove('tasks', again.id); });
+  if (wasDone && sobra) return toast(`Vuelve a estar pendiente. Se quitó la del ${fmtShort(sobra.due)}`, 'Deshacer', () => { store.upsert('tasks', t); store.upsert('tasks', sobra); });
+  if (!wasDone) toast(again ? `Tarea completada. La próxima: ${fmtShort(again.due)}${perdidas(t)}` : 'Tarea completada', 'Deshacer', () => { store.upsert('tasks', t); if (again) store.remove('tasks', again.id); });
+}
+
+// Cuántas repeticiones se saltaron por marcarla tarde («, se saltaron 2 que ya habían pasado»)
+function perdidas(t) {
+  const n = t.repeat ? M.nextDueFuture(t.repeat, t.due, t).saltados : 0;
+  return n ? ` · se saltaron ${n} que ya habían pasado` : '';
+}
+
+// «Saltar esta vez»: cierra la tarea sin mentir (queda saltada, no hecha) y crea la siguiente igual
+function skipTask(id) {
+  const t = store.get('tasks', id);
+  if (!t || !t.repeat || t.repeatDone) return;
+  const again = M.repeatNext(t, uid());
+  const saltada = M.repeatSkipped(t);
+  if (again) saltada.repeatDone = true;
+  store.upsert('tasks', saltada);
+  if (again) store.upsert('tasks', again);
+  S.close();
+  toast(again ? `Saltada. La próxima: ${fmtShort(again.due)}` : 'Saltada. No quedan más repeticiones.', 'Deshacer', () => {
+    store.upsert('tasks', t);
+    if (again) store.remove('tasks', again.id);
+  });
 }
 // La otra persona marcó hecha (o volvió a abrir) una tarea que le compartiste
 store.sharedHooks.taskDone = (id, done, who) => {
@@ -309,6 +336,7 @@ document.addEventListener('click', e => {
     case 'dept-suggest-save': return S.deptSuggestSave();
     case 'new-task': return S.taskSheet(null);
     case 'toggle-task': return toggleTask(id);
+    case 'skip-task': return skipTask(id);
     case 'filter-tasks': ui.tareas.f = v; return render();
     case 'tasks-view': ui.tareas.view = v; try { localStorage.setItem('miagenda.tareasVista', v); } catch { /* sin almacenamiento */ } return render();
     case 'task-move-pick': return S.taskMoveSheet(id);
@@ -713,10 +741,15 @@ document.addEventListener('change', e => {
   if (t.matches?.('input[data-a="ag-pick"]')) return S.agendaTogglePick(t.dataset.id);
   if (t.matches?.('select[data-admin-uid]')) return S.adminSetType(t.dataset.adminUid, t.value, t);
   if (t.matches?.('input[data-a="ev-pick"]')) { const cur = new Set(ui.agenda.picked || []); t.checked ? cur.add(t.value) : cur.delete(t.value); ui.agenda.picked = [...cur]; return render(); }
-  if ((t.id === 'repeat' || t.id === 'due') && t.form?.dataset.form === 'task') {   // 🔁 explica cómo se repetirá
-    const h = document.getElementById('repeat-hint'), r = t.form.repeat?.value;
-    if (h) { h.hidden = !r; h.textContent = r ? `${M.repeatLabel(r, t.form.due?.value)}. Al marcarla como hecha se crea la siguiente.` : ''; }
-    if (t.id === 'repeat') return;
+  if (['repeat', 'due', 'repeatEnd', 'repeatEvery', 'repeatUntil', 'repeatTimes'].includes(t.id) && t.form?.dataset.form === 'task') {   // 🔁 explica cómo se repetirá
+    const f = t.form, r = f.repeat?.value, fin = f.repeatEnd?.value || '';
+    const ver = (sel, on) => { const b = document.getElementById(sel); if (b) b.hidden = !on; };
+    ver('repeat-box', !!r); ver('repeat-every', r === 'dias');
+    ver('repeat-until', !!r && fin === 'fecha'); ver('repeat-times', !!r && fin === 'veces');
+    const h = document.getElementById('repeat-hint');
+    const como = { repeatEvery: f.repeatEvery?.value, repeatUntil: fin === 'fecha' ? f.repeatUntil?.value : '', repeatTimes: fin === 'veces' ? f.repeatTimes?.value : '' };
+    if (h) { h.hidden = !r; h.textContent = r ? `${M.repeatLabel(r, f.due?.value, como)}. Al marcarla como hecha se crea la siguiente.` : ''; }
+    if (t.id !== 'due') return;
   }
   if (t.id === 'meca-file') return Mc.fileChosen(t);
   if (t.id === 'past-file') return Pa.fileChosen(t);

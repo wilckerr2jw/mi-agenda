@@ -88,7 +88,7 @@ export function taskRow(t, movable = false) {
     <button class="chk" data-a="toggle-task" data-id="${esc(t.id)}" aria-pressed="${done}" aria-label="${done ? 'Marcar como pendiente' : 'Marcar como hecha'}">${ic('check')}</button>
     <button class="row-main" data-a="task" data-id="${esc(t.id)}">
       <span class="title">${prio === 'alta' && !done ? '<span class="prio-tag" title="Prioridad alta">Alta</span> ' : ''}${esc(t.title)}</span>
-      <span class="meta-line">${p ? `<span class="who">${esc(p.name)}</span>` : ''}${kind ? `<span>${esc(kind)}</span>` : ''}${comp ? `<span>Con ${esc(comp.name)}</span>` : ''}${t.repeat && !done ? `<span title="${esc(M.repeatLabel(t.repeat, t.due, t))}">🔁 ${esc(M.repeatLabel(t.repeat, t.due, t))}</span>` : ''}${t.status === 'seguimiento' ? '<span class="follow">En seguimiento</span>' : ''}${mtg ? `<span class="from-mtg" title="Sale de la reunión «${esc(mtg.title)}»">${ic('clip', 'sm')}${esc(mtg.title)}</span>` : ''}${acctTag(t)}${!M.isMineTask(t) ? `<span class="sup">👁 Supervisas${(t.responsibles || []).length ? ` · ${esc(t.responsibles.join(', '))}` : ''}</span>` : (mtg && (t.responsibles || []).length ? '<span class="mine">👉 Te toca</span>' : '')}</span>
+      <span class="meta-line">${p ? `<span class="who">${esc(p.name)}</span>` : ''}${kind ? `<span>${esc(kind)}</span>` : ''}${comp ? `<span>Con ${esc(comp.name)}</span>` : ''}${t.repeat && !done ? `<span title="${esc(M.repeatLabel(t.repeat, t.due, t))}">🔁 ${esc(M.repeatLabel(t.repeat, t.due, t))}</span>` : ''}${t.skipped ? '<span class="skip-tag">⏭ Saltada</span>' : ''}${t.status === 'seguimiento' ? '<span class="follow">En seguimiento</span>' : ''}${mtg ? `<span class="from-mtg" title="Sale de la reunión «${esc(mtg.title)}»">${ic('clip', 'sm')}${esc(mtg.title)}</span>` : ''}${acctTag(t)}${!M.isMineTask(t) ? `<span class="sup">👁 Supervisas${(t.responsibles || []).length ? ` · ${esc(t.responsibles.join(', '))}` : ''}</span>` : (mtg && (t.responsibles || []).length ? '<span class="mine">👉 Te toca</span>' : '')}</span>
     </button>
     ${due.label ? `<span class="due ${due.cls}">${due.label}${due.time ? `<small>${due.time}</small>` : ''}</span>` : ''}
     ${movable ? dragHandle(t) : ''}
@@ -133,6 +133,7 @@ function taskCard(t, movable = false) {
       ${acctTag(t) ? `<span class="meta">${acctTag(t)}</span>` : ''}
       ${t.status === 'seguimiento' ? '<span class="meta follow">En seguimiento</span>' : ''}
       ${t.repeat && !done ? `<span class="meta">🔁 ${esc(M.repeatLabel(t.repeat, t.due, t))}</span>` : ''}
+      ${t.skipped ? '<span class="meta skip-tag">⏭ Saltada</span>' : ''}
     </button>
     <button class="tcard-done" data-a="toggle-task" data-id="${esc(t.id)}" aria-pressed="${done}">${ic('check', 'sm')} ${done ? 'Hecha' : 'Marcar hecha'}</button>
   </div>`;

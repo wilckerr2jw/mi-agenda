@@ -4,7 +4,7 @@ import { data, session, isCloud } from './store.js';
 import * as P from './perms.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '10.11.0';
+export const APP_VERSION = '10.12.0';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -103,7 +103,23 @@ export const KINDS = {
 };
 
 // ───── Tareas que se repiten ─────
-export const TASK_REPEATS = { '': 'No se repite', semanal: 'Cada semana', quincenal: 'Cada 2 semanas', 'mensual-semana': 'Cada mes, misma semana y día', mensual: 'Cada mes, mismo día', anual: 'Cada año' };
+export const TASK_REPEATS = {
+  '': 'No se repite',
+  dias: 'Cada tantos días…',
+  semanal: 'Cada semana',
+  quincenal: 'Cada 2 semanas',
+  'mensual-semana': 'Cada mes, misma semana y día',
+  mensual: 'Cada mes, mismo día',
+  bimestral: 'Cada 2 meses',
+  trimestral: 'Cada 3 meses',
+  semestral: 'Cada 6 meses',
+  anual: 'Cada año',
+};
+// Cuántos meses salta cada ritmo que va por meses («mensual-semana» no entra: ese cuenta semanas)
+const MESES = { mensual: 1, bimestral: 2, trimestral: 3, semestral: 6, anual: 12 };
+// Cuándo se acaba la cadena: para siempre, en una fecha o después de tantas veces
+export const REPEAT_ENDS = { '': 'Para siempre', fecha: 'Hasta una fecha', veces: 'Después de varias veces' };
+export const repeatEvery = t => Math.min(365, Math.max(1, Number(t?.repeatEvery) || 10));
 const WD = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const ORD = ['1.er', '2.º', '3.er', '4.º', 'último'];
 const isoOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -119,31 +135,45 @@ export function repeatAnchor(due, t) {
   const repeatNth = nth0 >= 5 || (t.repeatNth === 'last' && day + 7 > last) ? 'last' : nth0;
   return { repeatDay, repeatNth };
 }
+// Cómo termina la repetición, según lo que tenga guardado la tarea
+export const repeatEnd = t => (t?.repeatUntil ? 'fecha' : Number(t?.repeatTimes) > 0 ? 'veces' : '');
+// Texto de hasta cuándo se repite («, hasta el 12 de dic» · «quedan 3»)
+function endLabel(t) {
+  if (!t) return '';
+  if (t.repeatUntil) return `, hasta el ${fmtShort(t.repeatUntil)}`;
+  const n = Number(t.repeatTimes);
+  if (!(n > 0)) return '';
+  return n === 1 ? ' · esta es la última' : ` · quedan ${n}`;
+}
 // Texto claro de cómo se repite, según la fecha límite («Cada mes, el 2.º jueves»)
 export function repeatLabel(repeat, due, t) {
   if (!repeat) return '';
-  if (!due) return TASK_REPEATS[repeat] || '';
+  if (!due) return (TASK_REPEATS[repeat] || '').replace('…', '') + endLabel(t);
   const d = parseISO(due);
   const a = repeatAnchor(due, t);
-  if (repeat === 'mensual-semana') return `Cada mes, el ${a.repeatNth === 'last' ? 'último' : ORD[a.repeatNth - 1]} ${WD[d.getDay()]}`;
-  if (repeat === 'mensual') return `Cada mes, el día ${a.repeatDay}`;
-  if (repeat === 'semanal') return `Cada ${WD[d.getDay()]}`;
-  if (repeat === 'quincenal') return `Cada 2 semanas, el ${WD[d.getDay()]}`;
-  if (repeat === 'anual') return `Cada año, el ${fmtShort(due)}`;
-  return '';
+  const meses = MESES[repeat];
+  let base = '';
+  if (repeat === 'dias') { const n = repeatEvery(t); base = n === 1 ? 'Todos los días' : `Cada ${n} días`; }
+  else if (repeat === 'mensual-semana') base = `Cada mes, el ${a.repeatNth === 'last' ? 'último' : ORD[a.repeatNth - 1]} ${WD[d.getDay()]}`;
+  else if (repeat === 'semanal') base = `Cada ${WD[d.getDay()]}`;
+  else if (repeat === 'quincenal') base = `Cada 2 semanas, el ${WD[d.getDay()]}`;
+  else if (repeat === 'anual') base = `Cada año, el ${fmtShort(due)}`;
+  else if (meses) base = `Cada ${meses === 1 ? 'mes' : `${meses} meses`}, el día ${a.repeatDay}`;
+  return base ? base + endLabel(t) : '';
 }
 // Próxima fecha límite de una tarea que se repite (t: la tarea, para saber su día guardado)
 export function nextDue(repeat, due, t) {
   const base = due || today();
+  if (repeat === 'dias') return addDays(base, repeatEvery(t));
   if (repeat === 'semanal') return addDays(base, 7);
   if (repeat === 'quincenal') return addDays(base, 14);
   const d = parseISO(base);
   const anchor = repeatAnchor(base, t);
-  if (repeat === 'mensual' || repeat === 'anual') {
-    const add = repeat === 'anual' ? 12 : 1; const day = repeat === 'mensual' ? anchor.repeatDay : d.getDate();
+  const add = MESES[repeat];
+  if (add) {
     const n = new Date(d.getFullYear(), d.getMonth() + add, 1);
     const last = new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate();
-    n.setDate(Math.min(day, last)); return isoOf(n);
+    n.setDate(Math.min(anchor.repeatDay, last)); return isoOf(n);
   }
   if (repeat === 'mensual-semana') {
     const nth = anchor.repeatNth === 'last' ? 5 : anchor.repeatNth, wd = d.getDay();
@@ -157,15 +187,71 @@ export function nextDue(repeat, due, t) {
   }
   return '';
 }
+// La próxima fecha que DE VERDAD sirve. Si marcas tarde una tarea semanal que vencía hace un mes,
+// dar un solo paso la dejaría otra vez vencida (y arrastrarías ese retraso para siempre): aquí se
+// saltan los ciclos que ya pasaron. Devuelve también cuántos se saltaron, para poder decírselo.
+export function nextDueFuture(repeat, due, t, hoy = today()) {
+  let fecha = nextDue(repeat, due, t), saltados = 0;
+  while (fecha && fecha <= hoy && saltados < 400) { fecha = nextDue(repeat, fecha, t); saltados++; }
+  return { due: fecha, saltados };
+}
+// ¿Esa fecha ya se pasó del tope que pusiste («hasta» o «tantas veces»)?
+export function repeatOver(t, due) {
+  if (t.repeatUntil && due && due > t.repeatUntil) return true;
+  const n = Number(t.repeatTimes);
+  return t.repeatTimes !== '' && t.repeatTimes != null && Number.isFinite(n) && n <= 1;
+}
 // Al completar una tarea que se repite, la siguiente (nueva, pendiente y con la próxima fecha)
-export function repeatNext(t, newId) {
+export function repeatNext(t, newId, hoy = today()) {
   if (!t.repeat || t.repeatDone) return null;
-  const due = nextDue(t.repeat, t.due, t);
-  if (!due) return null;
+  const { due } = nextDueFuture(t.repeat, t.due, t, hoy);
+  if (!due || repeatOver(t, due)) return null;
   const n = { ...t, id: newId, due, status: 'pendiente', doneAt: '', log: [], repeatDone: false, repeatFrom: t.id, fromAgreement: '' };
-  if (t.due && (t.repeat === 'mensual' || t.repeat === 'mensual-semana')) Object.assign(n, repeatAnchor(t.due, t));
-  delete n.createdAt; delete n.updatedAt;
+  if (t.due && (MESES[t.repeat] || t.repeat === 'mensual-semana')) Object.assign(n, repeatAnchor(t.due, t));
+  if (Number(t.repeatTimes) > 0) n.repeatTimes = Number(t.repeatTimes) - 1;
+  delete n.skipped; delete n.createdAt; delete n.updatedAt;
   return n;
+}
+// «Saltar esta vez»: la cierra sin mentir (queda marcada como saltada, no como hecha)
+export function repeatSkipped(t, hoy = today()) {
+  return { ...t, status: 'hecha', doneAt: hoy, skipped: true, log: [...(t.log || []), { d: hoy, t: 'Esta vez se saltó.' }] };
+}
+// Las anteriores de la cadena, de la más vieja a la más nueva (cada una guarda de cuál nació)
+export function repeatChain(t) {
+  const porId = new Map(data.tasks.map(x => [x.id, x]));
+  const vistos = new Set([t.id]), atras = [];
+  for (let p = porId.get(t.repeatFrom); p && !vistos.has(p.id); p = porId.get(p.repeatFrom)) { vistos.add(p.id); atras.push(p); }
+  return atras.reverse();
+}
+// Cuántas veces la has cerrado, a tiempo, tarde o saltada. Solo cuenta lo que sigue guardado:
+// si borras las viejas, el historial se acorta (no se inventa nada).
+export function repeatHistory(t) {
+  const antes = repeatChain(t);
+  const cerradas = antes.filter(x => x.status === 'hecha');
+  const saltadas = cerradas.filter(x => x.skipped).length;
+  const hechas = cerradas.filter(x => !x.skipped);
+  const tarde = hechas.filter(x => x.due && x.doneAt && x.doneAt > x.due).length;
+  const desde = antes.map(x => x.due).filter(Boolean).sort()[0] || '';
+  return { veces: antes.length, hechas: hechas.length, aTiempo: hechas.length - tarde, tarde, saltadas, desde };
+}
+export function repeatHistoryText(h) {
+  if (!h || !h.veces) return '';
+  const veces = h.hechas ? `La has hecho ${h.hechas === 1 ? '1 vez' : `${h.hechas} veces`}`
+    : `Se ha saltado ${h.saltadas === 1 ? '1 vez' : `${h.saltadas} veces`}`;
+  const extra = [];
+  if (h.tarde || (h.saltadas && h.hechas)) {
+    if (h.aTiempo) extra.push(`${h.aTiempo} a tiempo`);
+    if (h.tarde) extra.push(`${h.tarde} tarde`);
+    if (h.saltadas) extra.push(`${h.saltadas} saltada${h.saltadas === 1 ? '' : 's'}`);
+  }
+  return [veces, extra.join(', '), h.desde ? `desde ${fmtShort(h.desde)}` : ''].filter(Boolean).join(' · ');
+}
+// La que nació de esta y nadie ha tocado todavía. Si desmarcas la madre, esa sobra.
+export function repeatChild(t) {
+  if (!t.repeatDone) return null;
+  const hijo = data.tasks.find(x => x.repeatFrom === t.id);
+  if (!hijo || hijo.status !== 'pendiente' || (hijo.log || []).length || hijo.repeatDone) return null;
+  return hijo;
 }
 
 export const STATUS = {
