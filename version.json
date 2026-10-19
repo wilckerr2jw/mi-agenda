@@ -1,11 +1,12 @@
 {
-  "version": "10.12.0",
+  "version": "10.13.0",
   "avisar": true,
   "notes": [
-    "⏭ Tareas que se repiten: «Esta vez no» salta a la siguiente sin tener que marcarla hecha",
-    "⏰ Si la marcas tarde, la siguiente ya no nace vencida: salta los ciclos que pasaron",
-    "🔚 Ahora puedes decir hasta cuándo se repite: una fecha o un número de veces",
-    "🔁 Ritmos nuevos: cada tantos días, cada 2, 3 o 6 meses",
-    "📈 Cada tarea que se repite te dice cuántas veces la has hecho, a tiempo o tarde"
+    "👆 Desliza una tarea: a la derecha la marcas hecha, a la izquierda la pasas a mañana",
+    "⬆ En Hoy, lo vencido y lo de hoy van arriba del todo, antes que cualquier aviso",
+    "🔔 Los avisos de Hoy se recogen en una sola tira que dice cuántos hay",
+    "🎛 En Tareas, los filtros se pliegan: ahora la primera tarea se ve enseguida",
+    "📊 Las gráficas del Informe se leen mejor, y los registros sin categoría ya no salen como «undefined»",
+    "✨ El menú «Más» muestra cada módulo con su color y un dato vivo"
   ]
 }

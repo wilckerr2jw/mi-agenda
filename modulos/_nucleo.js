@@ -106,9 +106,21 @@ function enHoy(mod) {
   const html = seguro(mod, mod.tarjetaHoy);
   if (!html) { ya?.remove(); return; }
   const marcado = html.replace(/^(\s*<[a-z]+)/i, `$1 data-mod-card="${mod.id}"`);
-  if (ya) { ya.outerHTML = marcado; return; }
-  const anchor = view.querySelector('.tiles') || view.querySelector('.hero');
-  anchor.insertAdjacentHTML('afterend', marcado);
+  // Si «Hoy» trae su tira de avisos, la tarjeta del módulo se mete ahí con las demás: útil,
+  // pero no tanto como una tarea vencida. Sin tira (es la única), va arriba como siempre.
+  const tira = view.querySelector('.notice-group > .stack');
+  if (ya) ya.outerHTML = marcado;
+  else if (tira) tira.insertAdjacentHTML('beforeend', marcado);
+  else (view.querySelector('.tiles') || view.querySelector('.hero')).insertAdjacentHTML('afterend', marcado);
+  recontar(view);
+}
+
+// La tira dice cuántos avisos lleva: al meterle uno de un módulo hay que volver a contar
+function recontar(view) {
+  const tira = view.querySelector('.notice-group');
+  const b = tira?.querySelector('summary b');
+  const n = tira?.querySelectorAll(':scope > .stack > *').length || 0;
+  if (b && n) b.textContent = `${n} ${n === 1 ? 'aviso' : 'avisos'}`;
 }
 
 // 4) Dentro de una sección de la app (Congregación, Informe…), como una tarjeta más.

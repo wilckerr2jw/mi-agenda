@@ -4,7 +4,7 @@ import { data, session, isCloud } from './store.js';
 import * as P from './perms.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '10.12.0';
+export const APP_VERSION = '10.13.0';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -201,6 +201,10 @@ export function repeatOver(t, due) {
   const n = Number(t.repeatTimes);
   return t.repeatTimes !== '' && t.repeatTimes != null && Number.isFinite(n) && n <= 1;
 }
+// Deslizar a la izquierda: la tarea pasa a mañana. Si ya vencía más adelante, un día más
+// (así posponer dos veces una del viernes la lleva al domingo, no siempre a mañana).
+export const posponerA = (due, hoy = today()) => addDays(due && due > hoy ? due : hoy, 1);
+
 // Al completar una tarea que se repite, la siguiente (nueva, pendiente y con la próxima fecha)
 export function repeatNext(t, newId, hoy = today()) {
   if (!t.repeat || t.repeatDone) return null;
@@ -930,7 +934,10 @@ export function monthStats(mid) {
   entriesForMonth(mid).forEach(e => {
     const d = Number(String(e.date).slice(8, 10)); const min = Number(e.minutes) || 0;
     const cat = catServicioOf(e.category);
-    perCat[e.category] = (perCat[e.category] || 0) + min;
+    // Los registros viejos pueden no traer categoría: van a un saco con nombre («Otro»),
+    // no a una clave «undefined» que luego sale tal cual en pantalla.
+    const k = e.category || '';
+    perCat[k] = (perCat[k] || 0) + min;
     if (cat.credito) return;
     if (d >= 1 && d <= days) perDay[d - 1] += min;
     perWd[new Date(y, m - 1, d).getDay()] += min;

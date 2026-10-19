@@ -21,6 +21,7 @@ import * as Pwa from './pwa.js';
 import * as Mv from './mover.js';
 import * as Cp from './compartido.js';
 import * as Ah from './adminhub.js';
+import * as Des from './deslizar.js';
 import { $, $$, esc, ic, norm, today, toast, photoToDataUrl, addDays, uid, fmtShort, shareText } from './util.js';
 
 // 📄 Las hojas (formularios, fichas, ajustes) pesan mucho y no hacen falta para pintar la primera
@@ -123,12 +124,36 @@ function updateBadge() {
   } catch { /* datos aún sin cargar */ }
 }
 
+// Un dato vivo debajo de cada módulo del menú «Más»: de un vistazo se ve si hay algo que atender.
+// Solo cuenta lo que ya está cargado; si algo falla, el renglón se queda sin dato y ya.
+function moreInfo(v) {
+  try {
+    const cuantos = (k, uno, varios, vacio) => { const n = (store.all(k) || []).length; return n ? `${n} ${n === 1 ? uno : varios}` : vacio; };
+    const t = today();
+    if (v === 'personas') {
+      const esperan = M.featureOn('personas.seguimiento') ? M.studentsLate().length : 0;
+      return [cuantos('people', 'persona', 'personas', 'Sin personas todavía'), esperan ? `${esperan} ${esperan === 1 ? 'espera' : 'esperan'} visita` : ''].filter(Boolean).join(' · ');
+    }
+    if (v === 'notas') return cuantos('notes', 'nota', 'notas', 'Sin notas todavía');
+    if (v === 'agenda') { const n = M.agendaFor(t).length; return n ? `${n} ${n === 1 ? 'compromiso hoy' : 'compromisos hoy'}` : 'Nada para hoy'; }
+    if (v === 'tareas') {
+      const act = (store.all('tasks') || []).filter(x => x.status !== 'hecha' && M.isMineTask(x));
+      const tarde = act.filter(x => x.due && x.due < t).length;
+      return tarde ? `${tarde} ${tarde === 1 ? 'atrasada' : 'atrasadas'}` : `${act.length} ${act.length === 1 ? 'activa' : 'activas'}`;
+    }
+    if (v === 'informe') { const h = M.monthTotals(t.slice(0, 7)).minutes; return `${M.fmtHM(h)} h este mes`; }
+    if (v === 'congregacion') return cuantos('depts', 'departamento', 'departamentos', 'Organigrama sin armar');
+  } catch { /* datos aún sin cargar */ }
+  return '';
+}
+
 // «Más» (teléfono): las secciones que no caben en la barra, Buscar y Ajustes
 function moreSheet() {
   const { more } = barSplit();
   const icon = v => $(`#tabs .tab[data-v="${v}"] .pill`)?.innerHTML || '';
+  const renglon = v => { const i = moreInfo(v); return `<button type="button" class="more-item" data-v="${v}" data-a="more-go" ${ui.route === v ? 'aria-current="page"' : ''}><span class="pill">${icon(v)}</span><span class="mi-t">${esc(ROUTE_NAMES[v])}${i ? `<small>${esc(i)}</small>` : ''}</span></button>`; };
   S.open({ title: 'Más', body: `<div class="more-list">
-    ${more.map(v => `<button type="button" class="more-item" data-a="more-go" data-v="${v}" ${ui.route === v ? 'aria-current="page"' : ''}><span class="pill">${icon(v)}</span><span>${esc(ROUTE_NAMES[v])}</span></button>`).join('')}
+    ${more.map(renglon).join('')}
     ${store.session.isAdmin && store.isCloud ? `<button type="button" class="more-item" data-a="adm-hub" data-v="cuentas"><span class="pill">${ic('shield')}</span><span>Mi administración${Ah.pendingCount() ? ` <b class="ah-badge">${Ah.pendingCount()}</b>` : ''}</span></button>` : ''}
     <button type="button" class="more-item" data-a="search"><span class="pill">${ic('search')}</span><span>Buscar</span></button>
     <button type="button" class="more-item" data-a="settings"><span class="pill">${ic('more')}</span><span>Ajustes</span></button>
@@ -266,6 +291,23 @@ function download(name, text) {
 }
 
 // Recordar qué secciones de Congregación dejaste abiertas o cerradas
+// Deslizar una tarea: a la derecha hecha, a la izquierda a mañana (js/deslizar.js solo avisa)
+Des.empezar();
+document.addEventListener('tarea-deslizada', e => {
+  const { id, accion } = e.detail || {};
+  if (accion === 'hecha') return toggleTask(id);
+  if (accion === 'manana') return posponerTarea(id);
+});
+
+// Pasa la tarea a mañana. Si ya vencía más adelante, le suma un día a esa fecha.
+function posponerTarea(id) {
+  const t = store.get('tasks', id);
+  if (!t) return;
+  const due = M.posponerA(t.due);
+  store.upsert('tasks', { ...t, due });
+  toast(`«${t.title}» pasa al ${fmtShort(due)}`, 'Deshacer', () => store.upsert('tasks', t));
+}
+
 document.addEventListener('toggle', e => {
   const d = e.target;
   if (!d.matches?.('details.csec')) return;
@@ -354,6 +396,7 @@ document.addEventListener('click', e => {
     case 'new-task-for': return S.newTaskFor(id);
     case 'pseg': ui.personas.seg = v; return render();
     case 'pfilter': ui.personas.g = v; return render();
+    case 'clear-q': { if (ui[ui.route]) ui[ui.route].q = ''; const c = $('#q'); if (c) c.value = ''; return render(); }
     case 'group': return S.groupDetail(id);
     case 'new-group': return S.groupSheet(null);
     case 'edit-group': return S.groupSheet(id, () => S.groupDetail(id));
@@ -842,7 +885,10 @@ document.addEventListener('touchend', e => {
 }, { passive: true });
 
 // Tareas: recordar si la sección «Baja prioridad» está abierta
-document.addEventListener('toggle', e => { if (e.target.matches?.('details.tgroup.low')) ui.tareas.lowOpen = e.target.open; }, true);
+document.addEventListener('toggle', e => {
+  if (e.target.matches?.('details.tgroup.low')) ui.tareas.lowOpen = e.target.open;
+  if (e.target.matches?.('details.t-filtros')) ui.tareas.filtros = e.target.open;   // que siga abierto al repintar
+}, true);
 // Tareas por departamento: al mover una tarea a un departamento cerrado, se abre para verla
 function openDeptGroup(k) { if ((ui.tareas.closed || []).includes(k)) ui.tareas.closed = ui.tareas.closed.filter(x => x !== k); }
 Mv.initTaskDrag(openDeptGroup);

@@ -204,10 +204,11 @@ function followNotice() {
 // Avisos de Hoy. La lista llega ordenada por importancia: primero lo que esta roto (permisos,
 // avisos apagados) y al final las sugerencias. Los primeros se ven siempre; el resto se recoge
 // en una tarjeta que se despliega, para que Hoy no sea un muro y lo urgente no quede escondido.
-const NOTICES_A_LA_VISTA = 2;
+const NOTICES_A_LA_VISTA = 0;   // todos recogidos en la tira; con uno solo se enseña directo
 function noticeGroup(list) {
   const items = list.filter(Boolean);
   if (items.length <= NOTICES_A_LA_VISTA + 1) return items.join('');
+  if (!NOTICES_A_LA_VISTA) return `<details class="notice-group"><summary><span>🔔 <b>${items.length} avisos</b></span><span class="hint">Toca para verlos</span></summary><div class="stack">${items.join('')}</div></details>`;
   const vistos = items.slice(0, NOTICES_A_LA_VISTA);
   const resto = items.slice(NOTICES_A_LA_VISTA);
   return `${vistos.join('')}<details class="notice-group"><summary><span>🔔 <b>${resto.length} ${resto.length === 1 ? 'aviso más' : 'avisos más'}</b></span><span class="hint">Toca para verlos</span></summary><div class="stack">${resto.join('')}</div></details>`;
@@ -268,6 +269,35 @@ export function hoy() {
     nextMtg && M.isModuleVisible('notas') ? `<button class="tile" data-a="meeting" data-id="${esc(nextMtg.id)}" style="--c:var(--c-mtg)"><span class="tile-n sm">${esc(fmtShort(nextMtg.date))}</span><span>${esc(nextMtg.title)}${(nextMtg.agenda || []).length ? ` · ${nextMtg.agenda.length} puntos` : ''}</span></button>` : '',
   ].filter(Boolean);
 
+  // Los avisos van todos juntos, recogidos en una sola tira: son útiles, pero ninguno es
+  // tan urgente como una tarea vencida, y antes se comían la primera pantalla.
+  const avisos = noticeGroup([
+    Nat.state.update ? `<button class="log-now apk-up" data-a="apk-update">📲 <span><b>Hay una actualización de la app</b><small>Versión ${esc(Nat.state.update.name)}. Toca para descargarla e instalarla.</small></span></button>` : '',
+    Nat.isNative && Nat.state.exact && Nat.state.exact !== 'granted' ? `<button class="log-now" data-a="nat-exact-hoy">🔔 <span><b>Permite los avisos exactos</b><small>Sin este permiso, Android puede atrasar los avisos de tus eventos y tareas. Toca para activarlo.</small></span></button>` : '',
+    Nat.isNative && Nat.state.health?.channelsOff?.length ? `<button class="log-now" data-a="phone-set" data-v="channel" data-ch="${esc(Nat.state.health.channelsOffIds[0])}">🔕 <span><b>Tienes apagados unos avisos en el teléfono</b><small>${esc(Nat.state.health.channelsOff.join(', '))}: por eso no te llegan. Toca para encenderlos.</small></span></button>` : '',
+    logToday ? `<button class="log-now" data-a="qa" data-v="time">📝 <span><b>Registra tu actividad de hoy</b><small>Aún no guardaste horas ni cursos. Toca aquí para anotarlos.</small></span></button>` : '',
+    (() => { const vn = M.isModuleVisible('congregacion') && M.featureVisible('congregacion.visita') ? visitNotice() : null; return vn ? `<button class="log-now visit-now" data-a="visita-open" data-id="${esc(vn.v.id)}">🧳 <span><b>Visita del superintendente de circuito ${vn.days > 1 ? `en ${vn.days} días` : vn.days === 1 ? 'mañana' : vn.days === 0 ? 'hoy' : 'esta semana'}</b><small>${vn.pend ? `Faltan ${vn.pend} cosas por tener listas` : '✓ Todo listo'}${vn.next ? ` · ${esc(vn.next.it.t.split(' (')[0])} ${vn.next.date < today() ? 'venció el' : 'antes del'} ${esc(fmtShort(vn.next.date))}` : ''}</small></span></button>` : ''; })(),
+    followNotice(),
+    ...Ah.hoyNotices(),
+    ...Cp.hoyNotices(),
+    ...Pg.hoyNotices(),
+    ...Lp.hoyNotices(),
+    ...Tb.hoyNotices(),
+    isCloud ? '' : `<button class="log-now" data-a="settings">📍 <span><b>Modo local</b><small>Tus datos están solo en este teléfono. Toca para ver cómo sincronizarlos.</small></span></button>`,
+    (() => { let last = ''; try { last = localStorage.getItem('miagenda.ultimoRespaldo') || ''; } catch { return ''; } const old = !last || (Date.parse(t) - Date.parse(last)) / 864e5 >= 14; return old && d.getDay() === 0 ? `<button class="log-now" data-a="backup-drive">☁️ <span><b>Guarda tu respaldo en Google Drive</b><small>${last ? `El último fue el ${esc(fmtShort(last))}.` : 'Todavía no has guardado uno desde este teléfono.'} Toca para guardarlo.</small></span></button>` : ''; })()
+  ]);
+
+  const secAgenda = `<section>
+    <div class="sec-h"><h2>Agenda de hoy</h2></div>
+    ${entries.length ? `<div class="tl">${entries.map(x => tlItem(x, t)).join('')}</div>`
+      : empty('Nada programado para hoy.', `<button class="btn" data-a="new-event" data-date="${esc(t)}">Agregar evento</button>`, 'calendar')}
+  </section>`;
+  const secTareas = `<section>
+    <div class="sec-h"><h2>Tareas por atender</h2>${due.length ? `<button class="btn small ghost" data-a="nav" data-v="tareas">Ver todas</button>` : ''}</div>
+    ${due.length ? `<div class="stack">${due.map(x => taskRow(x)).join('')}</div>`
+      : empty('Sin tareas para hoy ni atrasadas.', `<button class="btn" data-a="new-task">Nueva tarea</button>`, 'tasks')}
+  </section>`;
+
   return `
   <header class="top hero">
     <div class="hello">
@@ -278,38 +308,15 @@ export function hoy() {
   </header>
   ${updateBanner()}
   ${assignedNotice()}
-  ${noticeGroup([
-    Nat.state.update ? `<button class="log-now apk-up" data-a="apk-update">📲 <span><b>Hay una actualización de la app</b><small>Versión ${esc(Nat.state.update.name)}. Toca para descargarla e instalarla.</small></span></button>` : '',
-    Nat.isNative && Nat.state.exact && Nat.state.exact !== 'granted' ? `<button class="log-now" data-a="nat-exact-hoy">🔔 <span><b>Permite los avisos exactos</b><small>Sin este permiso, Android puede atrasar los avisos de tus eventos y tareas. Toca para activarlo.</small></span></button>` : '',
-    Nat.isNative && Nat.state.health?.channelsOff?.length ? `<button class="log-now" data-a="phone-set" data-v="channel" data-ch="${esc(Nat.state.health.channelsOffIds[0])}">🔕 <span><b>Tienes apagados unos avisos en el teléfono</b><small>${esc(Nat.state.health.channelsOff.join(', '))}: por eso no te llegan. Toca para encenderlos.</small></span></button>` : '',
-    (() => { const vn = M.isModuleVisible('congregacion') && M.featureVisible('congregacion.visita') ? visitNotice() : null; return vn ? `<button class="log-now visit-now" data-a="visita-open" data-id="${esc(vn.v.id)}">🧳 <span><b>Visita del superintendente de circuito ${vn.days > 1 ? `en ${vn.days} días` : vn.days === 1 ? 'mañana' : vn.days === 0 ? 'hoy' : 'esta semana'}</b><small>${vn.pend ? `Faltan ${vn.pend} cosas por tener listas` : '✓ Todo listo'}${vn.next ? ` · ${esc(vn.next.it.t.split(' (')[0])} ${vn.next.date < today() ? 'venció el' : 'antes del'} ${esc(fmtShort(vn.next.date))}` : ''}</small></span></button>` : ''; })(),
-    ...Ah.hoyNotices(),
-    ...Cp.hoyNotices(),
-    ...Pg.hoyNotices(),
-    ...Lp.hoyNotices(),
-    ...Tb.hoyNotices(),
-    (() => { let last = ''; try { last = localStorage.getItem('miagenda.ultimoRespaldo') || ''; } catch { return ''; } const old = !last || (Date.parse(t) - Date.parse(last)) / 864e5 >= 14; return old && d.getDay() === 0 ? `<button class="log-now" data-a="backup-drive">☁️ <span><b>Guarda tu respaldo en Google Drive</b><small>${last ? `El último fue el ${esc(fmtShort(last))}.` : 'Todavía no has guardado uno desde este teléfono.'} Toca para guardarlo.</small></span></button>` : ''; })()
-  ])}
-  ${logToday ? `<button class="log-now" data-a="qa" data-v="time">📝 <span><b>Registra tu actividad de hoy</b><small>Aún no guardaste horas ni cursos. Toca aquí para anotarlos.</small></span></button>` : ''}
   ${juntaHoy ? `<button class="btn primary junta-now" data-a="junta-start" data-id="${esc(juntaHoy.id)}">▶ Iniciar la junta de hoy<small>${esc(juntaHoy.title)}${juntaHoy.time ? ` · ${fmtTime(juntaHoy.time)}` : ''}</small></button>` : ''}
   ${nowCard(entries, t)}
   ${tiles.length ? `<div class="tiles">${tiles.join('')}</div>` : `<p class="sub pad">${summary}</p>`}
+  ${due.length ? secTareas + secAgenda : secAgenda + secTareas}
   ${quickRow()}
-  ${isCloud ? '' : `<div class="notice">${ic('pin', 'sm')}<p>Modo local: tus datos están solo en este teléfono. <button class="link" data-a="settings">Ver cómo sincronizar</button></p></div>`}
-  ${followNotice()}
+  ${avisos}
   ${reviewsHoy()}
   ${assignmentsHoy()}
   ${mecasHoy()}
-  <section>
-    <div class="sec-h"><h2>Agenda de hoy</h2></div>
-    ${entries.length ? `<div class="tl">${entries.map(x => tlItem(x, t)).join('')}</div>`
-      : empty('Nada programado para hoy.', `<button class="btn" data-a="new-event" data-date="${esc(t)}">Agregar evento</button>`, 'calendar')}
-  </section>
-  <section>
-    <div class="sec-h"><h2>Tareas por atender</h2></div>
-    ${due.length ? `<div class="stack">${due.map(x => taskRow(x)).join('')}</div>`
-      : empty('Sin tareas para hoy ni atrasadas.', `<button class="btn" data-a="new-task">Nueva tarea</button>`, 'tasks')}
-  </section>
   ${(() => {   // 👥 Tareas que te compartieron (las que no salen arriba): pendientes, primero las que vencen antes
     const sh = data.tasks.filter(x => x.sharedItemId && x.status !== 'hecha' && !(x.due && x.due <= t))
       .sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).slice(0, 6);
@@ -324,7 +331,6 @@ export function hoy() {
     </button>`).join('')}</div></section>` : ''}
   ${next.length ? `<section><div class="sec-h"><h2>Próximas reuniones</h2></div><div class="stack">${next.map(meetCard).join('')}</div></section>` : ''}`;
 }
-
 // ───────────── AGENDA (calendario mensual) ─────────────
 
 // Selector de vista de la Agenda: calendario, lista de los próximos días o todos los eventos
@@ -510,7 +516,7 @@ export function tareas(ui) {
     ? `<select id="tareas-person" aria-label="Filtrar por persona"><option value="">Todas las personas</option>${withTasks.map(p => `<option value="${esc(p.id)}" ${p.id === pid ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : '';
   const meetingSel = withMeetings.length || supervised
     ? `<select id="tareas-meeting" aria-label="Filtrar por origen"><option value="">Todas las tareas</option>${supervised ? `<option value="__mine" ${mid === '__mine' ? 'selected' : ''}>Me tocan a mí</option><option value="__sup" ${mid === '__sup' ? 'selected' : ''}>Las que superviso</option>` : ''}${withMeetings.length ? `<option value="__any" ${mid === '__any' ? 'selected' : ''}>Solo de reuniones</option>` : ''}${withMeetings.map(m => `<option value="${esc(m.id)}" ${m.id === mid ? 'selected' : ''}>${esc(m.title)} — ${fmtShort(m.date)}</option>`).join('')}</select>` : '';
-  const personFilter = personSel || meetingSel ? `<div class="pad filters ${personSel && meetingSel ? 'two' : ''}">${personSel}${meetingSel}</div>` : '';
+
   const msg = {
     activas: 'No tienes tareas activas. Agrega una para darle seguimiento.',
     seguimiento: 'Aquí verás las tareas a las que ya les anotaste un seguimiento.',
@@ -525,6 +531,14 @@ export function tareas(ui) {
   const byDept = hasDepts && ui.tareas.group === 'depto';
   const groupSeg = hasDepts ? `<div class="seg small tgroup-pick" role="group" aria-label="Agrupar las tareas"><button data-a="tasks-group" data-v="fecha" aria-pressed="${!byDept}">📅 Por fecha</button><button data-a="tasks-group" data-v="depto" aria-pressed="${byDept}">🏢 Por departamento</button></div>` : '';
   const tools = `<div class="ttools">${groupSeg}${viewSeg}</div>`;
+  // Los mandos (persona, origen, agrupar, lista o tarjetas) se recogen: antes eran cuatro filas
+  // antes de ver la primera tarea. El resumen del verano dice si hay algo puesto.
+  const puestos = [pid ? M.person(pid)?.name : '', mid === '__mine' ? 'Me tocan a mí' : mid === '__sup' ? 'Las que superviso' : mid === '__any' ? 'De reuniones' : mid ? withMeetings.find(m => m.id === mid)?.title : ''].filter(Boolean);
+  const panel = `<details class="t-filtros" ${ui.tareas.filtros ? 'open' : ''}>
+    <summary><span>${ic('sliders', 'sm')} <b>Filtrar y ver</b></span><span class="hint">${puestos.length ? esc(puestos.join(' · ')) : 'Todas'}</span></summary>
+    ${personSel || meetingSel ? `<div class="filters ${personSel && meetingSel ? 'two' : ''}">${personSel}${meetingSel}</div>` : ''}
+    ${tools}
+  </details>`;
   const t0 = today();
   const closed = ui.tareas.closed || [];
   const deptBody = () => M.taskDeptGroups(list, f === 'hechas').map(g => {
@@ -539,7 +553,7 @@ export function tareas(ui) {
   }).join('') + `<p class="hint pad tmove-hint">⠿ Arrastra una tarea por su ⠿ a otro departamento, o toca ⠿ para elegirlo de una lista.</p>`;
   // Activas y en seguimiento: por grupos (atrasadas, hoy, semana, más adelante, sin fecha y, al final, baja prioridad)
   let body = '';
-  if (!list.length) body = empty(msg, f === 'hechas' ? '' : `<button class="btn" data-a="new-task">Nueva tarea</button>`, 'tasks');
+  if (!list.length) body = empty(msg, f === 'hechas' ? `<button class="btn" data-a="filter-tasks" data-v="activas">Ver las activas</button>` : `<button class="btn" data-a="new-task">Nueva tarea</button>`, 'tasks');
   else if (f === 'hechas') body = byDept ? deptBody() : wrap(list);
   else {
     const buckets = M.taskBuckets(list);
@@ -551,7 +565,7 @@ export function tareas(ui) {
       n('week') ? `<span class="tsum"><b>${n('week')}</b> esta semana</span>` : '',
       hi ? `<span class="tsum hi"><b>${hi}</b> de prioridad alta</span>` : '',
     ].filter(Boolean).join('');
-    body = `<div class="tbar"><div class="tsums">${sum}</div>${tools}</div>
+    body = `${sum ? `<div class="tsums">${sum}</div>` : ''}
       ${byDept ? deptBody() : buckets.map(b => b.k === 'low'
         ? `<details class="tgroup low" ${ui.tareas.lowOpen ? 'open' : ''}><summary><h2>⬇ ${b.n}</h2><span class="hint">${b.tasks.length} · tócalo para verlas</span></summary>${wrap(b.tasks)}</details>`
         : `<section class="tgroup ${esc(b.k)}"><div class="sec-h"><h2>${b.n}</h2><span class="hint">${b.tasks.length}</span></div>${wrap(b.tasks)}</section>`).join('')}`;
@@ -563,8 +577,7 @@ export function tareas(ui) {
   ${Cp.inboxButton('task')}
   ${rem.length ? `<button class="log-now remind-now" data-a="remind-tasks" data-v="3">💬 <span><b>Recordar por WhatsApp</b><small>${rem.length} ${rem.length === 1 ? 'hermano tiene' : 'hermanos tienen'} ${remLate ? `${remLate} ${remLate === 1 ? 'tarea atrasada' : 'tareas atrasadas'}` : 'tareas que vencen pronto'}. Toca para mandarle a cada uno su recordatorio.</small></span></button>` : ''}
   <div class="chips">${chips}</div>
-  ${personFilter}
-  ${list.length && f === 'hechas' ? `<div class="tbar"><span></span>${tools}</div>` : ''}
+  ${panel}
   ${body}`;
 }
 
@@ -595,7 +608,7 @@ export function personasList(ui) {
     .sort((a, b) => (b.isMe ? 1 : 0) - (a.isMe ? 1 : 0) || a.name.localeCompare(b.name, 'es'));
   if (!list.length) {
     return data.people.length
-      ? empty('Nadie coincide con esa búsqueda.', '', 'users')
+      ? empty('Nadie coincide con esa búsqueda.', `<button class="btn" data-a="clear-q">Quitar la búsqueda</button>`, 'users')
       : empty('Aún no has agregado personas. Guarda a quienes visitas, capacitas o acompañas en su estudio.', `<button class="btn" data-a="new-person">Agregar persona</button>`, 'users');
   }
   return `<div class="stack">${list.map(p => personRow(p, q)).join('')}</div>`;
@@ -797,7 +810,7 @@ export function notasList(ui) {
     .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || M.noteDate(b).localeCompare(M.noteDate(a)));
   if (!list.length) {
     return data.notes.length
-      ? empty('Ninguna nota coincide.', '', 'notebook')
+      ? empty('Ninguna nota coincide.', `<button class="btn" data-a="clear-q">Quitar la búsqueda</button>`, 'notebook')
       : empty('Escribe tu primera nota: ideas, apuntes o recordatorios.', `<button class="btn" data-a="new-note">Nueva nota</button><button class="link" data-a="keep">Importar de Google Keep</button>`, 'notebook');
   }
   return `<div class="stack">${list.map(n => `
@@ -979,17 +992,27 @@ function statsCard(mid, v) {
   // 1) Horas por día, con el mes anterior de fondo
   const maxD = Math.max(60, ...st.perDay, ...st.prev);
   const bw = W / st.days, yOf = x => top + (H - top - bottom) * (1 - x / maxD);
+  const base = H - bottom;
+  // El día que más hiciste: se marca con su valor, que es el dato que de verdad se busca aquí
+  const mejor = st.perDay.reduce((b, x, i) => (x > st.perDay[b] ? i : b), 0);
+  const conDatos = st.perDay.filter(Boolean).length;
+  const media = conDatos ? total / conDatos : 0;
   const dayBars = st.perDay.map((min, i) => {
     const x = i * bw, pv = st.prev[i] || 0;
-    const ph = (H - bottom) - yOf(pv), h = (H - bottom) - yOf(min);
-    return `<g>${pv ? `<rect class="sb-prev" x="${(x + bw * 0.08).toFixed(1)}" y="${yOf(pv).toFixed(1)}" width="${(bw * 0.84).toFixed(1)}" height="${ph.toFixed(1)}" rx="2"/>` : ''}
-      ${min ? `<rect class="sb" x="${(x + bw * 0.22).toFixed(1)}" y="${yOf(min).toFixed(1)}" width="${(bw * 0.56).toFixed(1)}" height="${h.toFixed(1)}" rx="2"/>` : ''}
+    const ph = base - yOf(pv), h = base - yOf(min);
+    const esMejor = min && i === mejor;
+    return `<g>${pv ? `<rect class="sb-prev" x="${(x + bw * 0.06).toFixed(1)}" y="${yOf(pv).toFixed(1)}" width="${(bw * 0.88).toFixed(1)}" height="${ph.toFixed(1)}" rx="3"/>` : ''}
+      ${min ? `<rect class="sb ${esMejor ? 'top' : ''}" x="${(x + bw * 0.16).toFixed(1)}" y="${yOf(min).toFixed(1)}" width="${(bw * 0.68).toFixed(1)}" height="${h.toFixed(1)}" rx="3"/>` : ''}
+      ${esMejor ? `<text class="sv" x="${(x + bw / 2).toFixed(1)}" y="${(yOf(min) - 4).toFixed(1)}">${M.fmtHM(min)}</text>` : ''}
       <rect class="hit" x="${x.toFixed(1)}" y="0" width="${bw.toFixed(1)}" height="${H}"><title>${i + 1}: ${M.fmtHM(min)} h${pv ? ` · mes anterior ${M.fmtHM(pv)} h` : ''}</title></rect>
       ${(i + 1) % 5 === 0 || i === 0 ? `<text class="sl" x="${(x + bw / 2).toFixed(1)}" y="${H - 5}">${i + 1}</text>` : ''}</g>`;
-  }).join('');
+  }).join('')
+    // Una raya en el cero (los días vacíos se ven como cero, no como nada) y otra en el promedio
+    + `<line class="sx" x1="0" y1="${base}" x2="${W}" y2="${base}"/>`
+    + (media ? `<line class="ya" x1="0" y1="${yOf(media).toFixed(1)}" x2="${W}" y2="${yOf(media).toFixed(1)}"/><text class="spt" x="${W - 2}" y="${(yOf(media) - 4).toFixed(1)}">promedio ${M.fmtHM(media)}</text>` : '');
   // 2) Por día de la semana
   const maxW = Math.max(60, ...st.perWd), ww = W / 7, yW = x => top + 12 + (H - top - 12 - bottom) * (1 - x / maxW);
-  const wdBars = WD_ORDER.map((d, i) => { const min = st.perWd[d], x = i * ww + ww * 0.22, w = ww * 0.56, hh = (H - bottom) - yW(min);
+  const wdBars = `<line class="sx" x1="0" y1="${H - bottom}" x2="${W}" y2="${H - bottom}"/>` + WD_ORDER.map((d, i) => { const min = st.perWd[d], x = i * ww + ww * 0.16, w = ww * 0.68, hh = (H - bottom) - yW(min);
     return `<g>${min ? `<rect class="sb" x="${x.toFixed(1)}" y="${yW(min).toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}" rx="4"><title>${WD_N[d]}: ${M.fmtHM(min)} h</title></rect><text class="sv" x="${(x + w / 2).toFixed(1)}" y="${(yW(min) - 3).toFixed(1)}">${M.fmtHM(min)}</text>` : ''}<text class="sl" x="${(x + w / 2).toFixed(1)}" y="${H - 5}">${WD_N[d]}</text></g>`; }).join('');
   // 3) Avance hacia la meta del mes (acumulado contra el ritmo necesario)
   const goal = v.goalEnabled && Number(v.goalMonthly) > 0 ? Number(v.goalMonthly) * 60 : 0;
