@@ -43,6 +43,13 @@ function shellProblems() {
   const out = [];
   shell.filter(f => f !== './' && !existsSync(join(root, f))).forEach(f => out.push(`SHELL tiene «${f}», pero el archivo no existe`));
   readdirSync(join(root, 'js')).filter(f => f.endsWith('.js') && !shell.includes(`js/${f}`)).forEach(f => out.push(`js/${f} no está en SHELL (sw.js)`));
+  // Los módulos (modulos/**) son archivos de la app igual que los de js/: fuera del SHELL
+  // se sirven de la caché de «otros», que no se cambia al subir de versión, así que una
+  // corrección tarda una carga de más en llegar y se mezclan archivos de dos versiones.
+  readdirSync(join(root, 'modulos'), { recursive: true })
+    .map(f => String(f).replace(/[\\/]+/g, '/'))
+    .filter(f => /\.(js|css)$/.test(f) && !shell.includes(`modulos/${f}`))
+    .forEach(f => out.push(`modulos/${f} no está en SHELL (sw.js)`));
   return out;
 }
 const shellBad = shellProblems();
@@ -61,7 +68,7 @@ if (!arg) {
     console.log(`${good ? '✓' : '✗'} ${p.f.padEnd(14)} ${p.vals.join(', ') || '(no se encontró)'}`);
   }
   console.log(ok ? `\nVersión ${current} en todos lados (web y app de Android; versionCode ${codigoAndroid(current)}).` : `\n⚠️ No coincide. Arréglalo con: node herramientas/version.mjs ${FMT.test(current) ? current : '9.8.1'}`);
-  console.log(shellBad.length ? `\n✗ Archivos sin internet (SHELL):\n${shellBad.map(x => `  · ${x}`).join('\n')}` : '✓ SHELL de sw.js: todos los archivos existen y están todos los js/*.js');
+  console.log(shellBad.length ? `\n✗ Archivos sin internet (SHELL):\n${shellBad.map(x => `  · ${x}`).join('\n')}` : '✓ SHELL de sw.js: todos los archivos existen y están todos los js/*.js y los modulos/**');
   process.exit(ok && !shellBad.length ? 0 : 1);
 }
 

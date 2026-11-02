@@ -11,7 +11,7 @@
 // Al añadir archivos nuevos a la app, agrégalos a SHELL y sube el número de VERSION
 // (node herramientas/version.mjs revisa que todo js/*.js esté en SHELL y que cada archivo exista).
 
-const VERSION = 'agenda-v10.13.2';
+const VERSION = 'agenda-v10.13.3';
 const CDN = 'agenda-cdn';
 const VENDOR = 'vendor-v1';
 const SHARED = 'agenda-compartido';
@@ -21,6 +21,14 @@ const SHELL = [
   'css/styles.css',
   'js/agenda.js', 'js/app.js', 'js/config.js', 'js/guide.js', 'js/tour.js', 'js/junta.js', 'js/keep.js', 'js/lock.js', 'js/notify.js', 'js/avisos-plan.js', 'js/reports.js', 'js/model.js', 'js/sheets.js', 'js/store.js', 'js/theme.js', 'js/util.js', 'js/views.js', 'js/weekimg.js', 'js/orgimg.js', 'js/weekcal.js', 'js/native.js', 'js/mecas.js', 'js/comite.js', 'js/ics.js', 'js/voz.js', 'js/borrador.js', 'js/visita.js', 'js/pastoreo.js', 'js/compartir.js', 'js/gcal.js', 'js/gcal-script.js', 'js/recordar.js', 'js/corregir.js', 'js/ver.js', 'js/pwa.js',
   'js/asistencia.js', 'js/tablero.js', 'js/limpieza.js', 'js/programa.js', 'js/programa-s140.js', 'js/imprimir.js', 'js/archivos.js', 'js/perms.js', 'js/por-resolver.js', 'js/nombres.js', 'js/lectores.js', 'js/deslizar.js', 'js/admin.js', 'js/mover.js', 'js/compartido.js', 'js/adminhub.js', 'js/respaldo.js', 'js/respaldo-script.js',
+  // Los modulos son archivos de la app como los demas: si no estuvieran aqui se servirian
+  // de la cache de «otros», que no se cambia al subir de version, y una correccion tardaria
+  // una carga de mas en llegar (mezclando ademas archivos de dos versiones).
+  'modulos/_nucleo.js',
+  'modulos/matrimonio/matrimonio.js', 'modulos/matrimonio/matrimonio.css',
+  'modulos/papeles/papeles.js', 'modulos/papeles/papeles.css', 'modulos/papeles/lector.js', 'modulos/papeles/registro.js', 'modulos/papeles/reconciliar.js',
+  'modulos/papeles/papel-s147.js', 'modulos/papeles/papel-s140.js', 'modulos/papeles/papel-s21.js', 'modulos/papeles/papel-asistencia.js', 'modulos/papeles/papel-limpieza.js',
+  'modulos/por-resolver/por-resolver.js', 'modulos/por-resolver/por-resolver.css',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/n-badge.png', 'sonidos/campanita.mp3',
 ];
 const KEEP = [VERSION, CDN, VENDOR, SHARED, RUNTIME];

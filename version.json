@@ -1,8 +1,7 @@
 {
-  "version": "10.13.2",
+  "version": "10.13.3",
   "avisar": true,
   "notes": [
-    "🧩 Los módulos (Papeles, Por resolver) vuelven a dibujarse aunque la app se quede un rato en segundo plano",
-    "⚠️ Si una tarjeta de módulo queda en pantalla cuando ya no corresponde, se quita sola en vez de no hacer nada al tocarla"
+    "📦 Los módulos ahora se actualizan de golpe con el resto de la app: una corrección ya no tarda una carga de más en llegarte"
   ]
 }
