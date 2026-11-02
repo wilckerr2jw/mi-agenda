@@ -1,12 +1,8 @@
 {
-  "version": "10.13.0",
+  "version": "10.13.1",
   "avisar": true,
   "notes": [
-    "👆 Desliza una tarea: a la derecha la marcas hecha, a la izquierda la pasas a mañana",
-    "⬆ En Hoy, lo vencido y lo de hoy van arriba del todo, antes que cualquier aviso",
-    "🔔 Los avisos de Hoy se recogen en una sola tira que dice cuántos hay",
-    "🎛 En Tareas, los filtros se pliegan: ahora la primera tarea se ve enseguida",
-    "📊 Las gráficas del Informe se leen mejor, y los registros sin categoría ya no salen como «undefined»",
-    "✨ El menú «Más» muestra cada módulo con su color y un dato vivo"
+    "📅 Las fechas de otros años ya muestran el año: una reunión de 2025 no se confunde con una de este año",
+    "🔗 Al corregir el texto de un acuerdo, su tarea sigue enganchada: ya no se ofrece crear una repetida"
   ]
 }

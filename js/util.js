@@ -57,7 +57,13 @@ export const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 
 export const dow = iso => cap(DIAS[parseISO(iso).getDay()]);
 export const fmtLong = iso => { const d = parseISO(iso); return `${cap(DIAS[d.getDay()])} ${d.getDate()} de ${MESES[d.getMonth()]}`; };
-export const fmtShort = iso => { const d = parseISO(iso); return `${d.getDate()} ${MESES[d.getMonth()].slice(0, 3)}`; };
+// «12 mar» cuando es de este año; «12 mar 2025» cuando no, para que al mirar cosas
+// viejas (reuniones, acuerdos, tareas vencidas) no se confundan dos años distintos.
+export const fmtShort = iso => {
+  const d = parseISO(iso);
+  const corto = `${d.getDate()} ${MESES[d.getMonth()].slice(0, 3)}`;
+  return d.getFullYear() === new Date().getFullYear() ? corto : `${corto} ${d.getFullYear()}`;
+};
 export const fmtMonth = (y, m) => `${cap(MESES[m - 1])} ${y}`;
 
 // Hora en formato de 12 horas: "7:00" + "p. m."

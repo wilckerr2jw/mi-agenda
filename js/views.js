@@ -144,7 +144,7 @@ function meetCard(m) {
   const when = [fmtTime(m.time), m.place].filter(Boolean).join(', ');
   const who = M.attendeesText(m);
   return `<button class="card meet" data-a="meeting" data-id="${esc(m.id)}">
-    <span class="m-date"><b>${d.getDate()}</b><small>${MESES[d.getMonth()].slice(0, 3)}</small></span>
+    <span class="m-date"><b>${d.getDate()}</b><small>${MESES[d.getMonth()].slice(0, 3)}</small>${d.getFullYear() === new Date().getFullYear() ? '' : `<small class="m-year">${d.getFullYear()}</small>`}</span>
     <span class="m-body"><strong>${esc(m.title)}</strong>
       ${when ? `<span class="meta">${esc(when)}</span>` : ''}
       ${who ? `<span class="meta">Con ${esc(who)}</span>` : ''}

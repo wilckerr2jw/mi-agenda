@@ -217,6 +217,8 @@ mark { background: color-mix(in srgb, var(--primary) 26%, transparent); color: i
 .m-date { display: grid; justify-items: center; padding: 8px 0; border-radius: 12px; background: var(--surface-2); }
 .m-date b { font: 600 22px/1 var(--serif); }
 .m-date small { font-size: 12px; color: var(--ink-2); }
+/* El año solo aparece en las reuniones de otros años, para no confundirlas con las de este */
+.m-date .m-year { font-size: 11px; font-weight: 700; letter-spacing: .02em; opacity: .85; }
 .m-body { display: grid; gap: 1px; min-width: 0; }
 
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; margin-bottom: 14px; background: var(--surface-2); border-radius: 12px; }

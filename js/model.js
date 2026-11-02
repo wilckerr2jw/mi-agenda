@@ -4,7 +4,7 @@ import { data, session, isCloud } from './store.js';
 import * as P from './perms.js';
 import { today, diffDays, fmtShort, fmtTime, norm, dateOf, parseISO, addDays } from './util.js';
 
-export const APP_VERSION = '10.13.0';
+export const APP_VERSION = '10.13.1';
 
 // ───────────── Tipos de perfil (los asigna el administrador en modo nube) ─────────────
 // Cada tipo decide qué categorías de evento y de Mi Informe se ofrecen. Lo ya guardado se sigue viendo igual.
@@ -1121,6 +1121,17 @@ const BULLET = /^\s*(?:[-•*·–—]|\d{1,2}[.)])\s+/;
 // Clave para saber si un acuerdo ya tiene su tarea (no cambia con mayúsculas, acentos ni espacios)
 export const agreementKey = text => norm(text).replace(/[^a-z0-9ñ ]/g, ' ').replace(/\s+/g, ' ').trim();
 
+// Cuánto se parecen dos textos: 0 nada, 1 iguales. Cuenta las palabras que comparten,
+// sin las de dos letras o menos («de», «el», «a»…), que no distinguen nada.
+const palabrasDe = text => new Set(agreementKey(text).split(' ').filter(w => w.length > 2));
+export function parecido(a, b) {
+  const A = palabrasDe(a), B = palabrasDe(b);
+  if (!A.size || !B.size) return 0;
+  let juntas = 0;
+  A.forEach(w => { if (B.has(w)) juntas++; });
+  return (2 * juntas) / (A.size + B.size);
+}
+
 // Fecha (AAAA-MM-DD) mencionada en el texto, tomando como referencia el día de la reunión
 export function findDate(text, base) {
   const n = norm(text);
@@ -1340,7 +1351,7 @@ export function parseAgreements(m) {
   }
   const base = m.date || today();
   const tasks = data.tasks.filter(t => t.meetingId === m.id);
-  return source.map(({ line: l, details }) => {
+  const list = source.map(({ line: l, details }) => {
     const text = l.replace(BULLET, '').replace(/^acuerdo\s*:\s*/i, '').trim();
     const key = agreementKey(text);
     const tail = tailNames(text);
@@ -1362,6 +1373,32 @@ export function parseAgreements(m) {
       task: tasks.find(t => t.fromAgreement === key) || null,
     };
   }).filter(a => a.key.length > 2);
+  return rescatarTareas(list, tasks);
+}
+
+// Al corregir la redacción de un acuerdo cambia su clave, y la tarea que ya se había creado
+// queda «suelta»: el acuerdo volvía a ofrecer «Crear tarea» y se terminaba duplicando.
+// Aquí cada tarea suelta vuelve con el acuerdo al que más se parece. Solo se tocan las tareas
+// que vienen de un acuerdo que ya no existe; las creadas a mano se quedan como están.
+const PARECIDO_MIN = 0.6;
+function rescatarTareas(list, tasks) {
+  const claves = new Set(list.map(a => a.key));
+  const sueltas = tasks.filter(t => t.fromAgreement && !claves.has(t.fromAgreement));
+  const libres = list.filter(a => !a.task);
+  if (!sueltas.length || !libres.length) return list;
+  const parejas = [];
+  libres.forEach(a => sueltas.forEach(t => {
+    const p = parecido(a.title, t.title);
+    if (p >= PARECIDO_MIN) parejas.push({ a, t, p });
+  }));
+  parejas.sort((x, y) => y.p - x.p);   // primero las que menos dudas dejan
+  const tomadas = new Set();
+  parejas.forEach(({ a, t }) => {
+    if (a.task || tomadas.has(t.id)) return;
+    a.task = t;
+    tomadas.add(t.id);
+  });
+  return list;
 }
 
 // ¿La tarea te toca a ti? (las tareas sin responsables, o las que no dicen nada, son tuyas)
