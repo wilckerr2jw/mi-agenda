@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Datos de prueba · Mi Agenda</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 24px 16px 40px; background: #10201d; color: #e8f1ee;
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p { color: #a8c0ba; }
+  ul { color: #a8c0ba; padding-left: 20px; }
+  button { width: 100%; margin-top: 12px; padding: 14px; border: 0; border-radius: 999px;
+           font: inherit; font-weight: 700; cursor: pointer; }
+  .go { background: #6ed3bd; color: #0c1a18; }
+  .clear { background: transparent; color: #f0a3a3; border: 1px solid #5a3a3a; }
+  #msg { margin-top: 16px; font-weight: 700; color: #6ed3bd; min-height: 24px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Datos de prueba</h1>
+  <p>Carga reuniones viejas (2025 y 2026) para probar el modulo de Reuniones.
+     Solo funciona con la app en modo local: en <code>js/config.js</code> el
+     <code>apiKey</code> tiene que empezar con <code>PEGA</code>.</p>
+  <ul>
+    <li>7 reuniones: 6 pasadas y 1 proxima</li>
+    <li>9 tareas enlazadas a sus acuerdos</li>
+    <li>7 personas, 2 grupos y 2 notas</li>
+  </ul>
+  <p><strong>Reemplaza</strong> lo que tengas guardado en este navegador.</p>
+  <button class="go" id="go">Cargar y abrir la app</button>
+  <button class="clear" id="clear">Borrar los datos de prueba</button>
+  <p id="msg"></p>
+</main>
+<script type="module">
+import { SEED } from './datos-prueba.js';
+
+const LS_KEY = 'miagenda.datos.v1';
+const msg = document.getElementById('msg');
+
+document.getElementById('go').onclick = () => {
+  localStorage.setItem(LS_KEY, JSON.stringify(SEED));
+  msg.textContent = 'Listo. Abriendo la app…';
+  setTimeout(() => { location.href = '../index.html#/notas'; }, 600);
+};
+
+document.getElementById('clear').onclick = () => {
+  localStorage.removeItem(LS_KEY);
+  msg.textContent = 'Borrado. La app arranca vacia.';
+};
+</script>
+</body>
+</html>
