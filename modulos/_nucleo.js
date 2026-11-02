@@ -150,10 +150,17 @@ let pedido = false;
 function repintar() {
   if (pedido) return;
   pedido = true;
-  requestAnimationFrame(() => {
+  const pintar = () => {
+    if (!pedido) return;   // el otro de los dos avisos llegó primero
     pedido = false;
     MODS.forEach(mod => { enMas(mod); enLado(mod); enHoy(mod); enSeccion(mod); });
-  });
+  };
+  // Con la página oculta (otra pestaña, la ventana minimizada, la pantalla apagada)
+  // requestAnimationFrame no llega a dispararse nunca. Sin el respaldo del temporizador,
+  // «pedido» se quedaba en true para siempre y los módulos no volvían a pintarse en toda
+  // la sesión, aunque volvieras a la pestaña.
+  requestAnimationFrame(pintar);
+  setTimeout(pintar, 250);
 }
 
 /** Un módulo pide que se vuelva a dibujar su tarjeta de «Hoy» y su entrada del menú. */
@@ -171,7 +178,15 @@ function arrancar() {
     const b = e.target.closest?.('[data-mod]');
     if (!b) return;
     const mod = MODS.get(b.dataset.mod);
-    if (!mod || !visible(mod)) return;
+    // Resto de un repintado anterior: el módulo ya no está, o dejó de verse para esta cuenta.
+    // Antes se salía callado: el botón se quedaba en pantalla y tocarlo no hacía nada, sin
+    // error ni aviso, que es imposible de diagnosticar. Ahora se quita y se dice por qué.
+    if (!mod || !visible(mod)) {
+      console.warn(`🧩 «${b.dataset.mod}» ya no está disponible: se quita lo que quedó en pantalla.`);
+      b.remove();
+      repintar();
+      return;
+    }
     e.preventDefault();
     seguro(mod, mod.abrir, b.dataset.sub || '');
   });
