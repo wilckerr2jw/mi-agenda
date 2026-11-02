@@ -26,9 +26,12 @@ const HORA = /\b(?:a\s+las\s+)?([01]?\d|2[0-3])[:.]([0-5]\d)\b|\ba\s+las\s+(\d{1
 
 export const APARTADOS = [
   { id: 'coordinador',    n: 'Coordinador del cuerpo de ancianos', re: /coordinador/i },
-  { id: 'secretario',     n: 'Secretario',                         re: /\bsecretari[oa]\b/i },
-  { id: 'superintendente', n: 'Superintendente de servicio',       re: /superintendente\s+de\s+servicio/i },
-  { id: 'comite',         n: 'Comité de Servicio',                 re: /comit[eé]\s+de\s+servicio/i },
+  // En plural también: la hoja real encabeza «PARA LOS SUPERINTENDENTES DE SERVICIO»,
+  // y sin la «s» opcional el renglón no se reconocía como apartado, así que sus puntos
+  // se quedaban colgando del apartado anterior.
+  { id: 'secretario',     n: 'Secretario',                         re: /\bsecretari[oa]s?\b/i },
+  { id: 'superintendente', n: 'Superintendente de servicio',       re: /superintendentes?\s+de\s+servicio/i },
+  { id: 'comite',         n: 'Comité de Servicio',                 re: /comit[eé]s?\s+de\s+servicio/i },
   { id: 'ancianos',       n: 'Cuerpo de ancianos',                 re: /\bancianos?\b/i },
   { id: 'siervos',        n: 'Siervos ministeriales',              re: /siervos?\s+ministeriales?/i },
   { id: 'grupo',          n: 'Superintendentes de grupo',          re: /superintendentes?\s+de\s+grupo/i },

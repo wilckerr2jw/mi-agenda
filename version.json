@@ -1,7 +1,7 @@
 {
-  "version": "10.13.4",
+  "version": "10.13.5",
   "avisar": true,
   "notes": [
-    "☑️ Al cargar un papel ya se pueden marcar y desmarcar las tareas de la lista: las casillas no respondían"
+    "📄 El S-147 ya reparte bien los puntos: los encabezados en plural («PARA LOS SUPERINTENDENTES DE SERVICIO») no se reconocían y sus puntos quedaban atribuidos al apartado anterior"
   ]
 }
