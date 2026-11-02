@@ -2,6 +2,7 @@
   "version": "10.13.1",
   "avisar": true,
   "notes": [
+    "📄 El S-147 ya se puede subir desde el navegador: el selector de archivos no llegaba a abrirse",
     "📅 Las fechas de otros años ya muestran el año: una reunión de 2025 no se confunde con una de este año",
     "🔗 Al corregir el texto de un acuerdo, su tarea sigue enganchada: ya no se ofrece crear una repetida"
   ]

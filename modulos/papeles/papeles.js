@@ -123,11 +123,18 @@ async function abrir(sub = '') {
 
 // ───────────── Subir y leer ─────────────
 
+// El input tiene que estar en la página antes de abrirlo: varios navegadores ignoran
+// el clic de uno suelto, sin dar ningún error, y el selector no llega a abrirse.
+// (Los demás módulos que suben archivos ya llevan su input escondido en el HTML.)
 function elegirArchivo() {
   const inp = document.createElement('input');
   inp.type = 'file';
   inp.accept = ".pdf,.docx,.txt,.csv,image/*";
-  inp.onchange = () => { const f = inp.files?.[0]; if (f) procesar(f); };
+  inp.hidden = true;
+  const quitar = () => inp.remove();
+  inp.onchange = () => { const f = inp.files?.[0]; quitar(); if (f) procesar(f); };
+  inp.oncancel = quitar;   // si cierras el selector sin elegir nada
+  document.body.appendChild(inp);
   inp.click();
 }
 
