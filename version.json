@@ -1,7 +1,7 @@
 {
-  "version": "10.13.3",
+  "version": "10.13.4",
   "avisar": true,
   "notes": [
-    "📦 Los módulos ahora se actualizan de golpe con el resto de la app: una corrección ya no tarda una carga de más en llegarte"
+    "☑️ Al cargar un papel ya se pueden marcar y desmarcar las tareas de la lista: las casillas no respondían"
   ]
 }

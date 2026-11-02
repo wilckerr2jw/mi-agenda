@@ -520,6 +520,10 @@ function ayuda() {
 document.addEventListener('click', async e => {
   const b = e.target.closest?.('[data-pp]');
   if (!b) return;
+  // Las casillas las atiende el 'change' de más abajo. Cancelarles el clic aquí les impedía
+  // marcarse, y de paso el 'change' nunca llegaba a dispararse: no había forma de tildar
+  // ni destildar ninguna de la lista.
+  if (b.matches('input[type="checkbox"]')) return;
   e.preventDefault();
   const id = b.dataset.id || '';
   try {
@@ -544,7 +548,6 @@ document.addEventListener('click', async e => {
         break;
       case 'ayuda': ayuda(); break;
       case 'sel-todas': marcar([...document.querySelectorAll('input[data-pp="sel"]')], true); break;
-      case 'sel-reg': break;   // lo maneja el 'change'
       case 'sel-ninguna': marcar([...document.querySelectorAll('input[data-pp="sel"]')], false); break;
     }
   } catch (err) {
