@@ -1,7 +1,11 @@
 {
-  "version": "10.13.6",
+  "version": "10.13.7",
   "avisar": true,
   "notes": [
-    "👥 Los selectores de «Lo presenta(n)» y de las oraciones de la agenda ya se despliegan: no abrían desde que existe el módulo Papeles"
+    "🔎 Reuniones tiene buscador: por título, lugar, participante o punto de la agenda. Y las anteriores se agrupan por año",
+    "📖 Tocar una reunión que ya pasó la abre para leerla, con su agenda y sus acuerdos, y «Eliminar» deja de estar al lado de «Guardar»",
+    "↻ «Temas anteriores» ya no viene todo marcado, y cada tema dice de qué reunión y de qué fecha viene",
+    "📱 Los puntos de la agenda se leen en el teléfono: los botones bajan a su propia línea y el texto recupera el ancho",
+    "🔄 La app se refresca aunque haya estado un rato en segundo plano o con la pantalla apagada"
   ]
 }

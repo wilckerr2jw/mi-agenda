@@ -803,6 +803,7 @@ export function congregacion(ui) {
 // ───────────── NOTAS Y REUNIONES ─────────────
 
 export function notasList(ui) {
+  if (ui.notas.seg === 'reuniones') return reunionesList(ui.notas.q);
   const { q, tag } = ui.notas;
   const nq = norm(q);
   const list = data.notes
@@ -822,16 +823,34 @@ export function notasList(ui) {
     </button>`).join('')}</div>`;
 }
 
-function reunionesList() {
+// Todo lo que se puede buscar de una reunión: lo suyo y lo de su agenda
+const textoDeReunion = m => [
+  m.title, m.place, m.attendees, m.topics, m.notes,
+  ...(m.attendeeIds || []).map(id => M.person(id)?.name),
+  ...(m.attendeeGroupIds || []).map(id => M.groupName(id)),
+  ...(m.agenda || []).flatMap(x => [x.t, x.by, x.ref, ...(x.subs || [])]),
+].filter(Boolean).join(' ');
+
+function reunionesList(q = '') {
   const t = today();
+  const nq = norm(q);
   const key = m => m.date + (m.time || '');
-  const next = data.meetings.filter(m => m.date >= t).sort((a, b) => key(a).localeCompare(key(b)));
-  const past = data.meetings.filter(m => m.date < t).sort((a, b) => key(b).localeCompare(key(a)));
+  const cuadra = m => !nq || norm(textoDeReunion(m)).includes(nq);
+  const todas = data.meetings.filter(cuadra);
+  const next = todas.filter(m => m.date >= t).sort((a, b) => key(a).localeCompare(key(b)));
+  const past = todas.filter(m => m.date < t).sort((a, b) => key(b).localeCompare(key(a)));
   if (!next.length && !past.length) {
+    if (nq) return empty('Ninguna reunión coincide.', `<button class="btn" data-a="clear-q">Quitar la búsqueda</button>`, 'clip');
     return empty('Registra aquí tus reuniones importantes con sus temas y acuerdos.', `<button class="btn" data-a="new-meeting">Nueva reunión</button>`, 'clip');
   }
+  // Con años de reuniones acumuladas, «Anteriores» a secas no dice nada: se parten por año
+  const porAnio = {};
+  past.forEach(m => { (porAnio[m.date.slice(0, 4)] ||= []).push(m); });
+  const anios = Object.keys(porAnio).sort((a, b) => b.localeCompare(a));
+  const anioActual = t.slice(0, 4);
   return `${next.length ? `<h3 class="sub-h">Próximas</h3><div class="stack">${next.map(meetCard).join('')}</div>` : ''}
-          ${past.length ? `<h3 class="sub-h">Anteriores</h3><div class="stack">${past.map(meetCard).join('')}</div>` : ''}`;
+          ${anios.map(a => `<h3 class="sub-h">${a === anioActual ? 'Anteriores' : `Anteriores · ${a}`}</h3>
+            <div class="stack">${porAnio[a].map(meetCard).join('')}</div>`).join('')}`;
 }
 
 export function notas(ui) {
@@ -843,7 +862,11 @@ export function notas(ui) {
   if (st.seg === 'reuniones') {
     const hasTasks = data.tasks.some(t => t.meetingId);
     const tools = data.meetings.length ? `<div class="quick mtg-tools">${hasTasks ? '<button class="btn small" data-a="supervision" data-id="">📋 Supervisión</button>' : ''}<button class="btn small" data-a="participation" data-v="6">📊 Participación</button></div>` : '';
-    return `${head('Reuniones', actions())}${seg}${tools}${reunionesList()}`;
+    // Buscador: con reuniones de varios años, encontrar una por título, lugar o participante
+    const buscar = data.meetings.length > 4
+      ? `<div class="search">${ic('search')}<input id="q" type="search" placeholder="Buscar en tus reuniones" value="${esc(st.q)}" autocomplete="off" aria-label="Buscar reuniones"></div>` : '';
+    return `${head('Reuniones', actions())}${seg}${tools}${buscar}
+    <div id="results">${notasList(ui)}</div>`;
   }
 
   const tags = [...new Set(data.notes.map(n => n.tag).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));

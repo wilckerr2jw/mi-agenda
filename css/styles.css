@@ -520,6 +520,16 @@ b.late { color: var(--warn); }
 .ag-btns { display: flex; gap: 2px; flex: none; }
 .ag-btns .icon-btn { width: 30px; height: 30px; font-size: 15px; color: var(--ink-2); }
 .ag-btns .icon-btn[disabled] { opacity: .3; }
+/* En el teléfono, los cuatro botones (subir, bajar, editar, quitar) se comían 126 px de
+   ancho y el título del punto quedaba en una columna de dos palabras por línea. Se bajan
+   a su propia fila, alineados a la derecha, y el texto recupera el ancho completo. */
+@media (max-width: 460px) {
+  .ag-row { flex-wrap: wrap; }
+  .ag-row .grow { flex: 1 1 100%; }
+  .ag-row .ag-btns { width: 100%; justify-content: flex-end; margin-top: 2px; }
+}
+/* De qué reunión y de cuándo viene cada tema pendiente */
+.pend-de { display: block; font-size: 12px; color: var(--ink-2); }
 .ag-foot { display: grid; gap: 8px; margin: 6px 0 10px; padding: 10px 12px; border-radius: 12px; background: var(--primary-soft); color: var(--primary); }
 .ag-foot .quick { margin: 0; }
 .ag-editor { background: var(--bg); border: 1px dashed var(--line); border-radius: 12px; padding: 2px 12px; }

@@ -60,7 +60,7 @@ function usersHtml() {
     ${users.length ? `<div class="stack" id="adm-list">${users.map(u => {
       const custom = u.type && ((u.allow || []).length || (u.deny || []).length);
       const badge = u.type ? M.typeName(u.type) : isMe(u) ? 'Administrador · ve todo' : 'Pendiente';
-      return `<button type="button" class="card mini adm-user ${waiting(u) ? 'pend' : ''}"data-a="adm-user" data-id="${esc(u.uid)}" data-k="${esc(norm(`${u.name} ${u.email}`))}">
+      return `<button type="button" class="card mini adm-user ${waiting(u) ? 'pend' : ''}" data-a="adm-user" data-id="${esc(u.uid)}" data-k="${esc(norm(`${u.name} ${u.email}`))}">
         <strong>${esc(userName(u))}${isMe(u) ? ' <span class="hint">(tú, administrador)</span>' : ''}</strong>
         ${u.name ? `<span class="meta">${esc(u.email)}</span>` : ''}
         <span class="meta"><span class="adm-badge ${waiting(u) ? 'pend' : ''}">${esc(badge)}</span>${custom ? ' · ajustada a mano' : ''}${u.lastSeen ? ` · última vez ${esc(fmtShort(dateOf(u.lastSeen)))}` : ''}</span>

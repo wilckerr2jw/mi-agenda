@@ -545,9 +545,21 @@ function helpSheet() {
 }
 
 // ───────────── Toques ─────────────
+// Las acciones de este módulo, y solo esas: el manejador cancela el clic y corta la
+// propagación, y eso en una casilla impide que se marque, en un <details> que se
+// despliegue y en un campo que reciba el foco, todo sin dar ninguna señal. Mientras
+// «data-mx» lo lleven solo botones no se nota, pero el día que lo lleve otra cosa sí.
+const ACCIONES = new Set([
+  'open', 'tab', 'settings', 'settings-save', 'help',
+  'plan', 'plan-save', 'pick-day', 'theo', 'ev', 'done',
+  'idea-add', 'idea-del', 'ideas-reset', 'habit',
+  'dates-save', 'date-add', 'date-del', 'date-remind',
+  'checkin', 'check-save', 'check-event', 'check-del',
+]);
+
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-mx]');
-  if (!el) return;
+  if (!el || !ACCIONES.has(el.dataset.mx)) return;
   e.preventDefault(); e.stopPropagation();
   const { mx, v, id, d, t, i, k } = el.dataset;
   switch (mx) {

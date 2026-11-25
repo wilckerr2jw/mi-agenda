@@ -53,7 +53,7 @@ export const FEATURES = {
     { id: 'personas.pastoreo', n: 'Pastoreo', d: 'Visitas de pastoreo y cargar las anteriores', a: ['past-import', 'past-save'], shep: true },
   ],
   notas: [
-    { id: 'notas.reuniones', n: 'Reuniones y agenda de reunión', d: 'Reuniones con puntos, acuerdos y tareas', a: ['seg:reuniones', 'new-meeting', 'quick:meeting', 'meeting-next'], q: ['meeting'] },
+    { id: 'notas.reuniones', n: 'Reuniones y agenda de reunión', d: 'Reuniones con puntos, acuerdos y tareas', a: ['seg:reuniones', 'new-meeting', 'quick:meeting', 'meeting-next', 'meeting-edit'], q: ['meeting'] },
     { id: 'notas.junta', n: 'Modo junta', d: 'Llevar la reunión punto por punto con tiempos', a: ['junta-start'] },
     { id: 'notas.plantillas', n: 'Plantillas de reunión', d: 'Guardar y cargar el orden de una reunión', a: ['tpl-save', 'tpl-load', 'tpl-del'] },
     { id: 'notas.participacion', n: 'Participación', d: 'Quién participó en las reuniones de los últimos meses', a: ['participation'] },

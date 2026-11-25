@@ -108,3 +108,45 @@ Lo que **no** conviene mover, porque es el núcleo del que viven todos:
 A esos lo que les hace falta es partirlos en archivos más pequeños **dentro de `js/`**
 (por ejemplo `sheets-tarea.js`, `sheets-persona.js`, `sheets-evento.js`), que es otro
 trabajo distinto y sin riesgo de romper módulos.
+
+---
+
+## Regla de oro al escuchar los clics de toda la página
+
+Un módulo que pone un `document.addEventListener('click', …)` y se queda con lo que lleve
+«su» atributo **tiene que comprobar antes si la acción es suya**, contra una lista explícita:
+
+```js
+const ACCIONES = new Set(['abrir', 'guardar', 'borrar']);
+
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-xx]');
+  if (!b || !ACCIONES.has(b.dataset.xx)) return;   // ← esta línea
+  e.preventDefault();
+  …
+});
+```
+
+Sin esa línea, el manejador le cancela el clic a **cualquier** cosa que lleve el atributo. Si
+es un botón no se nota, pero en una casilla impide que se marque, en un `<details>` que se
+despliegue y en un campo que reciba el foco. Y no deja ni error, ni aviso, ni rastro en la
+consola: el elemento simplemente no responde. Costó cuatro versiones encontrarlo cuatro veces
+(10.13.1, 10.13.4 y 10.13.6), y la última fue porque `data-pp` lo usaban a la vez el módulo
+Papeles y el selector de encargados de `js/sheets.js`.
+
+Dos cosas más:
+
+- **Prefijo propio y largo.** `data-pp` son dos letras que cualquiera puede repetir; `data-papeles`
+  no choca con nadie. Al añadir un módulo, mira antes que su atributo no lo use otro:
+  `grep -rl 'data-loquesea=' js/ modulos/`.
+- **`node herramientas/revisar-manejadores.mjs`** revisa esto en todos los manejadores y además
+  comprueba que la lista de acciones cuadre con los `case` del `switch`. Conviene correrlo antes
+  de publicar, junto con `node herramientas/version.mjs`.
+
+## Y al repintar
+
+Nada de depender solo de `requestAnimationFrame`: con la app en segundo plano o la pantalla
+apagada **no se dispara nunca**. Si además se usa una bandera para no repintar de más, esa
+bandera se queda encendida para siempre y el módulo no vuelve a pintarse en toda la sesión
+(fue el error de 10.13.2). Siempre con un `setTimeout` de respaldo, y que el primero de los
+dos que llegue cancele al otro.

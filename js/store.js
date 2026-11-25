@@ -24,10 +24,21 @@ export const session = { isAdmin: false, type: '', legacy: false, allow: [], den
 export const isCloud = !!(firebaseConfig && firebaseConfig.apiKey && !/^PEGA/i.test(firebaseConfig.apiKey));
 
 // ---------- Aviso de cambios (agrupado por fotograma para no repintar de más) ----------
+// Se agrupa por fotograma, pero con un temporizador de respaldo: con la pantalla apagada o
+// la app en segundo plano, requestAnimationFrame no llega a dispararse, y entonces los datos
+// que acaban de llegar de la nube no se verían hasta el siguiente cambio. El primero de los
+// dos avisos que llegue hace el trabajo y cancela al otro.
 const listeners = new Set();
 let raf = 0;
+let temporizador = 0;
 export const onData = cb => { listeners.add(cb); return () => listeners.delete(cb); };
-const notify = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => listeners.forEach(f => f())); };
+const notify = () => {
+  cancelAnimationFrame(raf);
+  clearTimeout(temporizador);
+  const avisar = () => { cancelAnimationFrame(raf); clearTimeout(temporizador); listeners.forEach(f => f()); };
+  raf = requestAnimationFrame(avisar);
+  temporizador = setTimeout(avisar, 250);
+};
 
 let onError = e => console.error(e);
 export const setErrorHandler = fn => { onError = fn; };

@@ -572,7 +572,8 @@ document.addEventListener('click', e => {
       const { bk, bid } = el.dataset;
       return S.noteSheet(id, () => (bk === 'person' ? S.personDetail(bid) : S.meetingSheet(bid)));
     }
-    case 'meeting': return S.meetingSheet(id);
+    case 'meeting': return S.meetingOpen(id);
+    case 'meeting-edit': return S.meetingSheet(id);
     case 'new-meeting': return S.meetingSheet(null);
     case 'agree-task': return S.agreementTask(id, el.dataset.i);
     // agenda de la reunión
@@ -615,7 +616,7 @@ document.addEventListener('click', e => {
     case 'type-remove': return S.typeRemove(el.dataset.col, el.dataset.v);
     case 'priv-add': return S.privilegeAdd();
     case 'task-from-meeting': return S.taskSheet(null, { meetingId: id, kind: 'otro' }, () => S.meetingSheet(id));
-    case 'seg': ui.notas.seg = v; return render();
+    case 'seg': ui.notas.seg = v; ui.notas.q = ''; return render();   // cada pestaña empieza sin la búsqueda de la otra
     case 'tag': ui.notas.tag = v; return render();
     // informe de servicio
     case 'profile': return S.profileSheet();

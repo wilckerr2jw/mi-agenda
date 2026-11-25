@@ -86,9 +86,14 @@ function vaciar(de) {
   abrir();
 }
 
+// Las acciones de este módulo, y solo esas: cancelar el clic de cualquier cosa con
+// «data-pr» impediría marcar una casilla o desplegar un <details> que se añada mañana,
+// y sin dar ninguna señal de que algo se canceló.
+const ACCIONES = new Set(['filtro', 'tarea', 'no', 'vaciar', 'copiar']);
+
 document.addEventListener('click', async e => {
   const b = e.target.closest?.('[data-pr]');
-  if (!b) return;
+  if (!b || !ACCIONES.has(b.dataset.pr)) return;
   e.preventDefault();
   try {
     switch (b.dataset.pr) {

@@ -2,7 +2,7 @@
 
 import * as store from './store.js';
 import { data, isCloud, account, session } from './store.js';
-import { esc, ic, uid, today, toast, toastPlace, fmtTime, fmtShort, fmtMonth, relDays, initials, telLink, waLink, norm, dateOf, avatarHtml, addDays, shareText } from './util.js';
+import { esc, ic, uid, today, toast, toastPlace, fmtTime, fmtShort, fmtLong, fmtMonth, relDays, initials, telLink, waLink, norm, dateOf, avatarHtml, addDays, shareText } from './util.js';
 import * as M from './model.js';
 import * as Theme from './theme.js';
 import { readKeep } from './keep.js';
@@ -2240,11 +2240,18 @@ let agendaPick = new Set();                   // puntos marcados para unir
 
 const minOptions = sel => [2, 3, 5, 10, 15, 20, 30, 45, 60].map(n => `<option value="${n}" ${n === sel ? 'selected' : ''}>${n} min</option>`).join('');
 
-// Panel de temas anteriores: elegir cuáles y traerlos resumidos en un punto o uno por uno
+// Panel de temas anteriores: elegir cuáles y traerlos resumidos en un punto o uno por uno.
+// Van sin marcar y diciendo de qué reunión y de cuándo vienen: con el tiempo esta lista
+// junta pendientes de reuniones de otros años y de otros asuntos, y marcarlos todos de
+// entrada metía en la agenda cosas que no tenían nada que ver.
 function pendingPanelHtml(pend) {
+  const deDonde = t => {
+    const m = data.meetings.find(x => x.id === t.meetingId);
+    return m ? `${m.title} · ${fmtShort(m.date)}` : '';
+  };
   return `<div class="ag-panel">
-    <p><b>Temas de reuniones anteriores</b></p>
-    <div class="checklist">${pend.map(t => `<label class="check"><input type="checkbox" name="agPend" value="${esc(t.id)}" checked> <span>${esc(t.title)}${(t.responsibles || []).length ? ` <span class="hint">${esc(A.joinNames(t.responsibles))}</span>` : ''}</span></label>`).join('')}</div>
+    <p><b>Temas de reuniones anteriores</b> <span class="hint">(${pend.length}; marca los que quieras traer)</span></p>
+    <div class="checklist">${pend.map(t => `<label class="check"><input type="checkbox" name="agPend" value="${esc(t.id)}"> <span>${esc(t.title)}${(t.responsibles || []).length ? ` <span class="hint">${esc(A.joinNames(t.responsibles))}</span>` : ''}<span class="pend-de">${esc(deDonde(t))}</span></span></label>`).join('')}</div>
     <div class="seg four" role="radiogroup" aria-label="Cómo traerlos">
       <label><input type="radio" name="agPendMode" value="one" checked><span>Resumidos en un punto</span></label>
       <label><input type="radio" name="agPendMode" value="each"><span>Uno por uno</span></label>
@@ -2668,6 +2675,54 @@ export function meetingNext(id) {
     attendees: m.attendees || '', attendeeIds: m.attendeeIds || [], attendeeGroupIds: m.attendeeGroupIds || [], topics: '', notes: '', agenda: [], agendaMax: m.agendaMax || 0, prayers: {} });
   meetingSheet(next.id);
   toast('Próxima reunión creada: revisa la fecha y usa «↻ Temas anteriores»');
+}
+
+// Una reunión que ya pasó se abre para leerla, no para editarla: lo normal con una de hace
+// meses es consultar qué se acordó, y entrar directo al formulario obligaba a recorrer todo
+// el editor para leer cuatro líneas, con «Eliminar» esperando al lado de «Guardar».
+export function meetingOpen(id, back) {
+  const m = store.get('meetings', id);
+  if (!m) return;
+  if (m.date >= today()) return meetingSheet(id, back);   // las próximas se preparan, se editan
+  meetingView(id, back);
+}
+
+function meetingView(id, back) {
+  const m = store.get('meetings', id);
+  if (!m) return;
+  const cuando = [fmtTime(m.time), m.place].filter(Boolean).join(' · ');
+  const quien = M.attendeesText(m);
+  const sch = A.schedule(m.agenda || [], m.time, true);
+  const linked = data.tasks.filter(t => t.meetingId === m.id);
+  const linkedNotes = data.notes.filter(n => n.meetingId === m.id);
+  const punto = x => `<div class="mini-row ag-row"><span class="grow">
+      ${sch.items[x.id] ? `<span class="ag-time">${sch.items[x.id]}</span>` : ''}<strong>${x.conf ? '🔒 ' : ''}${esc(x.t)}</strong>
+      ${(x.subs || []).length ? `<span class="ag-subs">${x.subs.map((s, j) => `<span>${String.fromCharCode(97 + j)}) ${esc(s)}</span>`).join('')}</span>` : ''}
+      <span class="meta">${[x.by ? esc(A.joinNames(A.splitNames(x.by))) : '', x.min ? `${x.min} min` : '', x.ref ? `📖 ${esc(A.formatRef(x.ref))}` : ''].filter(Boolean).join(' · ')}</span>
+      ${x.notes ? `<span class="meta">${esc(x.notes)}</span>` : ''}
+    </span></div>`;
+  const bloques = A.KIND_ORDER.map(k => {
+    const de = (m.agenda || []).filter(x => (x.kind || 'informar') === k);
+    return de.length ? `<p class="hint pick-h">${A.AGENDA_KINDS[k].h}</p><div class="mini-list">${de.map(punto).join('')}</div>` : '';
+  }).join('');
+  open({
+    title: `${ic('clip')} ${esc(m.title)}`, back,
+    body: `<div class="stack">
+      <p class="hint">${esc(fmtLong(m.date))} de ${m.date.slice(0, 4)}${cuando ? ` · ${esc(cuando)}` : ''}</p>
+      ${quien ? `<p class="meta">Con ${esc(quien)}</p>` : ''}
+    </div>
+    ${bloques ? `<section><h3 class="sub-h">Agenda</h3>${bloques}</section>` : ''}
+    ${m.topics ? `<section><h3 class="sub-h">Otros temas</h3><p class="prose">${esc(m.topics)}</p></section>` : ''}
+    ${m.notes ? `<section><h3 class="sub-h">Acuerdos y notas</h3><p class="prose">${esc(m.notes)}</p></section>` : ''}
+    <section id="agree-box">${agreementsHtml(m)}</section>
+    <section><h3 class="sub-h">Tareas de esta reunión</h3>
+      ${linked.length ? `<div class="stack">${linked.map(t => `<button class="card mini" data-a="task-in-sheet" data-id="${esc(t.id)}" data-bk="meeting" data-bid="${esc(m.id)}"><strong>${esc(t.title)}</strong><span class="meta">${esc(M.STATUS[t.status] || '')}</span></button>`).join('')}</div>` : '<p class="hint">Todavía no hay tareas.</p>'}
+      ${linked.length ? `<button type="button" class="btn pad-top" data-a="supervision" data-id="${esc(m.id)}">📋 Informe de supervisión</button>` : ''}
+      <button type="button" class="btn ghost pad-top" data-a="meeting-next" data-id="${esc(m.id)}">Preparar la próxima reunión a partir de esta</button></section>
+    ${linkedNotes.length ? `<section><h3 class="sub-h">Notas de la agenda vinculadas</h3>
+      <div class="stack">${linkedNotes.map(n => `<button class="card mini" data-a="note-in-sheet" data-id="${esc(n.id)}" data-bk="meeting" data-bid="${esc(m.id)}"><strong>${esc(n.title || 'Sin título')}</strong><span class="meta">${M.noteDate(n) ? fmtShort(M.noteDate(n)) : ''}</span></button>`).join('')}</div></section>` : ''}`,
+    actions: `<button type="button" class="btn primary" data-a="meeting-edit" data-id="${esc(m.id)}">Editar</button>`,
+  });
 }
 
 export function meetingSheet(id, back) {
