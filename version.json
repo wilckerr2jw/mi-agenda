@@ -1,7 +1,7 @@
 {
-  "version": "10.13.5",
+  "version": "10.13.6",
   "avisar": true,
   "notes": [
-    "📄 El S-147 ya reparte bien los puntos: los encabezados en plural («PARA LOS SUPERINTENDENTES DE SERVICIO») no se reconocían y sus puntos quedaban atribuidos al apartado anterior"
+    "👥 Los selectores de «Lo presenta(n)» y de las oraciones de la agenda ya se despliegan: no abrían desde que existe el módulo Papeles"
   ]
 }

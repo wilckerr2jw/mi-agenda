@@ -517,13 +517,20 @@ function ayuda() {
 
 // ───────────── Clics ─────────────
 
+// Las acciones de este módulo, y solo esas. «data-pp» no es exclusivo nuestro: el selector
+// de encargados de la app (js/sheets.js → pickerHtml) marca así su <details>, y las casillas
+// de la lista de tareas las atiende el 'change' de más abajo. A unos y a otras les cancelábamos
+// el clic, que en un <details> impide que se despliegue y en una casilla que se marque, las dos
+// cosas sin dar ninguna señal.
+const ACCIONES = new Set([
+  'inicio', 'elegir', 'guardar', 'pegar', 'leer-texto',
+  'duda-tarea', 'duda-no', 'ajustes', 'ajustes-ok', 'ayuda',
+  'sel-todas', 'sel-ninguna',
+]);
+
 document.addEventListener('click', async e => {
   const b = e.target.closest?.('[data-pp]');
-  if (!b) return;
-  // Las casillas las atiende el 'change' de más abajo. Cancelarles el clic aquí les impedía
-  // marcarse, y de paso el 'change' nunca llegaba a dispararse: no había forma de tildar
-  // ni destildar ninguna de la lista.
-  if (b.matches('input[type="checkbox"]')) return;
+  if (!b || !ACCIONES.has(b.dataset.pp)) return;
   e.preventDefault();
   const id = b.dataset.id || '';
   try {
